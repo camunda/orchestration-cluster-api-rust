@@ -28,6 +28,9 @@
 mod runtime;
 
 pub use runtime::auth::{AuthStrategy, Authentication};
+pub use runtime::backpressure::{
+    BackpressureManager, BackpressureProfile, BackpressureSeverity, BackpressureState,
+};
 pub use runtime::client::{CamundaClient, CamundaOptions};
 pub use runtime::config::CamundaConfig;
 pub use runtime::errors::{CamundaError, Result};

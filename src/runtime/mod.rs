@@ -2,6 +2,7 @@
 //! [`client::CamundaClient`] facade, and [`job_worker::JobWorker`].
 
 pub mod auth;
+pub mod backpressure;
 pub mod client;
 pub mod config;
 pub mod errors;

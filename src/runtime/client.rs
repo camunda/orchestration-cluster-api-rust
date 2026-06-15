@@ -1,6 +1,7 @@
 //! The ergonomic [`CamundaClient`] facade over the generated low-level client.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use camunda_orchestration_api_client::apis::configuration::Configuration;
 use camunda_orchestration_api_client::apis::{
@@ -9,6 +10,7 @@ use camunda_orchestration_api_client::apis::{
 use camunda_orchestration_api_client::models;
 
 use super::auth::Authentication;
+use super::backpressure::{is_backpressure_error, BackpressureManager, BackpressureState};
 use super::config::CamundaConfig;
 use super::errors::Result;
 use super::job_worker::{JobWorker, JobWorkerConfig};
@@ -53,6 +55,7 @@ pub struct CamundaClient {
     auth: Authentication,
     http: reqwest::Client,
     user_agent: String,
+    bp: Arc<BackpressureManager>,
 }
 
 impl CamundaClient {
@@ -66,6 +69,7 @@ impl CamundaClient {
         let config = CamundaConfig::from_env_with_overrides(&options.config)?;
         let http = options.http_client.unwrap_or_default();
         let auth = Authentication::from_config(&config, http.clone());
+        let bp = Arc::new(BackpressureManager::new(config.backpressure_profile));
         Ok(CamundaClient {
             config,
             auth,
@@ -74,6 +78,7 @@ impl CamundaClient {
                 "camunda-orchestration-sdk-rust/{}",
                 env!("CARGO_PKG_VERSION")
             ),
+            bp,
         })
     }
 
@@ -85,6 +90,32 @@ impl CamundaClient {
     /// The authentication handler.
     pub fn auth(&self) -> &Authentication {
         &self.auth
+    }
+
+    /// A snapshot of the adaptive backpressure controller's state, for observability.
+    pub fn backpressure_state(&self) -> BackpressureState {
+        self.bp.state()
+    }
+
+    /// Run an initiating operation under the adaptive backpressure gate: acquire a permit,
+    /// await the operation, then record the outcome and release the permit.
+    ///
+    /// Drain operations (job completion / failure / BPMN error) bypass this gate so that
+    /// in-flight work can always be drained even while the cluster is shedding new load.
+    async fn guarded<T, F, Fut>(&self, op: F) -> Result<T>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = Result<T>>,
+    {
+        self.bp.acquire().await?;
+        let result = op().await;
+        match &result {
+            Ok(_) => self.bp.record_healthy_hint(),
+            Err(e) if is_backpressure_error(e) => self.bp.record_backpressure(),
+            Err(_) => {}
+        }
+        self.bp.release();
+        result
     }
 
     /// Build a generated-client [`Configuration`] with the base URL set and the current
@@ -121,8 +152,11 @@ impl CamundaClient {
 
     /// Fetch the cluster topology.
     pub async fn topology(&self) -> Result<models::TopologyResponse> {
-        let cfg = self.configuration().await?;
-        Ok(cluster_api::get_topology(&cfg).await?)
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(cluster_api::get_topology(&cfg).await?)
+        })
+        .await
     }
 
     /// Create (start) a process instance.
@@ -130,11 +164,14 @@ impl CamundaClient {
         &self,
         instruction: models::ProcessInstanceCreationInstruction,
     ) -> Result<models::CreateProcessInstanceResult> {
-        let cfg = self.configuration().await?;
-        let params = process_instance_api::CreateProcessInstanceParams {
-            process_instance_creation_instruction: instruction,
-        };
-        Ok(process_instance_api::create_process_instance(&cfg, params).await?)
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            let params = process_instance_api::CreateProcessInstanceParams {
+                process_instance_creation_instruction: instruction,
+            };
+            Ok(process_instance_api::create_process_instance(&cfg, params).await?)
+        })
+        .await
     }
 
     /// Deploy one or more resources (BPMN, DMN, forms) from local file paths.
@@ -143,12 +180,15 @@ impl CamundaClient {
         resources: Vec<std::path::PathBuf>,
         tenant_id: Option<String>,
     ) -> Result<models::DeploymentResult> {
-        let cfg = self.configuration().await?;
-        let params = resource_api::CreateDeploymentParams {
-            resources,
-            tenant_id,
-        };
-        Ok(resource_api::create_deployment(&cfg, params).await?)
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            let params = resource_api::CreateDeploymentParams {
+                resources,
+                tenant_id,
+            };
+            Ok(resource_api::create_deployment(&cfg, params).await?)
+        })
+        .await
     }
 
     // --- Job operations (also used by the job worker) -----------------------
@@ -159,14 +199,20 @@ impl CamundaClient {
         &self,
         request: models::JobActivationRequest,
     ) -> Result<models::JobActivationResult> {
-        let cfg = self.configuration().await?;
-        let params = job_api::ActivateJobsParams {
-            job_activation_request: request,
-        };
-        Ok(job_api::activate_jobs(&cfg, params).await?)
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            let params = job_api::ActivateJobsParams {
+                job_activation_request: request,
+            };
+            Ok(job_api::activate_jobs(&cfg, params).await?)
+        })
+        .await
     }
 
     /// Complete a job, optionally with output variables.
+    ///
+    /// Job completion is a *drain* operation and intentionally bypasses the backpressure
+    /// gate so in-flight work can always be drained, even while new load is being shed.
     pub async fn complete_job(
         &self,
         job_key: &str,

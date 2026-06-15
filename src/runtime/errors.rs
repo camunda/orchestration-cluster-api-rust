@@ -40,6 +40,11 @@ pub enum CamundaError {
     /// A domain-type or input constraint was violated before sending the request.
     #[error("validation error: {0}")]
     Validation(String),
+
+    /// The client-side backpressure controller rejected the request to avoid
+    /// unbounded memory growth (waiter queue at capacity).
+    #[error("backpressure error: {0}")]
+    Backpressure(String),
 }
 
 impl CamundaError {

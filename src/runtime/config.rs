@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 
 use super::auth::AuthStrategy;
+use super::backpressure::BackpressureProfile;
 use super::errors::{CamundaError, Result};
 
 /// Default REST address used when none is configured.
@@ -35,6 +36,8 @@ pub struct CamundaConfig {
     pub basic_auth_password: Option<String>,
     /// Default tenant id applied to operations that accept one.
     pub default_tenant_id: Option<String>,
+    /// Adaptive backpressure profile (`CAMUNDA_SDK_BACKPRESSURE_PROFILE`).
+    pub backpressure_profile: BackpressureProfile,
 }
 
 impl CamundaConfig {
@@ -95,6 +98,10 @@ impl CamundaConfig {
             basic_auth_password: get("CAMUNDA_BASIC_AUTH_PASSWORD"),
             default_tenant_id: get("CAMUNDA_DEFAULT_TENANT_ID")
                 .or_else(|| get("CAMUNDA_TENANT_ID")),
+            backpressure_profile: match get("CAMUNDA_SDK_BACKPRESSURE_PROFILE") {
+                Some(s) => s.parse::<BackpressureProfile>()?,
+                None => BackpressureProfile::default(),
+            },
         };
 
         config.validate()?;
