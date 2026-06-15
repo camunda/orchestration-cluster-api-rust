@@ -1,0 +1,17 @@
+# Rust build output
+/target
+**/target
+
+# Transient upstream spec clone (never commit — see camunda-schema-bundler)
+external-spec/upstream/
+
+# Node (used only for spec bundling / openapi-generator-cli)
+node_modules/
+package-lock.json
+
+# openapi-generator
+.openapi-generator/
+.openapi-generator-ignore
+
+# Env
+.env

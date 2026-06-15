@@ -1,0 +1,17 @@
+# openapi-generator configuration for the generated low-level client crate.
+# The generated crate (client/) is NEVER hand-edited. Regenerate via `make generate`.
+#
+# Domain Type System (Camunda semantic keys such as JobKey, ProcessInstanceKey)
+# is NOT produced correctly by openapi-generator — it emits broken empty structs
+# or drops them. The post-processor scripts/postprocess_domain_types.py replaces
+# them with validated nominal newtypes. See AGENTS.md.
+generatorName: rust
+inputSpec: external-spec/bundled/rest-api.bundle.json
+outputDir: client
+additionalProperties:
+  packageName: camunda-orchestration-api-client
+  packageVersion: 0.1.0
+  supportAsync: true
+  library: reqwest
+  useSingleRequestParameter: true
+  avoidBoxedModels: false

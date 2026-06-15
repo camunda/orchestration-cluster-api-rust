@@ -1,0 +1,12 @@
+# JobStateFilterProperty
+
+## Enum Variants
+
+| Name | Description |
+|---- | -----|
+| AdvancedJobStateFilter | JobStateEnum property with full advanced search capabilities. |
+| JobStateExactMatch | JobStateEnum property with full advanced search capabilities. |
+
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+

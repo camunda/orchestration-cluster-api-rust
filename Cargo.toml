@@ -1,0 +1,32 @@
+[package]
+name = "camunda-orchestration-sdk"
+version = "0.1.0"
+edition = "2021"
+description = "Ergonomic Rust SDK for the Camunda 8 Orchestration Cluster REST API"
+license = "Camunda License Version 1.0"
+repository = "https://github.com/camunda/orchestration-cluster-api-rust"
+readme = "README.md"
+keywords = ["camunda", "zeebe", "bpmn", "workflow", "orchestration"]
+categories = ["api-bindings", "asynchronous"]
+
+[workspace]
+members = ["client"]
+
+[dependencies]
+camunda-orchestration-api-client = { path = "client", version = "0.1.0" }
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync"] }
+thiserror = "2"
+async-trait = "0.1"
+tracing = "0.1"
+url = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+
+[features]
+default = ["native-tls"]
+native-tls = ["reqwest/native-tls", "camunda-orchestration-api-client/native-tls"]
+rustls = ["reqwest/rustls", "camunda-orchestration-api-client/rustls"]
