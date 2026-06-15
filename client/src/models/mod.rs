@@ -1143,6 +1143,5 @@ pub use self::wait_state_type_filter_property::WaitStateTypeFilterProperty;
 pub mod webapp_component;
 pub use self::webapp_component::WebappComponent;
 
-
 pub mod camunda_keys;
 pub use self::camunda_keys::*;

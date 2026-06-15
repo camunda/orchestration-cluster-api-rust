@@ -83,7 +83,8 @@ fn check_constraints(
 /// System-generated key for an agent history item.
 ///
 /// Example: `6755399441055744`
-static AGENT_HISTORY_ITEM_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static AGENT_HISTORY_ITEM_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AgentHistoryItemKey(String);
@@ -97,13 +98,26 @@ impl AgentHistoryItemKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&AGENT_HISTORY_ITEM_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&AGENT_HISTORY_ITEM_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&AGENT_HISTORY_ITEM_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&AGENT_HISTORY_ITEM_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -119,10 +133,18 @@ impl AgentHistoryItemKey {
 
 impl CamundaKey for AgentHistoryItemKey {
     const SEMANTIC_TYPE: &'static str = "AgentHistoryItemKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for AgentHistoryItemKey {
@@ -132,20 +154,27 @@ impl fmt::Display for AgentHistoryItemKey {
 }
 
 impl From<AgentHistoryItemKey> for String {
-    fn from(v: AgentHistoryItemKey) -> String { v.0 }
+    fn from(v: AgentHistoryItemKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for AgentHistoryItemKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for AgentHistoryItemKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static AGENT_HISTORY_ITEM_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static AGENT_HISTORY_ITEM_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AgentHistoryItemKeyExactMatch(String);
@@ -159,13 +188,26 @@ impl AgentHistoryItemKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&AGENT_HISTORY_ITEM_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&AGENT_HISTORY_ITEM_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&AGENT_HISTORY_ITEM_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&AGENT_HISTORY_ITEM_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -181,10 +223,18 @@ impl AgentHistoryItemKeyExactMatch {
 
 impl CamundaKey for AgentHistoryItemKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "AgentHistoryItemKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for AgentHistoryItemKeyExactMatch {
@@ -194,22 +244,29 @@ impl fmt::Display for AgentHistoryItemKeyExactMatch {
 }
 
 impl From<AgentHistoryItemKeyExactMatch> for String {
-    fn from(v: AgentHistoryItemKeyExactMatch) -> String { v.0 }
+    fn from(v: AgentHistoryItemKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for AgentHistoryItemKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for AgentHistoryItemKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for an agent instance.
 ///
 /// Example: `4503599627370496`
-static AGENT_INSTANCE_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static AGENT_INSTANCE_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AgentInstanceKey(String);
@@ -223,13 +280,26 @@ impl AgentInstanceKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&AGENT_INSTANCE_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&AGENT_INSTANCE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&AGENT_INSTANCE_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&AGENT_INSTANCE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -245,10 +315,18 @@ impl AgentInstanceKey {
 
 impl CamundaKey for AgentInstanceKey {
     const SEMANTIC_TYPE: &'static str = "AgentInstanceKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for AgentInstanceKey {
@@ -258,20 +336,27 @@ impl fmt::Display for AgentInstanceKey {
 }
 
 impl From<AgentInstanceKey> for String {
-    fn from(v: AgentInstanceKey) -> String { v.0 }
+    fn from(v: AgentInstanceKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for AgentInstanceKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for AgentInstanceKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static AGENT_INSTANCE_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static AGENT_INSTANCE_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AgentInstanceKeyExactMatch(String);
@@ -285,13 +370,26 @@ impl AgentInstanceKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&AGENT_INSTANCE_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&AGENT_INSTANCE_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&AGENT_INSTANCE_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&AGENT_INSTANCE_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -307,10 +405,18 @@ impl AgentInstanceKeyExactMatch {
 
 impl CamundaKey for AgentInstanceKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "AgentInstanceKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for AgentInstanceKeyExactMatch {
@@ -320,16 +426,22 @@ impl fmt::Display for AgentInstanceKeyExactMatch {
 }
 
 impl From<AgentInstanceKeyExactMatch> for String {
-    fn from(v: AgentInstanceKeyExactMatch) -> String { v.0 }
+    fn from(v: AgentInstanceKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for AgentInstanceKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for AgentInstanceKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated entity key for an audit log entry.
@@ -370,10 +482,18 @@ impl AuditLogEntityKey {
 
 impl CamundaKey for AuditLogEntityKey {
     const SEMANTIC_TYPE: &'static str = "AuditLogEntityKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for AuditLogEntityKey {
@@ -383,16 +503,22 @@ impl fmt::Display for AuditLogEntityKey {
 }
 
 impl From<AuditLogEntityKey> for String {
-    fn from(v: AuditLogEntityKey) -> String { v.0 }
+    fn from(v: AuditLogEntityKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for AuditLogEntityKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for AuditLogEntityKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
@@ -431,10 +557,18 @@ impl AuditLogEntityKeyExactMatch {
 
 impl CamundaKey for AuditLogEntityKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "AuditLogEntityKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for AuditLogEntityKeyExactMatch {
@@ -444,22 +578,29 @@ impl fmt::Display for AuditLogEntityKeyExactMatch {
 }
 
 impl From<AuditLogEntityKeyExactMatch> for String {
-    fn from(v: AuditLogEntityKeyExactMatch) -> String { v.0 }
+    fn from(v: AuditLogEntityKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for AuditLogEntityKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for AuditLogEntityKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for an audit log entry.
 ///
 /// Example: `22517998136843567`
-static AUDIT_LOG_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static AUDIT_LOG_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AuditLogKey(String);
@@ -473,13 +614,26 @@ impl AuditLogKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&AUDIT_LOG_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&AUDIT_LOG_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&AUDIT_LOG_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&AUDIT_LOG_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -495,10 +649,18 @@ impl AuditLogKey {
 
 impl CamundaKey for AuditLogKey {
     const SEMANTIC_TYPE: &'static str = "AuditLogKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for AuditLogKey {
@@ -508,20 +670,27 @@ impl fmt::Display for AuditLogKey {
 }
 
 impl From<AuditLogKey> for String {
-    fn from(v: AuditLogKey) -> String { v.0 }
+    fn from(v: AuditLogKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for AuditLogKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for AuditLogKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static AUDIT_LOG_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static AUDIT_LOG_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AuditLogKeyExactMatch(String);
@@ -535,13 +704,26 @@ impl AuditLogKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&AUDIT_LOG_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&AUDIT_LOG_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&AUDIT_LOG_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&AUDIT_LOG_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -557,10 +739,18 @@ impl AuditLogKeyExactMatch {
 
 impl CamundaKey for AuditLogKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "AuditLogKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for AuditLogKeyExactMatch {
@@ -570,22 +760,29 @@ impl fmt::Display for AuditLogKeyExactMatch {
 }
 
 impl From<AuditLogKeyExactMatch> for String {
-    fn from(v: AuditLogKeyExactMatch) -> String { v.0 }
+    fn from(v: AuditLogKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for AuditLogKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for AuditLogKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for an authorization.
 ///
 /// Example: `2251799813684332`
-static AUTHORIZATION_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static AUTHORIZATION_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AuthorizationKey(String);
@@ -599,13 +796,26 @@ impl AuthorizationKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&AUTHORIZATION_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&AUTHORIZATION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&AUTHORIZATION_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&AUTHORIZATION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -621,10 +831,18 @@ impl AuthorizationKey {
 
 impl CamundaKey for AuthorizationKey {
     const SEMANTIC_TYPE: &'static str = "AuthorizationKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for AuthorizationKey {
@@ -634,16 +852,22 @@ impl fmt::Display for AuthorizationKey {
 }
 
 impl From<AuthorizationKey> for String {
-    fn from(v: AuthorizationKey) -> String { v.0 }
+    fn from(v: AuthorizationKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for AuthorizationKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for AuthorizationKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for an batch operation.
@@ -684,10 +908,18 @@ impl BatchOperationKey {
 
 impl CamundaKey for BatchOperationKey {
     const SEMANTIC_TYPE: &'static str = "BatchOperationKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for BatchOperationKey {
@@ -697,16 +929,22 @@ impl fmt::Display for BatchOperationKey {
 }
 
 impl From<BatchOperationKey> for String {
-    fn from(v: BatchOperationKey) -> String { v.0 }
+    fn from(v: BatchOperationKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for BatchOperationKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for BatchOperationKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// An optional, user-defined string identifier that identifies the process instance within the scope of a process definition (scoped by tenant). If provided and uniqueness enforcement is enabled, the engine will reject creation if another root process instance with the same business id is already active for the same process definition. Note that any active child process instances with the same business id are not taken into account.
@@ -725,13 +963,26 @@ impl BusinessId {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, None, Some(1), Some(256))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            None,
+            Some(1),
+            Some(256),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, None, Some(1), Some(256)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            None,
+            Some(1),
+            Some(256),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -747,10 +998,18 @@ impl BusinessId {
 
 impl CamundaKey for BusinessId {
     const SEMANTIC_TYPE: &'static str = "BusinessId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for BusinessId {
@@ -760,22 +1019,29 @@ impl fmt::Display for BusinessId {
 }
 
 impl From<BusinessId> for String {
-    fn from(v: BusinessId) -> String { v.0 }
+    fn from(v: BusinessId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for BusinessId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for BusinessId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The unique identifier of an OAuth client. Minted outside the Camunda REST API: in SaaS by Console, in Self-Managed with OIDC by the external identity provider (e.g. EntraID, Keycloak, Okta). In Self-Managed with Basic authentication, machine-to-machine applications are modelled as users instead — see the user identifier.
 ///
 /// Example: `my-application`
-static CLIENT_ID_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+-]+$"#).expect("valid regex"));
+static CLIENT_ID_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+-]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ClientId(String);
@@ -789,13 +1055,26 @@ impl ClientId {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&CLIENT_ID_PATTERN), Some(1), Some(256))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&CLIENT_ID_PATTERN),
+            Some(1),
+            Some(256),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&CLIENT_ID_PATTERN), Some(1), Some(256)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&CLIENT_ID_PATTERN),
+            Some(1),
+            Some(256),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -811,10 +1090,18 @@ impl ClientId {
 
 impl CamundaKey for ClientId {
     const SEMANTIC_TYPE: &'static str = "ClientId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ClientId {
@@ -824,22 +1111,29 @@ impl fmt::Display for ClientId {
 }
 
 impl From<ClientId> for String {
-    fn from(v: ClientId) -> String { v.0 }
+    fn from(v: ClientId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ClientId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ClientId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The name of a cluster variable. Unique within its scope (global or tenant-specific).
 ///
 /// Example: `feature-flag-checkout`
-static CLUSTER_VARIABLE_NAME_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+-]+$"#).expect("valid regex"));
+static CLUSTER_VARIABLE_NAME_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+-]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ClusterVariableName(String);
@@ -853,13 +1147,26 @@ impl ClusterVariableName {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&CLUSTER_VARIABLE_NAME_PATTERN), Some(1), Some(256))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&CLUSTER_VARIABLE_NAME_PATTERN),
+            Some(1),
+            Some(256),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&CLUSTER_VARIABLE_NAME_PATTERN), Some(1), Some(256)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&CLUSTER_VARIABLE_NAME_PATTERN),
+            Some(1),
+            Some(256),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -875,10 +1182,18 @@ impl ClusterVariableName {
 
 impl CamundaKey for ClusterVariableName {
     const SEMANTIC_TYPE: &'static str = "ClusterVariableName";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ClusterVariableName {
@@ -888,22 +1203,29 @@ impl fmt::Display for ClusterVariableName {
 }
 
 impl From<ClusterVariableName> for String {
-    fn from(v: ClusterVariableName) -> String { v.0 }
+    fn from(v: ClusterVariableName) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ClusterVariableName {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ClusterVariableName {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a conditional evaluation.
 ///
 /// Example: `2251799813687654`
-static CONDITIONAL_EVALUATION_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static CONDITIONAL_EVALUATION_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ConditionalEvaluationKey(String);
@@ -917,13 +1239,26 @@ impl ConditionalEvaluationKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&CONDITIONAL_EVALUATION_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&CONDITIONAL_EVALUATION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&CONDITIONAL_EVALUATION_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&CONDITIONAL_EVALUATION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -939,10 +1274,18 @@ impl ConditionalEvaluationKey {
 
 impl CamundaKey for ConditionalEvaluationKey {
     const SEMANTIC_TYPE: &'static str = "ConditionalEvaluationKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ConditionalEvaluationKey {
@@ -952,22 +1295,29 @@ impl fmt::Display for ConditionalEvaluationKey {
 }
 
 impl From<ConditionalEvaluationKey> for String {
-    fn from(v: ConditionalEvaluationKey) -> String { v.0 }
+    fn from(v: ConditionalEvaluationKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ConditionalEvaluationKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ConditionalEvaluationKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Id of a decision definition, from the model. Only ids of decision definitions that are deployed are useful.
 ///
 /// Example: `new-hire-onboarding-workflow`
-static DECISION_DEFINITION_ID_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[\p{L}_][\p{L}\p{N}_\-\.]*$"#).expect("valid regex"));
+static DECISION_DEFINITION_ID_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[\p{L}_][\p{L}\p{N}_\-\.]*$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionDefinitionId(String);
@@ -981,13 +1331,26 @@ impl DecisionDefinitionId {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DECISION_DEFINITION_ID_PATTERN), Some(1), None)?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DECISION_DEFINITION_ID_PATTERN),
+            Some(1),
+            None,
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DECISION_DEFINITION_ID_PATTERN), Some(1), None).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DECISION_DEFINITION_ID_PATTERN),
+            Some(1),
+            None,
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1003,10 +1366,18 @@ impl DecisionDefinitionId {
 
 impl CamundaKey for DecisionDefinitionId {
     const SEMANTIC_TYPE: &'static str = "DecisionDefinitionId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DecisionDefinitionId {
@@ -1016,22 +1387,29 @@ impl fmt::Display for DecisionDefinitionId {
 }
 
 impl From<DecisionDefinitionId> for String {
-    fn from(v: DecisionDefinitionId) -> String { v.0 }
+    fn from(v: DecisionDefinitionId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DecisionDefinitionId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DecisionDefinitionId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a decision definition.
 ///
 /// Example: `2251799813326547`
-static DECISION_DEFINITION_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static DECISION_DEFINITION_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionDefinitionKey(String);
@@ -1045,13 +1423,26 @@ impl DecisionDefinitionKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DECISION_DEFINITION_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DECISION_DEFINITION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DECISION_DEFINITION_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DECISION_DEFINITION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1067,10 +1458,18 @@ impl DecisionDefinitionKey {
 
 impl CamundaKey for DecisionDefinitionKey {
     const SEMANTIC_TYPE: &'static str = "DecisionDefinitionKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DecisionDefinitionKey {
@@ -1080,20 +1479,27 @@ impl fmt::Display for DecisionDefinitionKey {
 }
 
 impl From<DecisionDefinitionKey> for String {
-    fn from(v: DecisionDefinitionKey) -> String { v.0 }
+    fn from(v: DecisionDefinitionKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DecisionDefinitionKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DecisionDefinitionKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static DECISION_DEFINITION_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static DECISION_DEFINITION_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionDefinitionKeyExactMatch(String);
@@ -1107,13 +1513,26 @@ impl DecisionDefinitionKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DECISION_DEFINITION_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DECISION_DEFINITION_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DECISION_DEFINITION_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DECISION_DEFINITION_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1129,10 +1548,18 @@ impl DecisionDefinitionKeyExactMatch {
 
 impl CamundaKey for DecisionDefinitionKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "DecisionDefinitionKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DecisionDefinitionKeyExactMatch {
@@ -1142,22 +1569,29 @@ impl fmt::Display for DecisionDefinitionKeyExactMatch {
 }
 
 impl From<DecisionDefinitionKeyExactMatch> for String {
-    fn from(v: DecisionDefinitionKeyExactMatch) -> String { v.0 }
+    fn from(v: DecisionDefinitionKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DecisionDefinitionKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DecisionDefinitionKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated identifier for a decision evaluation instance. It is composed of the parent decision evaluation key and the 1-based index of the evaluated decision within that evaluation, joined by a hyphen (format: `<decisionEvaluationKey>-<index>`).
 ///
 /// Example: `2251799813684367-1`
-static DECISION_EVALUATION_INSTANCE_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[0-9]+-[0-9]+$"#).expect("valid regex"));
+static DECISION_EVALUATION_INSTANCE_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[0-9]+-[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionEvaluationInstanceKey(String);
@@ -1171,13 +1605,26 @@ impl DecisionEvaluationInstanceKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DECISION_EVALUATION_INSTANCE_KEY_PATTERN), Some(3), Some(30))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DECISION_EVALUATION_INSTANCE_KEY_PATTERN),
+            Some(3),
+            Some(30),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DECISION_EVALUATION_INSTANCE_KEY_PATTERN), Some(3), Some(30)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DECISION_EVALUATION_INSTANCE_KEY_PATTERN),
+            Some(3),
+            Some(30),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1193,10 +1640,18 @@ impl DecisionEvaluationInstanceKey {
 
 impl CamundaKey for DecisionEvaluationInstanceKey {
     const SEMANTIC_TYPE: &'static str = "DecisionEvaluationInstanceKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DecisionEvaluationInstanceKey {
@@ -1206,20 +1661,27 @@ impl fmt::Display for DecisionEvaluationInstanceKey {
 }
 
 impl From<DecisionEvaluationInstanceKey> for String {
-    fn from(v: DecisionEvaluationInstanceKey) -> String { v.0 }
+    fn from(v: DecisionEvaluationInstanceKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DecisionEvaluationInstanceKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DecisionEvaluationInstanceKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static DECISION_EVALUATION_INSTANCE_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[0-9]+-[0-9]+$"#).expect("valid regex"));
+static DECISION_EVALUATION_INSTANCE_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[0-9]+-[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionEvaluationInstanceKeyExactMatch(String);
@@ -1233,13 +1695,26 @@ impl DecisionEvaluationInstanceKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DECISION_EVALUATION_INSTANCE_KEY_EXACT_MATCH_PATTERN), Some(3), Some(30))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DECISION_EVALUATION_INSTANCE_KEY_EXACT_MATCH_PATTERN),
+            Some(3),
+            Some(30),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DECISION_EVALUATION_INSTANCE_KEY_EXACT_MATCH_PATTERN), Some(3), Some(30)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DECISION_EVALUATION_INSTANCE_KEY_EXACT_MATCH_PATTERN),
+            Some(3),
+            Some(30),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1255,10 +1730,18 @@ impl DecisionEvaluationInstanceKeyExactMatch {
 
 impl CamundaKey for DecisionEvaluationInstanceKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "DecisionEvaluationInstanceKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DecisionEvaluationInstanceKeyExactMatch {
@@ -1268,22 +1751,29 @@ impl fmt::Display for DecisionEvaluationInstanceKeyExactMatch {
 }
 
 impl From<DecisionEvaluationInstanceKeyExactMatch> for String {
-    fn from(v: DecisionEvaluationInstanceKeyExactMatch) -> String { v.0 }
+    fn from(v: DecisionEvaluationInstanceKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DecisionEvaluationInstanceKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DecisionEvaluationInstanceKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a decision evaluation.
 ///
 /// Example: `2251792362345323`
-static DECISION_EVALUATION_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static DECISION_EVALUATION_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionEvaluationKey(String);
@@ -1297,13 +1787,26 @@ impl DecisionEvaluationKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DECISION_EVALUATION_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DECISION_EVALUATION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DECISION_EVALUATION_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DECISION_EVALUATION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1319,10 +1822,18 @@ impl DecisionEvaluationKey {
 
 impl CamundaKey for DecisionEvaluationKey {
     const SEMANTIC_TYPE: &'static str = "DecisionEvaluationKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DecisionEvaluationKey {
@@ -1332,20 +1843,27 @@ impl fmt::Display for DecisionEvaluationKey {
 }
 
 impl From<DecisionEvaluationKey> for String {
-    fn from(v: DecisionEvaluationKey) -> String { v.0 }
+    fn from(v: DecisionEvaluationKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DecisionEvaluationKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DecisionEvaluationKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static DECISION_EVALUATION_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static DECISION_EVALUATION_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionEvaluationKeyExactMatch(String);
@@ -1359,13 +1877,26 @@ impl DecisionEvaluationKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DECISION_EVALUATION_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DECISION_EVALUATION_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DECISION_EVALUATION_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DECISION_EVALUATION_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1381,10 +1912,18 @@ impl DecisionEvaluationKeyExactMatch {
 
 impl CamundaKey for DecisionEvaluationKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "DecisionEvaluationKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DecisionEvaluationKeyExactMatch {
@@ -1394,22 +1933,29 @@ impl fmt::Display for DecisionEvaluationKeyExactMatch {
 }
 
 impl From<DecisionEvaluationKeyExactMatch> for String {
-    fn from(v: DecisionEvaluationKeyExactMatch) -> String { v.0 }
+    fn from(v: DecisionEvaluationKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DecisionEvaluationKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DecisionEvaluationKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a deployed decision instance.
 ///
 /// Example: `22517998136843567`
-static DECISION_INSTANCE_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static DECISION_INSTANCE_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionInstanceKey(String);
@@ -1423,13 +1969,26 @@ impl DecisionInstanceKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DECISION_INSTANCE_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DECISION_INSTANCE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DECISION_INSTANCE_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DECISION_INSTANCE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1445,10 +2004,18 @@ impl DecisionInstanceKey {
 
 impl CamundaKey for DecisionInstanceKey {
     const SEMANTIC_TYPE: &'static str = "DecisionInstanceKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DecisionInstanceKey {
@@ -1458,22 +2025,29 @@ impl fmt::Display for DecisionInstanceKey {
 }
 
 impl From<DecisionInstanceKey> for String {
-    fn from(v: DecisionInstanceKey) -> String { v.0 }
+    fn from(v: DecisionInstanceKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DecisionInstanceKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DecisionInstanceKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a deployed decision requirements definition.
 ///
 /// Example: `2251799813683346`
-static DECISION_REQUIREMENTS_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static DECISION_REQUIREMENTS_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionRequirementsKey(String);
@@ -1487,13 +2061,26 @@ impl DecisionRequirementsKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DECISION_REQUIREMENTS_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DECISION_REQUIREMENTS_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DECISION_REQUIREMENTS_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DECISION_REQUIREMENTS_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1509,10 +2096,18 @@ impl DecisionRequirementsKey {
 
 impl CamundaKey for DecisionRequirementsKey {
     const SEMANTIC_TYPE: &'static str = "DecisionRequirementsKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DecisionRequirementsKey {
@@ -1522,20 +2117,27 @@ impl fmt::Display for DecisionRequirementsKey {
 }
 
 impl From<DecisionRequirementsKey> for String {
-    fn from(v: DecisionRequirementsKey) -> String { v.0 }
+    fn from(v: DecisionRequirementsKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DecisionRequirementsKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DecisionRequirementsKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static DECISION_REQUIREMENTS_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static DECISION_REQUIREMENTS_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionRequirementsKeyExactMatch(String);
@@ -1549,13 +2151,26 @@ impl DecisionRequirementsKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DECISION_REQUIREMENTS_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DECISION_REQUIREMENTS_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DECISION_REQUIREMENTS_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DECISION_REQUIREMENTS_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1571,10 +2186,18 @@ impl DecisionRequirementsKeyExactMatch {
 
 impl CamundaKey for DecisionRequirementsKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "DecisionRequirementsKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DecisionRequirementsKeyExactMatch {
@@ -1584,20 +2207,27 @@ impl fmt::Display for DecisionRequirementsKeyExactMatch {
 }
 
 impl From<DecisionRequirementsKeyExactMatch> for String {
-    fn from(v: DecisionRequirementsKeyExactMatch) -> String { v.0 }
+    fn from(v: DecisionRequirementsKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DecisionRequirementsKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DecisionRequirementsKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Key for a deployment.
-static DEPLOYMENT_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static DEPLOYMENT_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DeploymentKey(String);
@@ -1611,13 +2241,26 @@ impl DeploymentKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DEPLOYMENT_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DEPLOYMENT_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DEPLOYMENT_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DEPLOYMENT_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1633,10 +2276,18 @@ impl DeploymentKey {
 
 impl CamundaKey for DeploymentKey {
     const SEMANTIC_TYPE: &'static str = "DeploymentKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DeploymentKey {
@@ -1646,20 +2297,27 @@ impl fmt::Display for DeploymentKey {
 }
 
 impl From<DeploymentKey> for String {
-    fn from(v: DeploymentKey) -> String { v.0 }
+    fn from(v: DeploymentKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DeploymentKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DeploymentKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static DEPLOYMENT_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static DEPLOYMENT_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DeploymentKeyExactMatch(String);
@@ -1673,13 +2331,26 @@ impl DeploymentKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&DEPLOYMENT_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&DEPLOYMENT_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&DEPLOYMENT_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&DEPLOYMENT_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1695,10 +2366,18 @@ impl DeploymentKeyExactMatch {
 
 impl CamundaKey for DeploymentKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "DeploymentKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DeploymentKeyExactMatch {
@@ -1708,16 +2387,22 @@ impl fmt::Display for DeploymentKeyExactMatch {
 }
 
 impl From<DeploymentKeyExactMatch> for String {
-    fn from(v: DeploymentKeyExactMatch) -> String { v.0 }
+    fn from(v: DeploymentKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DeploymentKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DeploymentKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Document Id that uniquely identifies a document.
@@ -1756,10 +2441,18 @@ impl DocumentId {
 
 impl CamundaKey for DocumentId {
     const SEMANTIC_TYPE: &'static str = "DocumentId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for DocumentId {
@@ -1769,16 +2462,22 @@ impl fmt::Display for DocumentId {
 }
 
 impl From<DocumentId> for String {
-    fn from(v: DocumentId) -> String { v.0 }
+    fn from(v: DocumentId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for DocumentId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for DocumentId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The model-defined id of an element.
@@ -1819,10 +2518,18 @@ impl ElementId {
 
 impl CamundaKey for ElementId {
     const SEMANTIC_TYPE: &'static str = "ElementId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ElementId {
@@ -1832,16 +2539,22 @@ impl fmt::Display for ElementId {
 }
 
 impl From<ElementId> for String {
-    fn from(v: ElementId) -> String { v.0 }
+    fn from(v: ElementId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ElementId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ElementId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
@@ -1880,10 +2593,18 @@ impl ElementIdExactMatch {
 
 impl CamundaKey for ElementIdExactMatch {
     const SEMANTIC_TYPE: &'static str = "ElementIdExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ElementIdExactMatch {
@@ -1893,22 +2614,29 @@ impl fmt::Display for ElementIdExactMatch {
 }
 
 impl From<ElementIdExactMatch> for String {
-    fn from(v: ElementIdExactMatch) -> String { v.0 }
+    fn from(v: ElementIdExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ElementIdExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ElementIdExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a element instance.
 ///
 /// Example: `2251799813686789`
-static ELEMENT_INSTANCE_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static ELEMENT_INSTANCE_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ElementInstanceKey(String);
@@ -1922,13 +2650,26 @@ impl ElementInstanceKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&ELEMENT_INSTANCE_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&ELEMENT_INSTANCE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&ELEMENT_INSTANCE_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&ELEMENT_INSTANCE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -1944,10 +2685,18 @@ impl ElementInstanceKey {
 
 impl CamundaKey for ElementInstanceKey {
     const SEMANTIC_TYPE: &'static str = "ElementInstanceKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ElementInstanceKey {
@@ -1957,20 +2706,27 @@ impl fmt::Display for ElementInstanceKey {
 }
 
 impl From<ElementInstanceKey> for String {
-    fn from(v: ElementInstanceKey) -> String { v.0 }
+    fn from(v: ElementInstanceKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ElementInstanceKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ElementInstanceKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static ELEMENT_INSTANCE_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static ELEMENT_INSTANCE_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ElementInstanceKeyExactMatch(String);
@@ -1984,13 +2740,26 @@ impl ElementInstanceKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&ELEMENT_INSTANCE_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&ELEMENT_INSTANCE_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&ELEMENT_INSTANCE_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&ELEMENT_INSTANCE_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2006,10 +2775,18 @@ impl ElementInstanceKeyExactMatch {
 
 impl CamundaKey for ElementInstanceKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "ElementInstanceKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ElementInstanceKeyExactMatch {
@@ -2019,22 +2796,31 @@ impl fmt::Display for ElementInstanceKeyExactMatch {
 }
 
 impl From<ElementInstanceKeyExactMatch> for String {
-    fn from(v: ElementInstanceKeyExactMatch) -> String { v.0 }
+    fn from(v: ElementInstanceKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ElementInstanceKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ElementInstanceKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The end cursor in a search query result set.
 ///
 /// Example: `WzIyNTE3OTk4MTM2ODcxMDJd`
-static END_CURSOR_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}(?:==)?|[A-Za-z0-9+/]{3}=)?$"#).expect("valid regex"));
+static END_CURSOR_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r#"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}(?:==)?|[A-Za-z0-9+/]{3}=)?$"#)
+        .expect("valid regex")
+});
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct EndCursor(String);
@@ -2048,13 +2834,26 @@ impl EndCursor {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&END_CURSOR_PATTERN), None, None)?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&END_CURSOR_PATTERN),
+            None,
+            None,
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&END_CURSOR_PATTERN), None, None).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&END_CURSOR_PATTERN),
+            None,
+            None,
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2070,10 +2869,18 @@ impl EndCursor {
 
 impl CamundaKey for EndCursor {
     const SEMANTIC_TYPE: &'static str = "EndCursor";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for EndCursor {
@@ -2083,16 +2890,22 @@ impl fmt::Display for EndCursor {
 }
 
 impl From<EndCursor> for String {
-    fn from(v: EndCursor) -> String { v.0 }
+    fn from(v: EndCursor) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for EndCursor {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for EndCursor {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The user-defined id for the form
@@ -2133,10 +2946,18 @@ impl FormId {
 
 impl CamundaKey for FormId {
     const SEMANTIC_TYPE: &'static str = "FormId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for FormId {
@@ -2146,22 +2967,29 @@ impl fmt::Display for FormId {
 }
 
 impl From<FormId> for String {
-    fn from(v: FormId) -> String { v.0 }
+    fn from(v: FormId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for FormId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for FormId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a deployed form.
 ///
 /// Example: `2251799813684365`
-static FORM_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static FORM_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct FormKey(String);
@@ -2175,13 +3003,26 @@ impl FormKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&FORM_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&FORM_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&FORM_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&FORM_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2197,10 +3038,18 @@ impl FormKey {
 
 impl CamundaKey for FormKey {
     const SEMANTIC_TYPE: &'static str = "FormKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for FormKey {
@@ -2210,20 +3059,27 @@ impl fmt::Display for FormKey {
 }
 
 impl From<FormKey> for String {
-    fn from(v: FormKey) -> String { v.0 }
+    fn from(v: FormKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for FormKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for FormKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static FORM_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static FORM_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct FormKeyExactMatch(String);
@@ -2237,13 +3093,26 @@ impl FormKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&FORM_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&FORM_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&FORM_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&FORM_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2259,10 +3128,18 @@ impl FormKeyExactMatch {
 
 impl CamundaKey for FormKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "FormKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for FormKeyExactMatch {
@@ -2272,22 +3149,29 @@ impl fmt::Display for FormKeyExactMatch {
 }
 
 impl From<FormKeyExactMatch> for String {
-    fn from(v: FormKeyExactMatch) -> String { v.0 }
+    fn from(v: FormKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for FormKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for FormKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The user-defined id for the global listener
 ///
 /// Example: `GlobalListener_1`
-static GLOBAL_LISTENER_ID_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+\-]+$"#).expect("valid regex"));
+static GLOBAL_LISTENER_ID_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+\-]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct GlobalListenerId(String);
@@ -2301,13 +3185,26 @@ impl GlobalListenerId {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&GLOBAL_LISTENER_ID_PATTERN), Some(1), Some(256))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&GLOBAL_LISTENER_ID_PATTERN),
+            Some(1),
+            Some(256),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&GLOBAL_LISTENER_ID_PATTERN), Some(1), Some(256)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&GLOBAL_LISTENER_ID_PATTERN),
+            Some(1),
+            Some(256),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2323,10 +3220,18 @@ impl GlobalListenerId {
 
 impl CamundaKey for GlobalListenerId {
     const SEMANTIC_TYPE: &'static str = "GlobalListenerId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for GlobalListenerId {
@@ -2336,16 +3241,22 @@ impl fmt::Display for GlobalListenerId {
 }
 
 impl From<GlobalListenerId> for String {
-    fn from(v: GlobalListenerId) -> String { v.0 }
+    fn from(v: GlobalListenerId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for GlobalListenerId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for GlobalListenerId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The unique identifier of a group.
@@ -2364,13 +3275,26 @@ impl GroupId {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, None, Some(1), Some(256))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            None,
+            Some(1),
+            Some(256),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, None, Some(1), Some(256)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            None,
+            Some(1),
+            Some(256),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2386,10 +3310,18 @@ impl GroupId {
 
 impl CamundaKey for GroupId {
     const SEMANTIC_TYPE: &'static str = "GroupId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for GroupId {
@@ -2399,22 +3331,29 @@ impl fmt::Display for GroupId {
 }
 
 impl From<GroupId> for String {
-    fn from(v: GroupId) -> String { v.0 }
+    fn from(v: GroupId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for GroupId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for GroupId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a incident.
 ///
 /// Example: `2251799813689432`
-static INCIDENT_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static INCIDENT_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct IncidentKey(String);
@@ -2428,13 +3367,26 @@ impl IncidentKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&INCIDENT_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&INCIDENT_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&INCIDENT_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&INCIDENT_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2450,10 +3402,18 @@ impl IncidentKey {
 
 impl CamundaKey for IncidentKey {
     const SEMANTIC_TYPE: &'static str = "IncidentKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for IncidentKey {
@@ -2463,22 +3423,29 @@ impl fmt::Display for IncidentKey {
 }
 
 impl From<IncidentKey> for String {
-    fn from(v: IncidentKey) -> String { v.0 }
+    fn from(v: IncidentKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for IncidentKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for IncidentKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a job.
 ///
 /// Example: `2251799813653498`
-static JOB_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static JOB_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct JobKey(String);
@@ -2492,13 +3459,26 @@ impl JobKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&JOB_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&JOB_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&JOB_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&JOB_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2514,10 +3494,18 @@ impl JobKey {
 
 impl CamundaKey for JobKey {
     const SEMANTIC_TYPE: &'static str = "JobKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for JobKey {
@@ -2527,20 +3515,27 @@ impl fmt::Display for JobKey {
 }
 
 impl From<JobKey> for String {
-    fn from(v: JobKey) -> String { v.0 }
+    fn from(v: JobKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for JobKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for JobKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static JOB_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static JOB_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct JobKeyExactMatch(String);
@@ -2554,13 +3549,26 @@ impl JobKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&JOB_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&JOB_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&JOB_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&JOB_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2576,10 +3584,18 @@ impl JobKeyExactMatch {
 
 impl CamundaKey for JobKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "JobKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for JobKeyExactMatch {
@@ -2589,22 +3605,29 @@ impl fmt::Display for JobKeyExactMatch {
 }
 
 impl From<JobKeyExactMatch> for String {
-    fn from(v: JobKeyExactMatch) -> String { v.0 }
+    fn from(v: JobKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for JobKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for JobKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The unique identifier of a mapping rule.
 ///
 /// Example: `my-mapping-rule`
-static MAPPING_RULE_ID_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+-]+$"#).expect("valid regex"));
+static MAPPING_RULE_ID_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+-]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct MappingRuleId(String);
@@ -2618,13 +3641,26 @@ impl MappingRuleId {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&MAPPING_RULE_ID_PATTERN), Some(1), Some(256))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&MAPPING_RULE_ID_PATTERN),
+            Some(1),
+            Some(256),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&MAPPING_RULE_ID_PATTERN), Some(1), Some(256)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&MAPPING_RULE_ID_PATTERN),
+            Some(1),
+            Some(256),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2640,10 +3676,18 @@ impl MappingRuleId {
 
 impl CamundaKey for MappingRuleId {
     const SEMANTIC_TYPE: &'static str = "MappingRuleId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for MappingRuleId {
@@ -2653,22 +3697,29 @@ impl fmt::Display for MappingRuleId {
 }
 
 impl From<MappingRuleId> for String {
-    fn from(v: MappingRuleId) -> String { v.0 }
+    fn from(v: MappingRuleId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for MappingRuleId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for MappingRuleId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for an message.
 ///
 /// Example: `2251799813683467`
-static MESSAGE_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static MESSAGE_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct MessageKey(String);
@@ -2682,13 +3733,26 @@ impl MessageKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&MESSAGE_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&MESSAGE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&MESSAGE_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&MESSAGE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2704,10 +3768,18 @@ impl MessageKey {
 
 impl CamundaKey for MessageKey {
     const SEMANTIC_TYPE: &'static str = "MessageKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for MessageKey {
@@ -2717,22 +3789,29 @@ impl fmt::Display for MessageKey {
 }
 
 impl From<MessageKey> for String {
-    fn from(v: MessageKey) -> String { v.0 }
+    fn from(v: MessageKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for MessageKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for MessageKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a message subscription.
 ///
 /// Example: `2251799813632456`
-static MESSAGE_SUBSCRIPTION_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static MESSAGE_SUBSCRIPTION_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct MessageSubscriptionKey(String);
@@ -2746,13 +3825,26 @@ impl MessageSubscriptionKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&MESSAGE_SUBSCRIPTION_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&MESSAGE_SUBSCRIPTION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&MESSAGE_SUBSCRIPTION_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&MESSAGE_SUBSCRIPTION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2768,10 +3860,18 @@ impl MessageSubscriptionKey {
 
 impl CamundaKey for MessageSubscriptionKey {
     const SEMANTIC_TYPE: &'static str = "MessageSubscriptionKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for MessageSubscriptionKey {
@@ -2781,20 +3881,27 @@ impl fmt::Display for MessageSubscriptionKey {
 }
 
 impl From<MessageSubscriptionKey> for String {
-    fn from(v: MessageSubscriptionKey) -> String { v.0 }
+    fn from(v: MessageSubscriptionKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for MessageSubscriptionKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for MessageSubscriptionKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static MESSAGE_SUBSCRIPTION_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static MESSAGE_SUBSCRIPTION_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct MessageSubscriptionKeyExactMatch(String);
@@ -2808,13 +3915,26 @@ impl MessageSubscriptionKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&MESSAGE_SUBSCRIPTION_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&MESSAGE_SUBSCRIPTION_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&MESSAGE_SUBSCRIPTION_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&MESSAGE_SUBSCRIPTION_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2830,10 +3950,18 @@ impl MessageSubscriptionKeyExactMatch {
 
 impl CamundaKey for MessageSubscriptionKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "MessageSubscriptionKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for MessageSubscriptionKeyExactMatch {
@@ -2843,22 +3971,29 @@ impl fmt::Display for MessageSubscriptionKeyExactMatch {
 }
 
 impl From<MessageSubscriptionKeyExactMatch> for String {
-    fn from(v: MessageSubscriptionKeyExactMatch) -> String { v.0 }
+    fn from(v: MessageSubscriptionKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for MessageSubscriptionKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for MessageSubscriptionKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Id of a process definition, from the model. Only ids of process definitions that are deployed are useful.
 ///
 /// Example: `new-account-onboarding-workflow`
-static PROCESS_DEFINITION_ID_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[\p{L}_][\p{L}\p{N}_\-\.]*$"#).expect("valid regex"));
+static PROCESS_DEFINITION_ID_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[\p{L}_][\p{L}\p{N}_\-\.]*$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProcessDefinitionId(String);
@@ -2872,13 +4007,26 @@ impl ProcessDefinitionId {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&PROCESS_DEFINITION_ID_PATTERN), Some(1), None)?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&PROCESS_DEFINITION_ID_PATTERN),
+            Some(1),
+            None,
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&PROCESS_DEFINITION_ID_PATTERN), Some(1), None).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&PROCESS_DEFINITION_ID_PATTERN),
+            Some(1),
+            None,
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2894,10 +4042,18 @@ impl ProcessDefinitionId {
 
 impl CamundaKey for ProcessDefinitionId {
     const SEMANTIC_TYPE: &'static str = "ProcessDefinitionId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ProcessDefinitionId {
@@ -2907,20 +4063,27 @@ impl fmt::Display for ProcessDefinitionId {
 }
 
 impl From<ProcessDefinitionId> for String {
-    fn from(v: ProcessDefinitionId) -> String { v.0 }
+    fn from(v: ProcessDefinitionId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ProcessDefinitionId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ProcessDefinitionId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static PROCESS_DEFINITION_ID_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[\p{L}_][\p{L}\p{N}_\-\.]*$"#).expect("valid regex"));
+static PROCESS_DEFINITION_ID_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[\p{L}_][\p{L}\p{N}_\-\.]*$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProcessDefinitionIdExactMatch(String);
@@ -2934,13 +4097,26 @@ impl ProcessDefinitionIdExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&PROCESS_DEFINITION_ID_EXACT_MATCH_PATTERN), Some(1), None)?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&PROCESS_DEFINITION_ID_EXACT_MATCH_PATTERN),
+            Some(1),
+            None,
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&PROCESS_DEFINITION_ID_EXACT_MATCH_PATTERN), Some(1), None).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&PROCESS_DEFINITION_ID_EXACT_MATCH_PATTERN),
+            Some(1),
+            None,
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -2956,10 +4132,18 @@ impl ProcessDefinitionIdExactMatch {
 
 impl CamundaKey for ProcessDefinitionIdExactMatch {
     const SEMANTIC_TYPE: &'static str = "ProcessDefinitionIdExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ProcessDefinitionIdExactMatch {
@@ -2969,22 +4153,29 @@ impl fmt::Display for ProcessDefinitionIdExactMatch {
 }
 
 impl From<ProcessDefinitionIdExactMatch> for String {
-    fn from(v: ProcessDefinitionIdExactMatch) -> String { v.0 }
+    fn from(v: ProcessDefinitionIdExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ProcessDefinitionIdExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ProcessDefinitionIdExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a deployed process definition.
 ///
 /// Example: `2251799813686749`
-static PROCESS_DEFINITION_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static PROCESS_DEFINITION_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProcessDefinitionKey(String);
@@ -2998,13 +4189,26 @@ impl ProcessDefinitionKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&PROCESS_DEFINITION_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&PROCESS_DEFINITION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&PROCESS_DEFINITION_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&PROCESS_DEFINITION_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3020,10 +4224,18 @@ impl ProcessDefinitionKey {
 
 impl CamundaKey for ProcessDefinitionKey {
     const SEMANTIC_TYPE: &'static str = "ProcessDefinitionKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ProcessDefinitionKey {
@@ -3033,20 +4245,27 @@ impl fmt::Display for ProcessDefinitionKey {
 }
 
 impl From<ProcessDefinitionKey> for String {
-    fn from(v: ProcessDefinitionKey) -> String { v.0 }
+    fn from(v: ProcessDefinitionKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ProcessDefinitionKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ProcessDefinitionKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static PROCESS_DEFINITION_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static PROCESS_DEFINITION_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProcessDefinitionKeyExactMatch(String);
@@ -3060,13 +4279,26 @@ impl ProcessDefinitionKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&PROCESS_DEFINITION_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&PROCESS_DEFINITION_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&PROCESS_DEFINITION_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&PROCESS_DEFINITION_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3082,10 +4314,18 @@ impl ProcessDefinitionKeyExactMatch {
 
 impl CamundaKey for ProcessDefinitionKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "ProcessDefinitionKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ProcessDefinitionKeyExactMatch {
@@ -3095,22 +4335,29 @@ impl fmt::Display for ProcessDefinitionKeyExactMatch {
 }
 
 impl From<ProcessDefinitionKeyExactMatch> for String {
-    fn from(v: ProcessDefinitionKeyExactMatch) -> String { v.0 }
+    fn from(v: ProcessDefinitionKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ProcessDefinitionKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ProcessDefinitionKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a process instance.
 ///
 /// Example: `2251799813690746`
-static PROCESS_INSTANCE_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static PROCESS_INSTANCE_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProcessInstanceKey(String);
@@ -3124,13 +4371,26 @@ impl ProcessInstanceKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&PROCESS_INSTANCE_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&PROCESS_INSTANCE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&PROCESS_INSTANCE_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&PROCESS_INSTANCE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3146,10 +4406,18 @@ impl ProcessInstanceKey {
 
 impl CamundaKey for ProcessInstanceKey {
     const SEMANTIC_TYPE: &'static str = "ProcessInstanceKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ProcessInstanceKey {
@@ -3159,20 +4427,27 @@ impl fmt::Display for ProcessInstanceKey {
 }
 
 impl From<ProcessInstanceKey> for String {
-    fn from(v: ProcessInstanceKey) -> String { v.0 }
+    fn from(v: ProcessInstanceKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ProcessInstanceKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ProcessInstanceKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static PROCESS_INSTANCE_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static PROCESS_INSTANCE_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProcessInstanceKeyExactMatch(String);
@@ -3186,13 +4461,26 @@ impl ProcessInstanceKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&PROCESS_INSTANCE_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&PROCESS_INSTANCE_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&PROCESS_INSTANCE_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&PROCESS_INSTANCE_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3208,10 +4496,18 @@ impl ProcessInstanceKeyExactMatch {
 
 impl CamundaKey for ProcessInstanceKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "ProcessInstanceKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ProcessInstanceKeyExactMatch {
@@ -3221,16 +4517,22 @@ impl fmt::Display for ProcessInstanceKeyExactMatch {
 }
 
 impl From<ProcessInstanceKeyExactMatch> for String {
-    fn from(v: ProcessInstanceKeyExactMatch) -> String { v.0 }
+    fn from(v: ProcessInstanceKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ProcessInstanceKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ProcessInstanceKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
@@ -3269,10 +4571,18 @@ impl ResourceKeyExactMatch {
 
 impl CamundaKey for ResourceKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "ResourceKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ResourceKeyExactMatch {
@@ -3282,22 +4592,29 @@ impl fmt::Display for ResourceKeyExactMatch {
 }
 
 impl From<ResourceKeyExactMatch> for String {
-    fn from(v: ResourceKeyExactMatch) -> String { v.0 }
+    fn from(v: ResourceKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ResourceKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ResourceKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The unique identifier of a role.
 ///
 /// Example: `admin`
-static ROLE_ID_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+-]+$"#).expect("valid regex"));
+static ROLE_ID_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+-]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RoleId(String);
@@ -3311,13 +4628,26 @@ impl RoleId {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&ROLE_ID_PATTERN), Some(1), Some(256))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&ROLE_ID_PATTERN),
+            Some(1),
+            Some(256),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&ROLE_ID_PATTERN), Some(1), Some(256)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&ROLE_ID_PATTERN),
+            Some(1),
+            Some(256),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3333,10 +4663,18 @@ impl RoleId {
 
 impl CamundaKey for RoleId {
     const SEMANTIC_TYPE: &'static str = "RoleId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for RoleId {
@@ -3346,16 +4684,22 @@ impl fmt::Display for RoleId {
 }
 
 impl From<RoleId> for String {
-    fn from(v: RoleId) -> String { v.0 }
+    fn from(v: RoleId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for RoleId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for RoleId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a scope. A scope can hold variables and represents either an element instance in a BPMN process or the process instance itself.
@@ -3394,10 +4738,18 @@ impl ScopeKey {
 
 impl CamundaKey for ScopeKey {
     const SEMANTIC_TYPE: &'static str = "ScopeKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ScopeKey {
@@ -3407,16 +4759,22 @@ impl fmt::Display for ScopeKey {
 }
 
 impl From<ScopeKey> for String {
-    fn from(v: ScopeKey) -> String { v.0 }
+    fn from(v: ScopeKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ScopeKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ScopeKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
@@ -3455,10 +4813,18 @@ impl ScopeKeyExactMatch {
 
 impl CamundaKey for ScopeKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "ScopeKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for ScopeKeyExactMatch {
@@ -3468,22 +4834,29 @@ impl fmt::Display for ScopeKeyExactMatch {
 }
 
 impl From<ScopeKeyExactMatch> for String {
-    fn from(v: ScopeKeyExactMatch) -> String { v.0 }
+    fn from(v: ScopeKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for ScopeKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for ScopeKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for an signal.
 ///
 /// Example: `22517998136987467`
-static SIGNAL_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static SIGNAL_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SignalKey(String);
@@ -3497,13 +4870,26 @@ impl SignalKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&SIGNAL_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&SIGNAL_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&SIGNAL_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&SIGNAL_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3519,10 +4905,18 @@ impl SignalKey {
 
 impl CamundaKey for SignalKey {
     const SEMANTIC_TYPE: &'static str = "SignalKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for SignalKey {
@@ -3532,22 +4926,31 @@ impl fmt::Display for SignalKey {
 }
 
 impl From<SignalKey> for String {
-    fn from(v: SignalKey) -> String { v.0 }
+    fn from(v: SignalKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for SignalKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for SignalKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The start cursor in a search query result set.
 ///
 /// Example: `WzIyNTE3OTk4MTM2ODcxMDJd`
-static START_CURSOR_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}(?:==)?|[A-Za-z0-9+/]{3}=)?$"#).expect("valid regex"));
+static START_CURSOR_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r#"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}(?:==)?|[A-Za-z0-9+/]{3}=)?$"#)
+        .expect("valid regex")
+});
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct StartCursor(String);
@@ -3561,13 +4964,26 @@ impl StartCursor {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&START_CURSOR_PATTERN), None, None)?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&START_CURSOR_PATTERN),
+            None,
+            None,
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&START_CURSOR_PATTERN), None, None).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&START_CURSOR_PATTERN),
+            None,
+            None,
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3583,10 +4999,18 @@ impl StartCursor {
 
 impl CamundaKey for StartCursor {
     const SEMANTIC_TYPE: &'static str = "StartCursor";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for StartCursor {
@@ -3596,22 +5020,30 @@ impl fmt::Display for StartCursor {
 }
 
 impl From<StartCursor> for String {
-    fn from(v: StartCursor) -> String { v.0 }
+    fn from(v: StartCursor) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for StartCursor {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for StartCursor {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// A tag. Needs to start with a letter; then alphanumerics, `_`, `-`, `:`, or `.`; length ≤ 100.
 ///
 /// Example: `business_key:1234`
-static TAG_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[A-Za-z][A-Za-z0-9_\-:.]{0,99}$"#).expect("valid regex"));
+static TAG_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r#"^[A-Za-z][A-Za-z0-9_\-:.]{0,99}$"#).expect("valid regex")
+});
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Tag(String);
@@ -3625,13 +5057,26 @@ impl Tag {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&TAG_PATTERN), Some(1), Some(100))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&TAG_PATTERN),
+            Some(1),
+            Some(100),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&TAG_PATTERN), Some(1), Some(100)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&TAG_PATTERN),
+            Some(1),
+            Some(100),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3647,10 +5092,18 @@ impl Tag {
 
 impl CamundaKey for Tag {
     const SEMANTIC_TYPE: &'static str = "Tag";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for Tag {
@@ -3660,22 +5113,29 @@ impl fmt::Display for Tag {
 }
 
 impl From<Tag> for String {
-    fn from(v: Tag) -> String { v.0 }
+    fn from(v: Tag) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for Tag {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for Tag {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The unique identifier of the tenant.
 ///
 /// Example: `customer-service`
-static TENANT_ID_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^(<default>|[\w\.\-]{1,31})$"#).expect("valid regex"));
+static TENANT_ID_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^(<default>|[\w\.\-]{1,31})$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct TenantId(String);
@@ -3689,13 +5149,26 @@ impl TenantId {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&TENANT_ID_PATTERN), Some(1), Some(31))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&TENANT_ID_PATTERN),
+            Some(1),
+            Some(31),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&TENANT_ID_PATTERN), Some(1), Some(31)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&TENANT_ID_PATTERN),
+            Some(1),
+            Some(31),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3711,10 +5184,18 @@ impl TenantId {
 
 impl CamundaKey for TenantId {
     const SEMANTIC_TYPE: &'static str = "TenantId";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for TenantId {
@@ -3724,20 +5205,27 @@ impl fmt::Display for TenantId {
 }
 
 impl From<TenantId> for String {
-    fn from(v: TenantId) -> String { v.0 }
+    fn from(v: TenantId) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for TenantId {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for TenantId {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a user task.
-static USER_TASK_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static USER_TASK_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct UserTaskKey(String);
@@ -3751,13 +5239,26 @@ impl UserTaskKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&USER_TASK_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&USER_TASK_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&USER_TASK_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&USER_TASK_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3773,10 +5274,18 @@ impl UserTaskKey {
 
 impl CamundaKey for UserTaskKey {
     const SEMANTIC_TYPE: &'static str = "UserTaskKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for UserTaskKey {
@@ -3786,22 +5295,29 @@ impl fmt::Display for UserTaskKey {
 }
 
 impl From<UserTaskKey> for String {
-    fn from(v: UserTaskKey) -> String { v.0 }
+    fn from(v: UserTaskKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for UserTaskKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for UserTaskKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// The unique name of a user.
 ///
 /// Example: `swillis`
-static USERNAME_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+-]+$"#).expect("valid regex"));
+static USERNAME_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^[a-zA-Z0-9_~@.+-]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Username(String);
@@ -3815,13 +5331,26 @@ impl Username {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&USERNAME_PATTERN), Some(1), Some(256))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&USERNAME_PATTERN),
+            Some(1),
+            Some(256),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&USERNAME_PATTERN), Some(1), Some(256)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&USERNAME_PATTERN),
+            Some(1),
+            Some(256),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3837,10 +5366,18 @@ impl Username {
 
 impl CamundaKey for Username {
     const SEMANTIC_TYPE: &'static str = "Username";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for Username {
@@ -3850,22 +5387,29 @@ impl fmt::Display for Username {
 }
 
 impl From<Username> for String {
-    fn from(v: Username) -> String { v.0 }
+    fn from(v: Username) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for Username {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for Username {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// System-generated key for a variable.
 ///
 /// Example: `2251799813683287`
-static VARIABLE_KEY_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static VARIABLE_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct VariableKey(String);
@@ -3879,13 +5423,26 @@ impl VariableKey {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&VARIABLE_KEY_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&VARIABLE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&VARIABLE_KEY_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&VARIABLE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3901,10 +5458,18 @@ impl VariableKey {
 
 impl CamundaKey for VariableKey {
     const SEMANTIC_TYPE: &'static str = "VariableKey";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for VariableKey {
@@ -3914,20 +5479,27 @@ impl fmt::Display for VariableKey {
 }
 
 impl From<VariableKey> for String {
-    fn from(v: VariableKey) -> String { v.0 }
+    fn from(v: VariableKey) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for VariableKey {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for VariableKey {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
 
 /// Matches the value exactly.
-static VARIABLE_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+static VARIABLE_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct VariableKeyExactMatch(String);
@@ -3941,13 +5513,26 @@ impl VariableKeyExactMatch {
     /// Construct with constraint validation.
     pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
         let v = value.into();
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, Some(&VARIABLE_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25))?;
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&VARIABLE_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
         Ok(Self(v))
     }
 
     /// Returns true if the value satisfies this type's constraints.
     pub fn is_valid(value: &str) -> bool {
-        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, value, Some(&VARIABLE_KEY_EXACT_MATCH_PATTERN), Some(1), Some(25)).is_ok()
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&VARIABLE_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
     }
 
     /// The underlying string value.
@@ -3963,10 +5548,18 @@ impl VariableKeyExactMatch {
 
 impl CamundaKey for VariableKeyExactMatch {
     const SEMANTIC_TYPE: &'static str = "VariableKeyExactMatch";
-    fn assume_exists(value: impl Into<String>) -> Self { Self::assume_exists(value) }
-    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> { Self::try_new(value) }
-    fn is_valid(value: &str) -> bool { Self::is_valid(value) }
-    fn value(&self) -> &str { self.value() }
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
 }
 
 impl fmt::Display for VariableKeyExactMatch {
@@ -3976,14 +5569,20 @@ impl fmt::Display for VariableKeyExactMatch {
 }
 
 impl From<VariableKeyExactMatch> for String {
-    fn from(v: VariableKeyExactMatch) -> String { v.0 }
+    fn from(v: VariableKeyExactMatch) -> String {
+        v.0
+    }
 }
 
 impl AsRef<str> for VariableKeyExactMatch {
-    fn as_ref(&self) -> &str { &self.0 }
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 impl FromStr for VariableKeyExactMatch {
     type Err = CamundaKeyError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::try_new(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
 }
