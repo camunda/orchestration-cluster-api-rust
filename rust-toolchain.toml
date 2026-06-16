@@ -1,0 +1,6 @@
+# Pin the Rust toolchain so `make generate` (cargo fmt) and `make build/test/lint`
+# produce byte-reproducible output across machines and CI. rustfmt + clippy are
+# required by the generate pipeline and `make lint`.
+[toolchain]
+channel = "1.96.0"
+components = ["rustfmt", "clippy"]

@@ -26,7 +26,8 @@ Upstream dependencies — fix at the source when they misbehave, not by working 
 | `src/lib.rs` | Public crate surface and re-exports. |
 | `client/` | **Generated.** Produced by `make generate`. Never hand-edit. |
 | `scripts/generate.sh` | Pipeline orchestrator: bundle → generate → post-process → build. |
-| `scripts/postprocess_domain_types.py` | Generates the Camunda Domain Type System; fixes generator output bugs. Primary edit surface for fixing generated output. |
+| `scripts/postprocess.py` | Orchestrates the numbered post-processing hooks (`scripts/hooks/`). |
+| `scripts/hooks/` | Numbered hooks: `01` Domain Type System, `02` semantic field types, `03` module-path/`Object` fixes, `04` regex dep, `05` lint silencing, `06` cleanup. Primary edit surface for fixing generated output. |
 | `openapi-generator-config.yaml` | openapi-generator configuration. |
 | `external-spec/bundled/` | Bundled spec (`rest-api.bundle.json`) + `spec-metadata.json`. Generator inputs. |
 | `external-spec/upstream/` | Transient sparse clone of upstream. **Never commit** (gitignored). |
@@ -39,9 +40,13 @@ and defines `*ExactMatch` filter wrappers as `allOf: [<key>]`. `openapi-generato
 these **incorrectly** — it emits broken empty structs (`pub struct ScopeKey {}`) or drops the
 model entirely, leaving dangling `models::JobKey` references.
 
-`scripts/postprocess_domain_types.py` replaces them all with validated nominal newtypes
-(`#[serde(transparent)] pub struct JobKey(String)`) carrying `try_new` / `assume_exists` /
-`is_valid` and the `CamundaKey` trait. If you change how keys are represented, change it there.
+`scripts/hooks/hook_01_domain_type_system.py` replaces them all with validated nominal
+newtypes (`#[serde(transparent)] pub struct JobKey(String)`) carrying `try_new` /
+`assume_exists` / `is_valid` and the `CamundaKey` trait. The generator also collapses plain
+`type: string` semantic scalars (`ProcessDefinitionId`, `ElementId`, `TenantId`, …) to bare
+`String` in field positions; `hook_02_semantic_field_types.py` rewrites those struct fields
+and their `new()` params back to the generated newtypes. If you change how keys are
+represented, change it there.
 
 ## Generation pipeline
 
@@ -54,10 +59,12 @@ make generate    # regenerate from the already-bundled spec
 
 1. (`--bundle`) `camunda-schema-bundler --ref main` → `external-spec/bundled/*`.
 2. `openapi-generator generate -c openapi-generator-config.yaml` → `client/`.
-3. `scripts/postprocess_domain_types.py` — domain types + generator-bug fixes.
+3. `scripts/postprocess.py` — runs the numbered hooks (`scripts/hooks/`): Domain Type
+   System, semantic field types, and generator-bug fixes.
 4. `cargo fmt` + `cargo build` on the client crate.
 
-The post-processor is **idempotent** and fixes: missing/broken semantic keys, doubled
+The hooks are **idempotent** and fix: missing/broken semantic keys, collapsed semantic
+`String` fields, doubled
 `models::models::` module paths, bare `Object` placeholders, and lint noise (it prepends
 `#![allow(clippy::all)] #![allow(warnings)]` to the generated `client/src/lib.rs`).
 

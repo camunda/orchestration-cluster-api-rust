@@ -3,8 +3,10 @@
 #
 # Domain Type System (Camunda semantic keys such as JobKey, ProcessInstanceKey)
 # is NOT produced correctly by openapi-generator — it emits broken empty structs
-# or drops them. The post-processor scripts/postprocess_domain_types.py replaces
-# them with validated nominal newtypes. See AGENTS.md.
+# or drops them, and collapses plain string-scalar semantic types (ProcessDefinitionId,
+# ElementId, …) to bare String. The numbered post-processing hooks under scripts/hooks/,
+# orchestrated by scripts/postprocess.py, replace/apply validated nominal newtypes.
+# See AGENTS.md.
 generatorName: rust
 inputSpec: external-spec/bundled/rest-api.bundle.json
 outputDir: client

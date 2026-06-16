@@ -31,7 +31,8 @@ Target API version: **8.10** (`main`).
 ├── external-spec/bundled/           # bundled OpenAPI spec + metadata (generator input)
 ├── scripts/
 │   ├── generate.sh                  # bundle → openapi-generator → post-process → build
-│   └── postprocess_domain_types.py  # generates the Domain Type System; fixes generator bugs
+│   ├── postprocess.py               # orchestrates the numbered post-processing hooks
+│   └── hooks/                       # numbered hooks: Domain Type System, semantic fields, fixups
 ├── openapi-generator-config.yaml
 ├── examples/
 └── Makefile
@@ -217,9 +218,10 @@ The generation pipeline (`scripts/generate.sh`):
 
 1. (`--bundle` only) `camunda-schema-bundler` fetches and bundles the upstream OpenAPI spec.
 2. `openapi-generator` produces the `client/` crate (reqwest + serde, async).
-3. `scripts/postprocess_domain_types.py` generates the Domain Type System and fixes known
-   generator output bugs (doubled `models::models::` paths, bare `Object` placeholders,
-   lint noise).
+3. `scripts/postprocess.py` runs the numbered hooks under `scripts/hooks/`: generate the
+   Domain Type System, apply semantic newtypes to fields the generator collapsed to
+   `String`, and fix known generator output bugs (doubled `models::models::` paths, bare
+   `Object` placeholders, lint noise).
 
 **`client/` is generated and must never be hand-edited.** Fix generator output in the
 post-processor instead.
