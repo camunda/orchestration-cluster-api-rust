@@ -35,7 +35,7 @@ pub struct DecisionInstanceFilter {
         rename = "decisionDefinitionId",
         skip_serializing_if = "Option::is_none"
     )]
-    pub decision_definition_id: Option<String>,
+    pub decision_definition_id: Option<models::DecisionDefinitionId>,
     /// The name of the DMN decision.
     #[serde(
         rename = "decisionDefinitionName",
@@ -55,7 +55,7 @@ pub struct DecisionInstanceFilter {
     pub decision_definition_type: Option<models::DecisionDefinitionTypeEnum>,
     /// The tenant ID of the decision instance.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     /// The key of the parent decision evaluation. Note that this is not the identifier of an individual decision instance; the `decisionEvaluationInstanceKey` is the identifier for a decision instance.
     #[serde(
         rename = "decisionEvaluationKey",

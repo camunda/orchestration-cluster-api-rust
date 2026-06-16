@@ -15,11 +15,11 @@ use serde::{Deserialize, Serialize};
 pub struct TenantClientResult {
     /// The ID of the client.
     #[serde(rename = "clientId")]
-    pub client_id: String,
+    pub client_id: models::ClientId,
 }
 
 impl TenantClientResult {
-    pub fn new(client_id: String) -> TenantClientResult {
+    pub fn new(client_id: models::ClientId) -> TenantClientResult {
         TenantClientResult { client_id }
     }
 }

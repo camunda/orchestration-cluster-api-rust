@@ -19,14 +19,14 @@ pub struct AuditLogResult {
     pub audit_log_key: Box<models::AuditLogKey>,
     /// System-generated entity key for an audit log entry.
     #[serde(rename = "entityKey")]
-    pub entity_key: String,
+    pub entity_key: models::AuditLogEntityKey,
     #[serde(rename = "entityType")]
     pub entity_type: models::AuditLogEntityTypeEnum,
     #[serde(rename = "operationType")]
     pub operation_type: models::AuditLogOperationTypeEnum,
     /// Key of the batch operation.
     #[serde(rename = "batchOperationKey", deserialize_with = "Option::deserialize")]
-    pub batch_operation_key: Option<String>,
+    pub batch_operation_key: Option<models::BatchOperationKey>,
     /// The type of batch operation performed, if this is part of a batch.
     #[serde(
         rename = "batchOperationType",
@@ -47,7 +47,7 @@ pub struct AuditLogResult {
     pub agent_element_id: Option<String>,
     /// The tenant ID of the audit log.
     #[serde(rename = "tenantId", deserialize_with = "Option::deserialize")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     #[serde(rename = "result")]
     pub result: models::AuditLogResultEnum,
     #[serde(rename = "category")]
@@ -57,7 +57,7 @@ pub struct AuditLogResult {
         rename = "processDefinitionId",
         deserialize_with = "Option::deserialize"
     )]
-    pub process_definition_id: Option<String>,
+    pub process_definition_id: Option<models::ProcessDefinitionId>,
     /// The key of the process definition.
     #[serde(
         rename = "processDefinitionKey",
@@ -105,7 +105,7 @@ pub struct AuditLogResult {
         rename = "decisionDefinitionId",
         deserialize_with = "Option::deserialize"
     )]
-    pub decision_definition_id: Option<String>,
+    pub decision_definition_id: Option<models::DecisionDefinitionId>,
     /// The key of the decision definition.
     #[serde(
         rename = "decisionDefinitionKey",
@@ -129,7 +129,7 @@ pub struct AuditLogResult {
     pub resource_key: Option<Box<models::ResourceKey>>,
     /// The key of the related entity. The content depends on the operation type and entity type. For example, for authorization operations, this will contain the ID of the owner (e.g., user or group) the authorization belongs to.
     #[serde(rename = "relatedEntityKey", deserialize_with = "Option::deserialize")]
-    pub related_entity_key: Option<String>,
+    pub related_entity_key: Option<models::AuditLogEntityKey>,
     /// The type of the related entity. The content depends on the operation type and entity type. For example, for authorization operations, this will contain the type of the owner (e.g., USER or GROUP) the authorization belongs to.
     #[serde(rename = "relatedEntityType", deserialize_with = "Option::deserialize")]
     pub related_entity_type: Option<models::AuditLogEntityTypeEnum>,
@@ -154,19 +154,19 @@ impl AuditLogResult {
     /// Audit log item.
     pub fn new(
         audit_log_key: models::AuditLogKey,
-        entity_key: String,
+        entity_key: models::AuditLogEntityKey,
         entity_type: models::AuditLogEntityTypeEnum,
         operation_type: models::AuditLogOperationTypeEnum,
-        batch_operation_key: Option<String>,
+        batch_operation_key: Option<models::BatchOperationKey>,
         batch_operation_type: Option<models::BatchOperationTypeEnum>,
         timestamp: chrono::DateTime<chrono::FixedOffset>,
         actor_id: Option<String>,
         actor_type: Option<models::AuditLogActorTypeEnum>,
         agent_element_id: Option<String>,
-        tenant_id: Option<String>,
+        tenant_id: Option<models::TenantId>,
         result: models::AuditLogResultEnum,
         category: models::AuditLogCategoryEnum,
-        process_definition_id: Option<String>,
+        process_definition_id: Option<models::ProcessDefinitionId>,
         process_definition_key: Option<models::ProcessDefinitionKey>,
         process_instance_key: Option<models::ProcessInstanceKey>,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
@@ -175,13 +175,13 @@ impl AuditLogResult {
         user_task_key: Option<models::UserTaskKey>,
         decision_requirements_id: Option<String>,
         decision_requirements_key: Option<models::DecisionRequirementsKey>,
-        decision_definition_id: Option<String>,
+        decision_definition_id: Option<models::DecisionDefinitionId>,
         decision_definition_key: Option<models::DecisionDefinitionKey>,
         decision_evaluation_key: Option<models::DecisionEvaluationKey>,
         deployment_key: Option<models::DeploymentKey>,
         form_key: Option<models::FormKey>,
         resource_key: Option<models::ResourceKey>,
-        related_entity_key: Option<String>,
+        related_entity_key: Option<models::AuditLogEntityKey>,
         related_entity_type: Option<models::AuditLogEntityTypeEnum>,
         entity_description: Option<String>,
         inbound_channel_type: Option<String>,

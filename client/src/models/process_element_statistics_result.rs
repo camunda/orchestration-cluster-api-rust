@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct ProcessElementStatisticsResult {
     /// The element ID for which the results are aggregated.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// The total number of active instances of the element.
     #[serde(rename = "active")]
     pub active: i64,
@@ -34,7 +34,7 @@ pub struct ProcessElementStatisticsResult {
 impl ProcessElementStatisticsResult {
     /// Process element statistics response.
     pub fn new(
-        element_id: String,
+        element_id: models::ElementId,
         active: i64,
         canceled: i64,
         incidents: i64,

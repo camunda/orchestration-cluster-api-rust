@@ -15,10 +15,10 @@ use serde::{Deserialize, Serialize};
 pub struct ProcessDefinitionMessageSubscriptionStatisticsResult {
     /// The process definition ID associated with this message subscription.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The tenant ID associated with this message subscription.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The process definition key associated with this message subscription.
     #[serde(rename = "processDefinitionKey")]
     pub process_definition_key: Box<models::ProcessDefinitionKey>,
@@ -32,8 +32,8 @@ pub struct ProcessDefinitionMessageSubscriptionStatisticsResult {
 
 impl ProcessDefinitionMessageSubscriptionStatisticsResult {
     pub fn new(
-        process_definition_id: String,
-        tenant_id: String,
+        process_definition_id: models::ProcessDefinitionId,
+        tenant_id: models::TenantId,
         process_definition_key: models::ProcessDefinitionKey,
         process_instances_with_active_subscriptions: i64,
         active_subscriptions: i64,

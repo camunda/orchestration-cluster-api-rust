@@ -36,7 +36,7 @@ pub struct DecisionRequirementsFilter {
     pub version: Option<i32>,
     /// The tenant ID of the decision requirements.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     /// The name of the resource from which the decision requirements were parsed
     #[serde(rename = "resourceName", skip_serializing_if = "Option::is_none")]
     pub resource_name: Option<String>,

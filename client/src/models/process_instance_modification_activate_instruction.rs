@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct ProcessInstanceModificationActivateInstruction {
     /// The id of the element to activate.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// Instructions describing which variables to create or update.
     #[serde(
         rename = "variableInstructions",
@@ -33,7 +33,7 @@ pub struct ProcessInstanceModificationActivateInstruction {
 
 impl ProcessInstanceModificationActivateInstruction {
     /// Instruction describing an element to activate.
-    pub fn new(element_id: String) -> ProcessInstanceModificationActivateInstruction {
+    pub fn new(element_id: models::ElementId) -> ProcessInstanceModificationActivateInstruction {
         ProcessInstanceModificationActivateInstruction {
             element_id,
             variable_instructions: None,

@@ -34,7 +34,7 @@ pub struct ResourceFilter {
     pub deployment_key: Option<Box<models::DeploymentKeyFilterProperty>>,
     /// Tenant ID of this resource.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
 }
 
 impl ResourceFilter {

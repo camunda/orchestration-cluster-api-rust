@@ -22,7 +22,7 @@ pub struct VariableFilter {
     pub value: Option<Box<models::StringFilterProperty>>,
     /// Tenant ID of this variable.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     /// Whether the value is truncated or not.
     #[serde(rename = "isTruncated", skip_serializing_if = "Option::is_none")]
     pub is_truncated: Option<bool>,

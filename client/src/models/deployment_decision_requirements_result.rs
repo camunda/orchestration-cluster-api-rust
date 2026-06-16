@@ -28,7 +28,7 @@ pub struct DeploymentDecisionRequirementsResult {
     pub resource_name: String,
     /// The tenant ID of the deployed decision requirements.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The assigned decision requirements key, which acts as a unique identifier for this decision requirements.
     #[serde(rename = "decisionRequirementsKey")]
     pub decision_requirements_key: Box<models::DecisionRequirementsKey>,
@@ -41,7 +41,7 @@ impl DeploymentDecisionRequirementsResult {
         decision_requirements_name: String,
         version: i32,
         resource_name: String,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         decision_requirements_key: models::DecisionRequirementsKey,
     ) -> DeploymentDecisionRequirementsResult {
         DeploymentDecisionRequirementsResult {

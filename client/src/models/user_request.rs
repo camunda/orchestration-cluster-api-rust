@@ -18,7 +18,7 @@ pub struct UserRequest {
     pub password: String,
     /// The username of the new user.
     #[serde(rename = "username")]
-    pub username: String,
+    pub username: models::Username,
     /// The name of the user.
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -28,7 +28,7 @@ pub struct UserRequest {
 }
 
 impl UserRequest {
-    pub fn new(password: String, username: String) -> UserRequest {
+    pub fn new(password: String, username: models::Username) -> UserRequest {
         UserRequest {
             password,
             username,

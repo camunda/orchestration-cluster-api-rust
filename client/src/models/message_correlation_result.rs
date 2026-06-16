@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct MessageCorrelationResult {
     /// The tenant ID of the correlated message
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The key of the correlated message.
     #[serde(rename = "messageKey")]
     pub message_key: Box<models::MessageKey>,
@@ -28,7 +28,7 @@ pub struct MessageCorrelationResult {
 impl MessageCorrelationResult {
     /// The message key of the correlated message, as well as the first process instance key it correlated with.
     pub fn new(
-        tenant_id: String,
+        tenant_id: models::TenantId,
         message_key: models::MessageKey,
         process_instance_key: models::ProcessInstanceKey,
     ) -> MessageCorrelationResult {

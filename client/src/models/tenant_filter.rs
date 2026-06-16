@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct TenantFilter {
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     /// The name of the tenant.
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

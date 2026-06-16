@@ -24,7 +24,7 @@ pub struct JobSearchResult {
     pub denied_reason: Option<String>,
     /// The element ID associated with the job. May be missing on job failure.
     #[serde(rename = "elementId", deserialize_with = "Option::deserialize")]
-    pub element_id: Option<String>,
+    pub element_id: Option<models::ElementId>,
     /// The element instance key associated with the job.
     #[serde(rename = "elementInstanceKey")]
     pub element_instance_key: Box<models::ElementInstanceKey>,
@@ -52,7 +52,7 @@ pub struct JobSearchResult {
     pub listener_event_type: models::JobListenerEventTypeEnum,
     /// The process definition ID associated with the job.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The process definition key associated with the job.
     #[serde(rename = "processDefinitionKey")]
     pub process_definition_key: Box<models::ProcessDefinitionKey>,
@@ -72,7 +72,7 @@ pub struct JobSearchResult {
     pub state: models::JobStateEnum,
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The type of the job.
     #[serde(rename = "type")]
     pub r#type: String,
@@ -95,7 +95,7 @@ impl JobSearchResult {
         custom_headers: std::collections::HashMap<String, String>,
         deadline: Option<chrono::DateTime<chrono::FixedOffset>>,
         denied_reason: Option<String>,
-        element_id: Option<String>,
+        element_id: Option<models::ElementId>,
         element_instance_key: models::ElementInstanceKey,
         end_time: Option<chrono::DateTime<chrono::FixedOffset>>,
         error_code: Option<String>,
@@ -105,13 +105,13 @@ impl JobSearchResult {
         job_key: models::JobKey,
         kind: models::JobKindEnum,
         listener_event_type: models::JobListenerEventTypeEnum,
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         process_definition_key: models::ProcessDefinitionKey,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         retries: i32,
         state: models::JobStateEnum,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         r#type: String,
         worker: String,
         creation_time: Option<chrono::DateTime<chrono::FixedOffset>>,

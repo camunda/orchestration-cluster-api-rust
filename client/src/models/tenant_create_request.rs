@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct TenantCreateRequest {
     /// The unique ID for the tenant. Must be 31 characters or less and match `^[\\w.-]{1,31}$` (word characters, `.`, `-`). The literal `<default>` is also accepted as the default-tenant alias.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The name of the tenant.
     #[serde(rename = "name")]
     pub name: String,
@@ -25,7 +25,7 @@ pub struct TenantCreateRequest {
 }
 
 impl TenantCreateRequest {
-    pub fn new(tenant_id: String, name: String) -> TenantCreateRequest {
+    pub fn new(tenant_id: models::TenantId, name: String) -> TenantCreateRequest {
         TenantCreateRequest {
             tenant_id,
             name,

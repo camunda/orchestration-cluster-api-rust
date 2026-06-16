@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct ElementInstanceResult {
     /// The process definition ID associated to this element instance.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// Date when element instance started.
     #[serde(rename = "startDate")]
     pub start_date: chrono::DateTime<chrono::FixedOffset>,
@@ -24,7 +24,7 @@ pub struct ElementInstanceResult {
     pub end_date: Option<chrono::DateTime<chrono::FixedOffset>>,
     /// The element ID for this element instance.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// The element name for this element instance.
     #[serde(rename = "elementName")]
     pub element_name: String,
@@ -39,7 +39,7 @@ pub struct ElementInstanceResult {
     pub has_incident: bool,
     /// The tenant ID of the incident.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The assigned key, which acts as a unique identifier for this element instance.
     #[serde(rename = "elementInstanceKey")]
     pub element_instance_key: Box<models::ElementInstanceKey>,
@@ -62,15 +62,15 @@ pub struct ElementInstanceResult {
 
 impl ElementInstanceResult {
     pub fn new(
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         start_date: chrono::DateTime<chrono::FixedOffset>,
         end_date: Option<chrono::DateTime<chrono::FixedOffset>>,
-        element_id: String,
+        element_id: models::ElementId,
         element_name: String,
         r#type: Type,
         state: models::ElementInstanceStateEnum,
         has_incident: bool,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         element_instance_key: models::ElementInstanceKey,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,

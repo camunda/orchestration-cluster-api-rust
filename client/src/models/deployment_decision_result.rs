@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct DeploymentDecisionResult {
     /// The dmn decision ID, as parsed during deployment, together with the version forms a unique identifier for a specific decision.
     #[serde(rename = "decisionDefinitionId")]
-    pub decision_definition_id: String,
+    pub decision_definition_id: models::DecisionDefinitionId,
     /// The assigned decision version.
     #[serde(rename = "version")]
     pub version: i32,
@@ -25,7 +25,7 @@ pub struct DeploymentDecisionResult {
     pub name: String,
     /// The tenant ID of the deployed decision.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The dmn ID of the decision requirements graph that this decision is part of, as parsed during deployment.
     #[serde(rename = "decisionRequirementsId")]
     pub decision_requirements_id: String,
@@ -40,10 +40,10 @@ pub struct DeploymentDecisionResult {
 impl DeploymentDecisionResult {
     /// A deployed decision.
     pub fn new(
-        decision_definition_id: String,
+        decision_definition_id: models::DecisionDefinitionId,
         version: i32,
         name: String,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         decision_requirements_id: String,
         decision_definition_key: models::DecisionDefinitionKey,
         decision_requirements_key: models::DecisionRequirementsKey,

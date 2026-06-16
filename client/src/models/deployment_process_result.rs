@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct DeploymentProcessResult {
     /// The bpmn process ID, as parsed during deployment, together with the version forms a unique identifier for a specific process definition.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The assigned process version.
     #[serde(rename = "processDefinitionVersion")]
     pub process_definition_version: i32,
@@ -25,7 +25,7 @@ pub struct DeploymentProcessResult {
     pub resource_name: String,
     /// The tenant ID of the deployed process.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The assigned key, which acts as a unique identifier for this process.
     #[serde(rename = "processDefinitionKey")]
     pub process_definition_key: Box<models::ProcessDefinitionKey>,
@@ -34,10 +34,10 @@ pub struct DeploymentProcessResult {
 impl DeploymentProcessResult {
     /// A deployed process.
     pub fn new(
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         process_definition_version: i32,
         resource_name: String,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         process_definition_key: models::ProcessDefinitionKey,
     ) -> DeploymentProcessResult {
         DeploymentProcessResult {

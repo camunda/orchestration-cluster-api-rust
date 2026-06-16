@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct BatchOperationResponse {
     /// Key or (Operate Legacy ID = UUID) of the batch operation.
     #[serde(rename = "batchOperationKey")]
-    pub batch_operation_key: String,
+    pub batch_operation_key: models::BatchOperationKey,
     #[serde(rename = "state")]
     pub state: models::BatchOperationStateEnum,
     #[serde(rename = "batchOperationType")]
@@ -48,7 +48,7 @@ pub struct BatchOperationResponse {
 
 impl BatchOperationResponse {
     pub fn new(
-        batch_operation_key: String,
+        batch_operation_key: models::BatchOperationKey,
         state: models::BatchOperationStateEnum,
         batch_operation_type: models::BatchOperationTypeEnum,
         start_date: Option<chrono::DateTime<chrono::FixedOffset>>,

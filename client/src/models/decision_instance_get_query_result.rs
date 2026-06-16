@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct DecisionInstanceGetQueryResult {
     /// The ID of the DMN decision.
     #[serde(rename = "decisionDefinitionId")]
-    pub decision_definition_id: String,
+    pub decision_definition_id: models::DecisionDefinitionId,
     /// The key of the decision.
     #[serde(rename = "decisionDefinitionKey")]
     pub decision_definition_key: Box<models::DecisionDefinitionKey>,
@@ -29,7 +29,7 @@ pub struct DecisionInstanceGetQueryResult {
     pub decision_definition_version: i32,
     /// System-generated identifier for a decision evaluation instance. It is composed of the parent decision evaluation key and the 1-based index of the evaluated decision within that evaluation, joined by a hyphen (format: `<decisionEvaluationKey>-<index>`).
     #[serde(rename = "decisionEvaluationInstanceKey")]
-    pub decision_evaluation_instance_key: String,
+    pub decision_evaluation_instance_key: models::DecisionEvaluationInstanceKey,
     /// The key of the decision evaluation where this instance was created.
     #[serde(rename = "decisionEvaluationKey")]
     pub decision_evaluation_key: Box<models::DecisionEvaluationKey>,
@@ -73,7 +73,7 @@ pub struct DecisionInstanceGetQueryResult {
     pub state: models::DecisionInstanceStateEnum,
     /// The tenant ID of the decision instance.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The evaluated inputs of the decision instance.
     #[serde(rename = "evaluatedInputs")]
     pub evaluated_inputs: Vec<models::EvaluatedDecisionInputItem>,
@@ -84,12 +84,12 @@ pub struct DecisionInstanceGetQueryResult {
 
 impl DecisionInstanceGetQueryResult {
     pub fn new(
-        decision_definition_id: String,
+        decision_definition_id: models::DecisionDefinitionId,
         decision_definition_key: models::DecisionDefinitionKey,
         decision_definition_name: String,
         decision_definition_type: models::DecisionDefinitionTypeEnum,
         decision_definition_version: i32,
-        decision_evaluation_instance_key: String,
+        decision_evaluation_instance_key: models::DecisionEvaluationInstanceKey,
         decision_evaluation_key: models::DecisionEvaluationKey,
         element_instance_key: Option<models::ElementInstanceKey>,
         evaluation_date: chrono::DateTime<chrono::FixedOffset>,
@@ -100,7 +100,7 @@ impl DecisionInstanceGetQueryResult {
         root_decision_definition_key: models::DecisionDefinitionKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         state: models::DecisionInstanceStateEnum,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         evaluated_inputs: Vec<models::EvaluatedDecisionInputItem>,
         matched_rules: Vec<models::MatchedDecisionRuleItem>,
     ) -> DecisionInstanceGetQueryResult {

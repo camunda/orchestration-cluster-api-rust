@@ -18,7 +18,7 @@ pub struct DeploymentResult {
     pub deployment_key: Box<models::DeploymentKey>,
     /// The tenant ID associated with the deployment.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// Items deployed by the request.
     #[serde(rename = "deployments")]
     pub deployments: Vec<models::DeploymentMetadataResult>,
@@ -27,7 +27,7 @@ pub struct DeploymentResult {
 impl DeploymentResult {
     pub fn new(
         deployment_key: models::DeploymentKey,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         deployments: Vec<models::DeploymentMetadataResult>,
     ) -> DeploymentResult {
         DeploymentResult {

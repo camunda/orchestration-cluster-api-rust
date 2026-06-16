@@ -37,7 +37,7 @@ pub struct ProcessDefinitionFilter {
     pub process_definition_id: Option<Box<models::StringFilterProperty>>,
     /// Tenant ID of this process definition.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     /// The key for this process definition.
     #[serde(
         rename = "processDefinitionKey",

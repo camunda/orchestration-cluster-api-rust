@@ -27,10 +27,10 @@ pub struct ProcessDefinitionResult {
     pub version_tag: Option<String>,
     /// Process definition ID of this process definition.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// Tenant ID of this process definition.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The key for this process definition.
     #[serde(rename = "processDefinitionKey")]
     pub process_definition_key: Box<models::ProcessDefinitionKey>,
@@ -45,8 +45,8 @@ impl ProcessDefinitionResult {
         resource_name: String,
         version: i32,
         version_tag: Option<String>,
-        process_definition_id: String,
-        tenant_id: String,
+        process_definition_id: models::ProcessDefinitionId,
+        tenant_id: models::TenantId,
         process_definition_key: models::ProcessDefinitionKey,
         has_start_form: bool,
     ) -> ProcessDefinitionResult {

@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct EvaluatedDecisionResult {
     /// The ID of the decision which was evaluated.
     #[serde(rename = "decisionDefinitionId")]
-    pub decision_definition_id: String,
+    pub decision_definition_id: models::DecisionDefinitionId,
     /// The name of the decision which was evaluated.
     #[serde(rename = "decisionDefinitionName")]
     pub decision_definition_name: String,
@@ -31,7 +31,7 @@ pub struct EvaluatedDecisionResult {
     pub output: String,
     /// The tenant ID of the evaluated decision.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The decision rules that matched within this decision evaluation.
     #[serde(rename = "matchedRules")]
     pub matched_rules: Vec<models::MatchedDecisionRuleItem>,
@@ -43,22 +43,22 @@ pub struct EvaluatedDecisionResult {
     pub decision_definition_key: Box<models::DecisionDefinitionKey>,
     /// The unique key identifying this decision evaluation instance.
     #[serde(rename = "decisionEvaluationInstanceKey")]
-    pub decision_evaluation_instance_key: String,
+    pub decision_evaluation_instance_key: models::DecisionEvaluationInstanceKey,
 }
 
 impl EvaluatedDecisionResult {
     /// A decision that was evaluated.
     pub fn new(
-        decision_definition_id: String,
+        decision_definition_id: models::DecisionDefinitionId,
         decision_definition_name: String,
         decision_definition_version: i32,
         decision_definition_type: String,
         output: String,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         matched_rules: Vec<models::MatchedDecisionRuleItem>,
         evaluated_inputs: Vec<models::EvaluatedDecisionInputItem>,
         decision_definition_key: models::DecisionDefinitionKey,
-        decision_evaluation_instance_key: String,
+        decision_evaluation_instance_key: models::DecisionEvaluationInstanceKey,
     ) -> EvaluatedDecisionResult {
         EvaluatedDecisionResult {
             decision_definition_id,

@@ -15,13 +15,13 @@ use serde::{Deserialize, Serialize};
 pub struct CreateProcessInstanceResult {
     /// The BPMN process id of the process definition which was used to create the process. instance
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The version of the process definition which was used to create the process instance.
     #[serde(rename = "processDefinitionVersion")]
     pub process_definition_version: i32,
     /// The tenant id of the created process instance.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// All the variables visible in the root scope.
     #[serde(rename = "variables")]
     pub variables: std::collections::HashMap<String, serde_json::Value>,
@@ -36,19 +36,19 @@ pub struct CreateProcessInstanceResult {
     pub tags: Vec<String>,
     /// Business id as provided on creation.
     #[serde(rename = "businessId", deserialize_with = "Option::deserialize")]
-    pub business_id: Option<String>,
+    pub business_id: Option<models::BusinessId>,
 }
 
 impl CreateProcessInstanceResult {
     pub fn new(
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         process_definition_version: i32,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         variables: std::collections::HashMap<String, serde_json::Value>,
         process_definition_key: models::ProcessDefinitionKey,
         process_instance_key: models::ProcessInstanceKey,
         tags: Vec<String>,
-        business_id: Option<String>,
+        business_id: Option<models::BusinessId>,
     ) -> CreateProcessInstanceResult {
         CreateProcessInstanceResult {
             process_definition_id,

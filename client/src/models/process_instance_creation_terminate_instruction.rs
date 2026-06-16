@@ -19,12 +19,12 @@ pub struct ProcessInstanceCreationTerminateInstruction {
     pub r#type: Option<String>,
     /// The id of the element that, once completed or terminated, will cause the process to be terminated.
     #[serde(rename = "afterElementId")]
-    pub after_element_id: String,
+    pub after_element_id: models::ElementId,
 }
 
 impl ProcessInstanceCreationTerminateInstruction {
     /// Terminates the process instance after a specific BPMN element is completed or terminated.
-    pub fn new(after_element_id: String) -> ProcessInstanceCreationTerminateInstruction {
+    pub fn new(after_element_id: models::ElementId) -> ProcessInstanceCreationTerminateInstruction {
         ProcessInstanceCreationTerminateInstruction {
             r#type: None,
             after_element_id,

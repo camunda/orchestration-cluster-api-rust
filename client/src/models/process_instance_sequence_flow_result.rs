@@ -31,13 +31,13 @@ pub struct ProcessInstanceSequenceFlowResult {
     pub process_definition_key: Box<models::ProcessDefinitionKey>,
     /// The process definition id.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The element id for this sequence flow, as provided in the BPMN process.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
 }
 
 impl ProcessInstanceSequenceFlowResult {
@@ -47,9 +47,9 @@ impl ProcessInstanceSequenceFlowResult {
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         process_definition_key: models::ProcessDefinitionKey,
-        process_definition_id: String,
-        element_id: String,
-        tenant_id: String,
+        process_definition_id: models::ProcessDefinitionId,
+        element_id: models::ElementId,
+        tenant_id: models::TenantId,
     ) -> ProcessInstanceSequenceFlowResult {
         ProcessInstanceSequenceFlowResult {
             sequence_flow_id,

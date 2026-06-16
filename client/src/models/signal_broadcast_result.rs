@@ -15,14 +15,17 @@ use serde::{Deserialize, Serialize};
 pub struct SignalBroadcastResult {
     /// The tenant ID of the signal that was broadcast.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The key of the broadcasted signal.
     #[serde(rename = "signalKey")]
     pub signal_key: Box<models::SignalKey>,
 }
 
 impl SignalBroadcastResult {
-    pub fn new(tenant_id: String, signal_key: models::SignalKey) -> SignalBroadcastResult {
+    pub fn new(
+        tenant_id: models::TenantId,
+        signal_key: models::SignalKey,
+    ) -> SignalBroadcastResult {
         SignalBroadcastResult {
             tenant_id,
             signal_key: Box::new(signal_key),

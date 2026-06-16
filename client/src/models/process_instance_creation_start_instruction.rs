@@ -15,11 +15,11 @@ use serde::{Deserialize, Serialize};
 pub struct ProcessInstanceCreationStartInstruction {
     /// Future extensions might include:   - different types of start instructions   - ability to set local variables for different flow scopes  For now, however, the start instruction is implicitly a \"startBeforeElement\" instruction
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
 }
 
 impl ProcessInstanceCreationStartInstruction {
-    pub fn new(element_id: String) -> ProcessInstanceCreationStartInstruction {
+    pub fn new(element_id: models::ElementId) -> ProcessInstanceCreationStartInstruction {
         ProcessInstanceCreationStartInstruction { element_id }
     }
 }

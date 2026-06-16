@@ -20,7 +20,7 @@ pub struct DecisionEvaluationByKey {
     pub variables: Option<std::collections::HashMap<String, serde_json::Value>>,
     /// The tenant ID of the decision.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
 }
 
 impl DecisionEvaluationByKey {

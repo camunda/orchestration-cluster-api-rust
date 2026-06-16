@@ -15,10 +15,10 @@ use serde::{Deserialize, Serialize};
 pub struct FormResult {
     /// The tenant ID of the form.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The user-provided identifier of the form.
     #[serde(rename = "formId")]
-    pub form_id: String,
+    pub form_id: models::FormId,
     /// The form schema as a JSON document serialized as a string.
     #[serde(rename = "schema")]
     pub schema: String,
@@ -32,8 +32,8 @@ pub struct FormResult {
 
 impl FormResult {
     pub fn new(
-        tenant_id: String,
-        form_id: String,
+        tenant_id: models::TenantId,
+        form_id: models::FormId,
         schema: String,
         version: i64,
         form_key: models::FormKey,

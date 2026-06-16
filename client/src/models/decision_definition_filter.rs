@@ -19,7 +19,7 @@ pub struct DecisionDefinitionFilter {
         rename = "decisionDefinitionId",
         skip_serializing_if = "Option::is_none"
     )]
-    pub decision_definition_id: Option<String>,
+    pub decision_definition_id: Option<models::DecisionDefinitionId>,
     /// The DMN name of the decision definition.
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -37,7 +37,7 @@ pub struct DecisionDefinitionFilter {
     pub decision_requirements_id: Option<String>,
     /// The tenant ID of the decision definition.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     /// The assigned key, which acts as a unique identifier for this decision definition.
     #[serde(
         rename = "decisionDefinitionKey",

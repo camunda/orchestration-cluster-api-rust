@@ -27,7 +27,7 @@ pub struct DecisionRequirementsResult {
     pub resource_name: String,
     /// The tenant ID of the decision requirements.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The assigned version of the decision requirements.
     #[serde(rename = "version")]
     pub version: i32,
@@ -39,7 +39,7 @@ impl DecisionRequirementsResult {
         decision_requirements_key: models::DecisionRequirementsKey,
         decision_requirements_name: String,
         resource_name: String,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         version: i32,
     ) -> DecisionRequirementsResult {
         DecisionRequirementsResult {

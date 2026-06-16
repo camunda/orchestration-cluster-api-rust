@@ -24,7 +24,7 @@ pub struct MappingRuleCreateUpdateResult {
     pub name: String,
     /// The unique ID of the mapping rule.
     #[serde(rename = "mappingRuleId")]
-    pub mapping_rule_id: String,
+    pub mapping_rule_id: models::MappingRuleId,
 }
 
 impl MappingRuleCreateUpdateResult {
@@ -32,7 +32,7 @@ impl MappingRuleCreateUpdateResult {
         claim_name: String,
         claim_value: String,
         name: String,
-        mapping_rule_id: String,
+        mapping_rule_id: models::MappingRuleId,
     ) -> MappingRuleCreateUpdateResult {
         MappingRuleCreateUpdateResult {
             claim_name,

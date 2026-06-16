@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct RoleFilter {
     /// The role ID search filters.
     #[serde(rename = "roleId", skip_serializing_if = "Option::is_none")]
-    pub role_id: Option<String>,
+    pub role_id: Option<models::RoleId>,
     /// The role name search filters.
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

@@ -25,7 +25,7 @@ pub struct UserTaskFilter {
     pub priority: Option<Box<models::IntegerFilterProperty>>,
     /// The element ID of the user task.
     #[serde(rename = "elementId", skip_serializing_if = "Option::is_none")]
-    pub element_id: Option<String>,
+    pub element_id: Option<models::ElementId>,
     /// The task name. This only works for data created with 8.8 and onwards. Instances from prior versions don't contain this data and cannot be found.
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
     pub name: Option<Box<models::StringFilterProperty>>,

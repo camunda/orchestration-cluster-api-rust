@@ -22,10 +22,10 @@ pub struct SearchQueryPageResponse {
     pub has_more_total_items: bool,
     /// The cursor value for getting the previous page of results. Use this in the `before` field of an ensuing request.
     #[serde(rename = "startCursor", deserialize_with = "Option::deserialize")]
-    pub start_cursor: Option<String>,
+    pub start_cursor: Option<models::StartCursor>,
     /// The cursor value for getting the next page of results. Use this in the `after` field of an ensuing request.
     #[serde(rename = "endCursor", deserialize_with = "Option::deserialize")]
-    pub end_cursor: Option<String>,
+    pub end_cursor: Option<models::EndCursor>,
 }
 
 impl SearchQueryPageResponse {
@@ -33,8 +33,8 @@ impl SearchQueryPageResponse {
     pub fn new(
         total_items: i64,
         has_more_total_items: bool,
-        start_cursor: Option<String>,
-        end_cursor: Option<String>,
+        start_cursor: Option<models::StartCursor>,
+        end_cursor: Option<models::EndCursor>,
     ) -> SearchQueryPageResponse {
         SearchQueryPageResponse {
             total_items,

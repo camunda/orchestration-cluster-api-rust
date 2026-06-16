@@ -21,7 +21,7 @@ pub struct SignalBroadcastRequest {
     pub variables: Option<std::collections::HashMap<String, serde_json::Value>>,
     /// The ID of the tenant that owns the signal.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
 }
 
 impl SignalBroadcastRequest {

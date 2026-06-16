@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct MessagePublicationResult {
     /// The tenant ID of the message.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The key of the published message.
     #[serde(rename = "messageKey")]
     pub message_key: Box<models::MessageKey>,
@@ -24,7 +24,10 @@ pub struct MessagePublicationResult {
 
 impl MessagePublicationResult {
     /// The message key of the published message.
-    pub fn new(tenant_id: String, message_key: models::MessageKey) -> MessagePublicationResult {
+    pub fn new(
+        tenant_id: models::TenantId,
+        message_key: models::MessageKey,
+    ) -> MessagePublicationResult {
         MessagePublicationResult {
             tenant_id,
             message_key: Box::new(message_key),

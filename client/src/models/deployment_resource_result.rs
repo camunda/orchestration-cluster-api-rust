@@ -25,7 +25,7 @@ pub struct DeploymentResourceResult {
     pub version: i32,
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The assigned key, which acts as a unique identifier for this Resource.
     #[serde(rename = "resourceKey")]
     pub resource_key: Box<models::ResourceKey>,
@@ -37,7 +37,7 @@ impl DeploymentResourceResult {
         resource_id: String,
         resource_name: String,
         version: i32,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         resource_key: models::ResourceKey,
     ) -> DeploymentResourceResult {
         DeploymentResourceResult {

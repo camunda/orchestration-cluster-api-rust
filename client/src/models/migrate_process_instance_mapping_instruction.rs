@@ -16,17 +16,17 @@ use serde::{Deserialize, Serialize};
 pub struct MigrateProcessInstanceMappingInstruction {
     /// The element id to migrate from.
     #[serde(rename = "sourceElementId")]
-    pub source_element_id: String,
+    pub source_element_id: models::ElementId,
     /// The element id to migrate into.
     #[serde(rename = "targetElementId")]
-    pub target_element_id: String,
+    pub target_element_id: models::ElementId,
 }
 
 impl MigrateProcessInstanceMappingInstruction {
     /// The mapping instructions describe how to map elements from the source process definition to the target process definition.
     pub fn new(
-        source_element_id: String,
-        target_element_id: String,
+        source_element_id: models::ElementId,
+        target_element_id: models::ElementId,
     ) -> MigrateProcessInstanceMappingInstruction {
         MigrateProcessInstanceMappingInstruction {
             source_element_id,

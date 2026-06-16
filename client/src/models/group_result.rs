@@ -19,7 +19,7 @@ pub struct GroupResult {
     pub name: String,
     /// The group ID.
     #[serde(rename = "groupId")]
-    pub group_id: String,
+    pub group_id: models::GroupId,
     /// The group description.
     #[serde(rename = "description", deserialize_with = "Option::deserialize")]
     pub description: Option<String>,
@@ -27,7 +27,11 @@ pub struct GroupResult {
 
 impl GroupResult {
     /// Group search response item.
-    pub fn new(name: String, group_id: String, description: Option<String>) -> GroupResult {
+    pub fn new(
+        name: String,
+        group_id: models::GroupId,
+        description: Option<String>,
+    ) -> GroupResult {
         GroupResult {
             name,
             group_id,

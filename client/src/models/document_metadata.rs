@@ -31,7 +31,7 @@ pub struct DocumentMetadata {
         rename = "processDefinitionId",
         skip_serializing_if = "Option::is_none"
     )]
-    pub process_definition_id: Option<String>,
+    pub process_definition_id: Option<models::ProcessDefinitionId>,
     /// The key of the process instance that created the document.
     #[serde(rename = "processInstanceKey", skip_serializing_if = "Option::is_none")]
     pub process_instance_key: Option<Box<models::ProcessInstanceKey>>,

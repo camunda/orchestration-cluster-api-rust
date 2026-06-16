@@ -19,7 +19,7 @@ pub struct ElementInstanceFilterFields {
         rename = "processDefinitionId",
         skip_serializing_if = "Option::is_none"
     )]
-    pub process_definition_id: Option<String>,
+    pub process_definition_id: Option<models::ProcessDefinitionId>,
     /// State of element instance as defined set of values.
     #[serde(rename = "state", skip_serializing_if = "Option::is_none")]
     pub state: Option<Box<models::ElementInstanceStateFilterProperty>>,
@@ -37,7 +37,7 @@ pub struct ElementInstanceFilterFields {
     pub has_incident: Option<bool>,
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     /// The assigned key, which acts as a unique identifier for this element instance.
     #[serde(rename = "elementInstanceKey", skip_serializing_if = "Option::is_none")]
     pub element_instance_key: Option<Box<models::ElementInstanceKey>>,

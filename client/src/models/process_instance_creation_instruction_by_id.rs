@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct ProcessInstanceCreationInstructionById {
     /// The BPMN process id of the process definition to start an instance of.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The version of the process. By default, the latest version of the process is used.
     #[serde(
         rename = "processDefinitionVersion",
@@ -27,7 +27,7 @@ pub struct ProcessInstanceCreationInstructionById {
     pub variables: Option<std::collections::HashMap<String, serde_json::Value>>,
     /// The tenant id of the process definition. If multi-tenancy is enabled, provide the tenant id of the process definition to start a process instance of. If multi-tenancy is disabled, don't provide this parameter.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     /// A reference key chosen by the user that will be part of all records resulting from this operation. Must be > 0 if provided.
     #[serde(rename = "operationReference", skip_serializing_if = "Option::is_none")]
     pub operation_reference: Option<i64>,
@@ -54,11 +54,13 @@ pub struct ProcessInstanceCreationInstructionById {
     pub tags: Option<Vec<String>>,
     /// An optional, user-defined string identifier that identifies the process instance within the scope of a process definition (scoped by tenant). If provided and uniqueness enforcement is enabled, the engine will reject creation if another root process instance with the same business id is already active for the same process definition. Note that any active child process instances with the same business id are not taken into account.
     #[serde(rename = "businessId", skip_serializing_if = "Option::is_none")]
-    pub business_id: Option<String>,
+    pub business_id: Option<models::BusinessId>,
 }
 
 impl ProcessInstanceCreationInstructionById {
-    pub fn new(process_definition_id: String) -> ProcessInstanceCreationInstructionById {
+    pub fn new(
+        process_definition_id: models::ProcessDefinitionId,
+    ) -> ProcessInstanceCreationInstructionById {
         ProcessInstanceCreationInstructionById {
             process_definition_id,
             process_definition_version: None,

@@ -16,12 +16,14 @@ use serde::{Deserialize, Serialize};
 pub struct ProcessInstanceModificationTerminateByIdInstruction {
     /// The id of the elements to terminate. The element instances are determined at runtime.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
 }
 
 impl ProcessInstanceModificationTerminateByIdInstruction {
     /// Instruction describing which elements to terminate. The element instances are determined at runtime by the given id.
-    pub fn new(element_id: String) -> ProcessInstanceModificationTerminateByIdInstruction {
+    pub fn new(
+        element_id: models::ElementId,
+    ) -> ProcessInstanceModificationTerminateByIdInstruction {
         ProcessInstanceModificationTerminateByIdInstruction { element_id }
     }
 }

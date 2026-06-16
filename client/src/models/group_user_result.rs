@@ -15,11 +15,11 @@ use serde::{Deserialize, Serialize};
 pub struct GroupUserResult {
     /// The unique name of a user.
     #[serde(rename = "username")]
-    pub username: String,
+    pub username: models::Username,
 }
 
 impl GroupUserResult {
-    pub fn new(username: String) -> GroupUserResult {
+    pub fn new(username: models::Username) -> GroupUserResult {
         GroupUserResult { username }
     }
 }

@@ -16,17 +16,17 @@ use serde::{Deserialize, Serialize};
 pub struct ProcessInstanceModificationMoveBatchOperationInstruction {
     /// The source element ID.
     #[serde(rename = "sourceElementId")]
-    pub source_element_id: String,
+    pub source_element_id: models::ElementId,
     /// The target element ID.
     #[serde(rename = "targetElementId")]
-    pub target_element_id: String,
+    pub target_element_id: models::ElementId,
 }
 
 impl ProcessInstanceModificationMoveBatchOperationInstruction {
     /// Instructions describing a move operation. This instruction will terminate all active element instances at `sourceElementId` and activate a new element instance for each terminated one at `targetElementId`. The new element instances are created in the parent scope of the source element instances.
     pub fn new(
-        source_element_id: String,
-        target_element_id: String,
+        source_element_id: models::ElementId,
+        target_element_id: models::ElementId,
     ) -> ProcessInstanceModificationMoveBatchOperationInstruction {
         ProcessInstanceModificationMoveBatchOperationInstruction {
             source_element_id,

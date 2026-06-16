@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct ConditionalEvaluationInstruction {
     /// Used to evaluate root-level conditional start events for a tenant with the given ID. This will only evaluate root-level conditional start events of process definitions which belong to the tenant.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     /// Used to evaluate root-level conditional start events of the process definition with the given key.
     #[serde(
         rename = "processDefinitionKey",

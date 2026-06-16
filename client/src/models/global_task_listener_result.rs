@@ -30,13 +30,16 @@ pub struct GlobalTaskListenerResult {
     pub event_types: Option<Vec<models::GlobalTaskListenerEventTypeEnum>>,
     /// The user-defined id for the global listener
     #[serde(rename = "id")]
-    pub id: String,
+    pub id: models::GlobalListenerId,
     #[serde(rename = "source")]
     pub source: models::GlobalListenerSourceEnum,
 }
 
 impl GlobalTaskListenerResult {
-    pub fn new(id: String, source: models::GlobalListenerSourceEnum) -> GlobalTaskListenerResult {
+    pub fn new(
+        id: models::GlobalListenerId,
+        source: models::GlobalListenerSourceEnum,
+    ) -> GlobalTaskListenerResult {
         GlobalTaskListenerResult {
             r#type: None,
             retries: None,

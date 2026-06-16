@@ -19,7 +19,7 @@ pub struct TenantResult {
     pub name: String,
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The tenant description.
     #[serde(rename = "description", deserialize_with = "Option::deserialize")]
     pub description: Option<String>,
@@ -27,7 +27,11 @@ pub struct TenantResult {
 
 impl TenantResult {
     /// Tenant search response item.
-    pub fn new(name: String, tenant_id: String, description: Option<String>) -> TenantResult {
+    pub fn new(
+        name: String,
+        tenant_id: models::TenantId,
+        description: Option<String>,
+    ) -> TenantResult {
         TenantResult {
             name,
             tenant_id,

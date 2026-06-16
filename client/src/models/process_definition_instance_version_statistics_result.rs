@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct ProcessDefinitionInstanceVersionStatisticsResult {
     /// The ID associated with the process definition.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The unique key of the process definition.
     #[serde(rename = "processDefinitionKey")]
     pub process_definition_key: Box<models::ProcessDefinitionKey>,
@@ -28,7 +28,7 @@ pub struct ProcessDefinitionInstanceVersionStatisticsResult {
     pub process_definition_name: Option<String>,
     /// The tenant ID associated with the process definition.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The version number of the process definition.
     #[serde(rename = "processDefinitionVersion")]
     pub process_definition_version: i32,
@@ -43,10 +43,10 @@ pub struct ProcessDefinitionInstanceVersionStatisticsResult {
 impl ProcessDefinitionInstanceVersionStatisticsResult {
     /// Process definition instance version statistics response.
     pub fn new(
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         process_definition_key: models::ProcessDefinitionKey,
         process_definition_name: Option<String>,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         process_definition_version: i32,
         active_instances_with_incident_count: i64,
         active_instances_without_incident_count: i64,

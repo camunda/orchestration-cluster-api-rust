@@ -17,7 +17,7 @@ pub struct BatchOperationItemResponse {
     pub operation_type: models::BatchOperationTypeEnum,
     /// The key (or operate legacy ID) of the batch operation.
     #[serde(rename = "batchOperationKey")]
-    pub batch_operation_key: String,
+    pub batch_operation_key: models::BatchOperationKey,
     /// Key of the item, e.g. a process instance key.
     #[serde(rename = "itemKey")]
     pub item_key: String,
@@ -47,7 +47,7 @@ pub struct BatchOperationItemResponse {
 impl BatchOperationItemResponse {
     pub fn new(
         operation_type: models::BatchOperationTypeEnum,
-        batch_operation_key: String,
+        batch_operation_key: models::BatchOperationKey,
         item_key: String,
         process_instance_key: Option<models::ProcessInstanceKey>,
         root_process_instance_key: Option<models::ProcessInstanceKey>,

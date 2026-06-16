@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct GroupUpdateResult {
     /// The unique group ID.
     #[serde(rename = "groupId")]
-    pub group_id: String,
+    pub group_id: models::GroupId,
     /// The name of the group.
     #[serde(rename = "name")]
     pub name: String,
@@ -25,7 +25,11 @@ pub struct GroupUpdateResult {
 }
 
 impl GroupUpdateResult {
-    pub fn new(group_id: String, name: String, description: Option<String>) -> GroupUpdateResult {
+    pub fn new(
+        group_id: models::GroupId,
+        name: String,
+        description: Option<String>,
+    ) -> GroupUpdateResult {
         GroupUpdateResult {
             group_id,
             name,

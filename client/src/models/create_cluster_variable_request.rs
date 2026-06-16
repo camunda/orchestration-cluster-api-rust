@@ -15,14 +15,17 @@ use serde::{Deserialize, Serialize};
 pub struct CreateClusterVariableRequest {
     /// The name of the cluster variable. Must be unique within its scope (global or tenant-specific).
     #[serde(rename = "name")]
-    pub name: String,
+    pub name: models::ClusterVariableName,
     /// The value of the cluster variable. Can be any JSON object or primitive value. Will be serialized as a JSON string in responses.
     #[serde(rename = "value")]
     pub value: serde_json::Value,
 }
 
 impl CreateClusterVariableRequest {
-    pub fn new(name: String, value: serde_json::Value) -> CreateClusterVariableRequest {
+    pub fn new(
+        name: models::ClusterVariableName,
+        value: serde_json::Value,
+    ) -> CreateClusterVariableRequest {
         CreateClusterVariableRequest { name, value }
     }
 }

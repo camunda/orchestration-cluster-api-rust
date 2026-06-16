@@ -18,13 +18,13 @@ pub struct ActivatedJobResult {
     pub r#type: String,
     /// The bpmn process ID of the job's process definition.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The version of the job's process definition.
     #[serde(rename = "processDefinitionVersion")]
     pub process_definition_version: i32,
     /// The associated task element ID.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// A set of custom headers defined during modelling; returned as a serialized JSON document.
     #[serde(rename = "customHeaders")]
     pub custom_headers: std::collections::HashMap<String, serde_json::Value>,
@@ -42,7 +42,7 @@ pub struct ActivatedJobResult {
     pub variables: std::collections::HashMap<String, serde_json::Value>,
     /// The ID of the tenant that owns the job.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The key, a unique identifier for the job.
     #[serde(rename = "jobKey")]
     pub job_key: Box<models::JobKey>,
@@ -79,15 +79,15 @@ pub struct ActivatedJobResult {
 impl ActivatedJobResult {
     pub fn new(
         r#type: String,
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         process_definition_version: i32,
-        element_id: String,
+        element_id: models::ElementId,
         custom_headers: std::collections::HashMap<String, serde_json::Value>,
         worker: String,
         retries: i32,
         deadline: i64,
         variables: std::collections::HashMap<String, serde_json::Value>,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         job_key: models::JobKey,
         process_instance_key: models::ProcessInstanceKey,
         process_definition_key: models::ProcessDefinitionKey,

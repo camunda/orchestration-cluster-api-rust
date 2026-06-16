@@ -23,7 +23,7 @@ pub struct UserTaskResult {
     pub assignee: Option<String>,
     /// The element ID of the user task.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// The candidate groups for this user task.
     #[serde(rename = "candidateGroups")]
     pub candidate_groups: Vec<String>,
@@ -32,7 +32,7 @@ pub struct UserTaskResult {
     pub candidate_users: Vec<String>,
     /// The ID of the process definition.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The creation date of a user task.
     #[serde(rename = "creationDate")]
     pub creation_date: chrono::DateTime<chrono::FixedOffset>,
@@ -47,7 +47,7 @@ pub struct UserTaskResult {
     pub due_date: Option<chrono::DateTime<chrono::FixedOffset>>,
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The external form reference.
     #[serde(
         rename = "externalFormReference",
@@ -97,15 +97,15 @@ impl UserTaskResult {
         name: Option<String>,
         state: models::UserTaskStateEnum,
         assignee: Option<String>,
-        element_id: String,
+        element_id: models::ElementId,
         candidate_groups: Vec<String>,
         candidate_users: Vec<String>,
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         creation_date: chrono::DateTime<chrono::FixedOffset>,
         completion_date: Option<chrono::DateTime<chrono::FixedOffset>>,
         follow_up_date: Option<chrono::DateTime<chrono::FixedOffset>>,
         due_date: Option<chrono::DateTime<chrono::FixedOffset>>,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         external_form_reference: Option<String>,
         process_definition_version: i32,
         custom_headers: std::collections::HashMap<String, String>,

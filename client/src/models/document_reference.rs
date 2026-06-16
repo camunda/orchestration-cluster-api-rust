@@ -21,7 +21,7 @@ pub struct DocumentReference {
     pub store_id: String,
     /// The ID of the document.
     #[serde(rename = "documentId")]
-    pub document_id: String,
+    pub document_id: models::DocumentId,
     /// The hash of the document.
     #[serde(rename = "contentHash", deserialize_with = "Option::deserialize")]
     pub content_hash: Option<String>,
@@ -33,7 +33,7 @@ impl DocumentReference {
     pub fn new(
         camunda_document_type: CamundaDocumentType,
         store_id: String,
-        document_id: String,
+        document_id: models::DocumentId,
         content_hash: Option<String>,
         metadata: models::DocumentMetadataResponse,
     ) -> DocumentReference {

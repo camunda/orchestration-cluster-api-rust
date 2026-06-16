@@ -27,7 +27,7 @@ pub struct ResourceResult {
     pub resource_id: String,
     /// The tenant ID of this resource.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The unique key of this resource.
     #[serde(rename = "resourceKey")]
     pub resource_key: Box<models::ResourceKey>,
@@ -39,7 +39,7 @@ impl ResourceResult {
         version: i32,
         version_tag: Option<String>,
         resource_id: String,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         resource_key: models::ResourceKey,
     ) -> ResourceResult {
         ResourceResult {

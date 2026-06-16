@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct ClusterVariableResultBase {
     /// The name of the cluster variable. Unique within its scope (global or tenant-specific).
     #[serde(rename = "name")]
-    pub name: String,
+    pub name: models::ClusterVariableName,
     #[serde(rename = "scope")]
     pub scope: models::ClusterVariableScopeEnum,
     /// Only provided if the cluster variable scope is TENANT. Null for global scope variables.
@@ -27,7 +27,7 @@ pub struct ClusterVariableResultBase {
 impl ClusterVariableResultBase {
     /// Cluster variable response item.
     pub fn new(
-        name: String,
+        name: models::ClusterVariableName,
         scope: models::ClusterVariableScopeEnum,
         tenant_id: Option<String>,
     ) -> ClusterVariableResultBase {

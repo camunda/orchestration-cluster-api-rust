@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct TenantCreateResult {
     /// The unique identifier of the created tenant.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The name of the tenant.
     #[serde(rename = "name")]
     pub name: String,
@@ -25,7 +25,11 @@ pub struct TenantCreateResult {
 }
 
 impl TenantCreateResult {
-    pub fn new(tenant_id: String, name: String, description: Option<String>) -> TenantCreateResult {
+    pub fn new(
+        tenant_id: models::TenantId,
+        name: String,
+        description: Option<String>,
+    ) -> TenantCreateResult {
         TenantCreateResult {
             tenant_id,
             name,

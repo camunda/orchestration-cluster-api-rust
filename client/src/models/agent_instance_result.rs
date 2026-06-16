@@ -32,7 +32,7 @@ pub struct AgentInstanceResult {
     pub tools: Vec<models::AgentTool>,
     /// The BPMN element ID of the ad-hoc sub-process or AI agent task that owns this agent instance.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// The key of the process instance that owns this agent instance.
     #[serde(rename = "processInstanceKey")]
     pub process_instance_key: Box<models::ProcessInstanceKey>,
@@ -44,7 +44,7 @@ pub struct AgentInstanceResult {
     pub process_definition_key: Box<models::ProcessDefinitionKey>,
     /// The BPMN process ID of the process definition associated with this agent instance.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The version of the process definition associated with this agent instance.
     #[serde(rename = "processDefinitionVersion")]
     pub process_definition_version: i32,
@@ -56,7 +56,7 @@ pub struct AgentInstanceResult {
     pub process_definition_version_tag: Option<String>,
     /// The tenant ID of this agent instance.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The date when this agent instance was created.
     #[serde(rename = "creationDate")]
     pub creation_date: chrono::DateTime<chrono::FixedOffset>,
@@ -68,7 +68,7 @@ pub struct AgentInstanceResult {
     pub completion_date: Option<chrono::DateTime<chrono::FixedOffset>>,
     /// The keys of all element instances associated with this agent instance.
     #[serde(rename = "elementInstanceKeys")]
-    pub element_instance_keys: Vec<String>,
+    pub element_instance_keys: Vec<models::ElementInstanceKey>,
 }
 
 impl AgentInstanceResult {
@@ -79,18 +79,18 @@ impl AgentInstanceResult {
         metrics: models::AgentInstanceMetrics,
         limits: models::AgentInstanceLimits,
         tools: Vec<models::AgentTool>,
-        element_id: String,
+        element_id: models::ElementId,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: models::ProcessInstanceKey,
         process_definition_key: models::ProcessDefinitionKey,
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         process_definition_version: i32,
         process_definition_version_tag: Option<String>,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         creation_date: chrono::DateTime<chrono::FixedOffset>,
         last_updated_date: chrono::DateTime<chrono::FixedOffset>,
         completion_date: Option<chrono::DateTime<chrono::FixedOffset>>,
-        element_instance_keys: Vec<String>,
+        element_instance_keys: Vec<models::ElementInstanceKey>,
     ) -> AgentInstanceResult {
         AgentInstanceResult {
             agent_instance_key: Box::new(agent_instance_key),

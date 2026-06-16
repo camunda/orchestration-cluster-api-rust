@@ -18,7 +18,7 @@ pub struct EvaluateConditionalResult {
     pub conditional_evaluation_key: Box<models::ConditionalEvaluationKey>,
     /// The tenant ID of the conditional evaluation operation.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// List of process instances created. If no root-level conditional start events evaluated to true, the list will be empty.
     #[serde(rename = "processInstances")]
     pub process_instances: Vec<models::ProcessInstanceReference>,
@@ -27,7 +27,7 @@ pub struct EvaluateConditionalResult {
 impl EvaluateConditionalResult {
     pub fn new(
         conditional_evaluation_key: models::ConditionalEvaluationKey,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         process_instances: Vec<models::ProcessInstanceReference>,
     ) -> EvaluateConditionalResult {
         EvaluateConditionalResult {

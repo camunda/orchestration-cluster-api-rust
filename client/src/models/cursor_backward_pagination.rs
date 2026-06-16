@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct CursorBackwardPagination {
     /// Use the `startCursor` value from the previous response to fetch the previous page of results.
     #[serde(rename = "before", skip_serializing_if = "Option::is_none")]
-    pub before: Option<String>,
+    pub before: Option<models::StartCursor>,
     /// The maximum number of items to return in one request.
     #[serde(rename = "limit", skip_serializing_if = "Option::is_none")]
     pub limit: Option<i32>,

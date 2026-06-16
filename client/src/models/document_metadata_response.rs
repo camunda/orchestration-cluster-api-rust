@@ -31,7 +31,7 @@ pub struct DocumentMetadataResponse {
         rename = "processDefinitionId",
         deserialize_with = "Option::deserialize"
     )]
-    pub process_definition_id: Option<String>,
+    pub process_definition_id: Option<models::ProcessDefinitionId>,
     /// The key of the process instance that created the document.
     #[serde(
         rename = "processInstanceKey",
@@ -50,7 +50,7 @@ impl DocumentMetadataResponse {
         file_name: String,
         expires_at: Option<chrono::DateTime<chrono::FixedOffset>>,
         size: i64,
-        process_definition_id: Option<String>,
+        process_definition_id: Option<models::ProcessDefinitionId>,
         process_instance_key: Option<models::ProcessInstanceKey>,
         custom_properties: std::collections::HashMap<String, serde_json::Value>,
     ) -> DocumentMetadataResponse {

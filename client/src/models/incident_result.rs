@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct IncidentResult {
     /// The process definition ID associated to this incident.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The type of the incident error.
     #[serde(rename = "errorType")]
     pub error_type: models::IncidentErrorTypeEnum,
@@ -24,7 +24,7 @@ pub struct IncidentResult {
     pub error_message: String,
     /// The element ID associated to this incident.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// The creation time of the incident.
     #[serde(rename = "creationTime")]
     pub creation_time: chrono::DateTime<chrono::FixedOffset>,
@@ -33,7 +33,7 @@ pub struct IncidentResult {
     pub state: models::IncidentStateEnum,
     /// The tenant ID of the incident.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The assigned key, which acts as a unique identifier for this incident.
     #[serde(rename = "incidentKey")]
     pub incident_key: Box<models::IncidentKey>,
@@ -59,13 +59,13 @@ pub struct IncidentResult {
 
 impl IncidentResult {
     pub fn new(
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         error_type: models::IncidentErrorTypeEnum,
         error_message: String,
-        element_id: String,
+        element_id: models::ElementId,
         creation_time: chrono::DateTime<chrono::FixedOffset>,
         state: models::IncidentStateEnum,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         incident_key: models::IncidentKey,
         process_definition_key: models::ProcessDefinitionKey,
         process_instance_key: models::ProcessInstanceKey,

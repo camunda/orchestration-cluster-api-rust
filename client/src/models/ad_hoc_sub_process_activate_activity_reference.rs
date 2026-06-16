@@ -15,14 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct AdHocSubProcessActivateActivityReference {
     /// The ID of the element that should be activated.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// Variables to be set when activating the element.
     #[serde(rename = "variables", skip_serializing_if = "Option::is_none")]
     pub variables: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 impl AdHocSubProcessActivateActivityReference {
-    pub fn new(element_id: String) -> AdHocSubProcessActivateActivityReference {
+    pub fn new(element_id: models::ElementId) -> AdHocSubProcessActivateActivityReference {
         AdHocSubProcessActivateActivityReference {
             element_id,
             variables: None,

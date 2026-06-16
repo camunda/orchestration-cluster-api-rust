@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use camunda_orchestration_sdk::models::{
-    ProcessInstanceCreationInstruction, ProcessInstanceCreationInstructionById,
+    ProcessDefinitionId, ProcessInstanceCreationInstruction, ProcessInstanceCreationInstructionById,
 };
 use camunda_orchestration_sdk::CamundaClient;
 
@@ -28,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let instruction = ProcessInstanceCreationInstruction::ProcessInstanceCreationInstructionById(
         Box::new(ProcessInstanceCreationInstructionById {
-            process_definition_id: process_id,
+            process_definition_id: ProcessDefinitionId::assume_exists(process_id),
             variables: Some(
                 [("amount".to_string(), serde_json::json!(42))]
                     .into_iter()

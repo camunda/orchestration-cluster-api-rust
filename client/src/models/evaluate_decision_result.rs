@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct EvaluateDecisionResult {
     /// The ID of the decision which was evaluated.
     #[serde(rename = "decisionDefinitionId")]
-    pub decision_definition_id: String,
+    pub decision_definition_id: models::DecisionDefinitionId,
     /// The unique key identifying the decision which was evaluated.
     #[serde(rename = "decisionDefinitionKey")]
     pub decision_definition_key: Box<models::DecisionDefinitionKey>,
@@ -45,7 +45,7 @@ pub struct EvaluateDecisionResult {
         rename = "failedDecisionDefinitionId",
         deserialize_with = "Option::deserialize"
     )]
-    pub failed_decision_definition_id: Option<String>,
+    pub failed_decision_definition_id: Option<models::DecisionDefinitionId>,
     /// Message describing why the decision which was evaluated failed.
     #[serde(rename = "failureMessage", deserialize_with = "Option::deserialize")]
     pub failure_message: Option<String>,
@@ -54,12 +54,12 @@ pub struct EvaluateDecisionResult {
     pub output: String,
     /// The tenant ID of the evaluated decision.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
 }
 
 impl EvaluateDecisionResult {
     pub fn new(
-        decision_definition_id: String,
+        decision_definition_id: models::DecisionDefinitionId,
         decision_definition_key: models::DecisionDefinitionKey,
         decision_definition_name: String,
         decision_definition_version: i32,
@@ -68,10 +68,10 @@ impl EvaluateDecisionResult {
         decision_requirements_id: String,
         decision_requirements_key: models::DecisionRequirementsKey,
         evaluated_decisions: Vec<models::EvaluatedDecisionResult>,
-        failed_decision_definition_id: Option<String>,
+        failed_decision_definition_id: Option<models::DecisionDefinitionId>,
         failure_message: Option<String>,
         output: String,
-        tenant_id: String,
+        tenant_id: models::TenantId,
     ) -> EvaluateDecisionResult {
         EvaluateDecisionResult {
             decision_definition_id,

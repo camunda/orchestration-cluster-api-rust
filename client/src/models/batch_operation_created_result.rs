@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct BatchOperationCreatedResult {
     /// Key of the batch operation.
     #[serde(rename = "batchOperationKey")]
-    pub batch_operation_key: String,
+    pub batch_operation_key: models::BatchOperationKey,
     #[serde(rename = "batchOperationType")]
     pub batch_operation_type: models::BatchOperationTypeEnum,
 }
@@ -24,7 +24,7 @@ pub struct BatchOperationCreatedResult {
 impl BatchOperationCreatedResult {
     /// The created batch operation.
     pub fn new(
-        batch_operation_key: String,
+        batch_operation_key: models::BatchOperationKey,
         batch_operation_type: models::BatchOperationTypeEnum,
     ) -> BatchOperationCreatedResult {
         BatchOperationCreatedResult {

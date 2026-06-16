@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct DeploymentFormResult {
     /// The form ID, as parsed during deployment, together with the version forms a unique identifier for a specific form.
     #[serde(rename = "formId")]
-    pub form_id: String,
+    pub form_id: models::FormId,
     /// The version of the deployed form.
     #[serde(rename = "version")]
     pub version: i32,
@@ -25,7 +25,7 @@ pub struct DeploymentFormResult {
     pub resource_name: String,
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The assigned key, which acts as a unique identifier for this form.
     #[serde(rename = "formKey")]
     pub form_key: Box<models::FormKey>,
@@ -34,10 +34,10 @@ pub struct DeploymentFormResult {
 impl DeploymentFormResult {
     /// A deployed form.
     pub fn new(
-        form_id: String,
+        form_id: models::FormId,
         version: i32,
         resource_name: String,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         form_key: models::FormKey,
     ) -> DeploymentFormResult {
         DeploymentFormResult {

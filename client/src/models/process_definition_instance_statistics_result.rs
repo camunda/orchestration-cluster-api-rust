@@ -16,10 +16,10 @@ use serde::{Deserialize, Serialize};
 pub struct ProcessDefinitionInstanceStatisticsResult {
     /// Id of a process definition, from the model. Only ids of process definitions that are deployed are useful.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// Name of the latest deployed process definition instance version.
     #[serde(
         rename = "latestProcessDefinitionName",
@@ -40,8 +40,8 @@ pub struct ProcessDefinitionInstanceStatisticsResult {
 impl ProcessDefinitionInstanceStatisticsResult {
     /// Process definition instance statistics response.
     pub fn new(
-        process_definition_id: String,
-        tenant_id: String,
+        process_definition_id: models::ProcessDefinitionId,
+        tenant_id: models::TenantId,
         latest_process_definition_name: Option<String>,
         has_multiple_versions: bool,
         active_instances_without_incident_count: i64,

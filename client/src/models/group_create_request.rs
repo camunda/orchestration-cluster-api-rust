@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct GroupCreateRequest {
     /// The ID of the new group.
     #[serde(rename = "groupId")]
-    pub group_id: String,
+    pub group_id: models::GroupId,
     /// The display name of the new group.
     #[serde(rename = "name")]
     pub name: String,
@@ -25,7 +25,7 @@ pub struct GroupCreateRequest {
 }
 
 impl GroupCreateRequest {
-    pub fn new(group_id: String, name: String) -> GroupCreateRequest {
+    pub fn new(group_id: models::GroupId, name: String) -> GroupCreateRequest {
         GroupCreateRequest {
             group_id,
             name,

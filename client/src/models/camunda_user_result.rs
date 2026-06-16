@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct CamundaUserResult {
     /// The username of the user.
     #[serde(rename = "username")]
-    pub username: String,
+    pub username: models::Username,
     /// The display name of the user.
     #[serde(rename = "displayName", deserialize_with = "Option::deserialize")]
     pub display_name: Option<String>,
@@ -47,7 +47,7 @@ pub struct CamundaUserResult {
 
 impl CamundaUserResult {
     pub fn new(
-        username: String,
+        username: models::Username,
         display_name: Option<String>,
         email: Option<String>,
         authorized_components: Vec<String>,

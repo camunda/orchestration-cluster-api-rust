@@ -18,7 +18,7 @@ pub struct MessageSubscriptionResult {
     pub message_subscription_key: Box<models::MessageSubscriptionKey>,
     /// The process definition ID associated with this message subscription.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The process definition key associated with this message subscription.
     #[serde(
         rename = "processDefinitionKey",
@@ -39,7 +39,7 @@ pub struct MessageSubscriptionResult {
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
     /// The element ID associated with this message subscription.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// The element instance key associated with this message subscription. Only populated for intermediate event entities.
     #[serde(
         rename = "elementInstanceKey",
@@ -85,17 +85,17 @@ pub struct MessageSubscriptionResult {
     pub inbound_connector_type: Option<String>,
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
 }
 
 impl MessageSubscriptionResult {
     pub fn new(
         message_subscription_key: models::MessageSubscriptionKey,
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         process_definition_key: Option<models::ProcessDefinitionKey>,
         process_instance_key: Option<models::ProcessInstanceKey>,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
-        element_id: String,
+        element_id: models::ElementId,
         element_instance_key: Option<models::ElementInstanceKey>,
         message_subscription_state: models::MessageSubscriptionStateEnum,
         last_updated_date: chrono::DateTime<chrono::FixedOffset>,
@@ -107,7 +107,7 @@ impl MessageSubscriptionResult {
         process_definition_version: Option<i32>,
         tool_name: Option<String>,
         inbound_connector_type: Option<String>,
-        tenant_id: String,
+        tenant_id: models::TenantId,
     ) -> MessageSubscriptionResult {
         MessageSubscriptionResult {
             message_subscription_key: Box::new(message_subscription_key),

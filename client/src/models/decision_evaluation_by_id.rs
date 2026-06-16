@@ -15,17 +15,17 @@ use serde::{Deserialize, Serialize};
 pub struct DecisionEvaluationById {
     /// The ID of the decision to be evaluated. When using the decision ID, the latest deployed version of the decision is used.
     #[serde(rename = "decisionDefinitionId")]
-    pub decision_definition_id: String,
+    pub decision_definition_id: models::DecisionDefinitionId,
     /// The decision evaluation variables as JSON document.
     #[serde(rename = "variables", skip_serializing_if = "Option::is_none")]
     pub variables: Option<std::collections::HashMap<String, serde_json::Value>>,
     /// The tenant ID of the decision.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
 }
 
 impl DecisionEvaluationById {
-    pub fn new(decision_definition_id: String) -> DecisionEvaluationById {
+    pub fn new(decision_definition_id: models::DecisionDefinitionId) -> DecisionEvaluationById {
         DecisionEvaluationById {
             decision_definition_id,
             variables: None,

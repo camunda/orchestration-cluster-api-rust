@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct DecisionDefinitionResult {
     /// The DMN ID of the decision definition.
     #[serde(rename = "decisionDefinitionId")]
-    pub decision_definition_id: String,
+    pub decision_definition_id: models::DecisionDefinitionId,
     /// The assigned key, which acts as a unique identifier for this decision definition.
     #[serde(rename = "decisionDefinitionKey")]
     pub decision_definition_key: Box<models::DecisionDefinitionKey>,
@@ -36,7 +36,7 @@ pub struct DecisionDefinitionResult {
     pub name: String,
     /// The tenant ID of the decision definition.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The assigned version of the decision definition.
     #[serde(rename = "version")]
     pub version: i32,
@@ -44,14 +44,14 @@ pub struct DecisionDefinitionResult {
 
 impl DecisionDefinitionResult {
     pub fn new(
-        decision_definition_id: String,
+        decision_definition_id: models::DecisionDefinitionId,
         decision_definition_key: models::DecisionDefinitionKey,
         decision_requirements_id: String,
         decision_requirements_key: models::DecisionRequirementsKey,
         decision_requirements_name: String,
         decision_requirements_version: i32,
         name: String,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         version: i32,
     ) -> DecisionDefinitionResult {
         DecisionDefinitionResult {

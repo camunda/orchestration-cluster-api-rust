@@ -18,7 +18,7 @@ pub struct ProcessInstanceModificationMoveInstruction {
     pub source_element_instruction: Box<models::SourceElementInstruction>,
     /// The target element id.
     #[serde(rename = "targetElementId")]
-    pub target_element_id: String,
+    pub target_element_id: models::ElementId,
     #[serde(
         rename = "ancestorScopeInstruction",
         skip_serializing_if = "Option::is_none"
@@ -36,7 +36,7 @@ impl ProcessInstanceModificationMoveInstruction {
     /// Instruction describing a move operation. This instruction will terminate active element instances based on the sourceElementInstruction and activate a new element instance for each terminated one at targetElementId. Note that, for multi-instance activities, only the multi-instance body instances will activate new element instances at the target id.
     pub fn new(
         source_element_instruction: models::SourceElementInstruction,
-        target_element_id: String,
+        target_element_id: models::ElementId,
     ) -> ProcessInstanceModificationMoveInstruction {
         ProcessInstanceModificationMoveInstruction {
             source_element_instruction: Box::new(source_element_instruction),

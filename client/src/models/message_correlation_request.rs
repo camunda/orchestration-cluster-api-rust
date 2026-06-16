@@ -24,7 +24,7 @@ pub struct MessageCorrelationRequest {
     pub variables: Option<std::collections::HashMap<String, serde_json::Value>>,
     /// the tenant for which the message is published
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
 }
 
 impl MessageCorrelationRequest {

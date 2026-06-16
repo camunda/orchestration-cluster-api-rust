@@ -39,7 +39,7 @@ pub struct CorrelatedMessageSubscriptionResult {
     pub partition_id: i32,
     /// The process definition ID associated with this correlated message subscription.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     /// The process definition key associated with this correlated message subscription.
     #[serde(rename = "processDefinitionKey")]
     pub process_definition_key: Box<models::ProcessDefinitionKey>,
@@ -57,7 +57,7 @@ pub struct CorrelatedMessageSubscriptionResult {
     pub subscription_key: Box<models::MessageSubscriptionKey>,
     /// The tenant ID associated with this correlated message subscription.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
 }
 
 impl CorrelatedMessageSubscriptionResult {
@@ -69,12 +69,12 @@ impl CorrelatedMessageSubscriptionResult {
         message_key: models::MessageKey,
         message_name: String,
         partition_id: i32,
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         process_definition_key: models::ProcessDefinitionKey,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         subscription_key: models::MessageSubscriptionKey,
-        tenant_id: String,
+        tenant_id: models::TenantId,
     ) -> CorrelatedMessageSubscriptionResult {
         CorrelatedMessageSubscriptionResult {
             correlation_key,

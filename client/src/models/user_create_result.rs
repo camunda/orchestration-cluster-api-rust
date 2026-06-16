@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct UserCreateResult {
     /// The username of the created user.
     #[serde(rename = "username")]
-    pub username: String,
+    pub username: models::Username,
     /// The name of the user.
     #[serde(rename = "name", deserialize_with = "Option::deserialize")]
     pub name: Option<String>,
@@ -25,7 +25,11 @@ pub struct UserCreateResult {
 }
 
 impl UserCreateResult {
-    pub fn new(username: String, name: Option<String>, email: Option<String>) -> UserCreateResult {
+    pub fn new(
+        username: models::Username,
+        name: Option<String>,
+        email: Option<String>,
+    ) -> UserCreateResult {
         UserCreateResult {
             username,
             name,

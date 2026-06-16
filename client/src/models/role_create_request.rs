@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct RoleCreateRequest {
     /// The ID of the new role.
     #[serde(rename = "roleId")]
-    pub role_id: String,
+    pub role_id: models::RoleId,
     /// The display name of the new role.
     #[serde(rename = "name")]
     pub name: String,
@@ -25,7 +25,7 @@ pub struct RoleCreateRequest {
 }
 
 impl RoleCreateRequest {
-    pub fn new(role_id: String, name: String) -> RoleCreateRequest {
+    pub fn new(role_id: models::RoleId, name: String) -> RoleCreateRequest {
         RoleCreateRequest {
             role_id,
             name,

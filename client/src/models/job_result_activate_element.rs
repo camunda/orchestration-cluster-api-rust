@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct JobResultActivateElement {
     /// The element ID to activate.
     #[serde(rename = "elementId", skip_serializing_if = "Option::is_none")]
-    pub element_id: Option<String>,
+    pub element_id: Option<models::ElementId>,
     /// Variables for the element.
     #[serde(
         rename = "variables",

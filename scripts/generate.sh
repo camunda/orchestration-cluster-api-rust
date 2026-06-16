@@ -5,8 +5,8 @@
 # Pipeline:
 #   1. (optional) bundle:spec  — fetch + bundle upstream spec via camunda-schema-bundler
 #   2. openapi-generator         — generate the `client/` crate (reqwest + serde, async)
-#   3. postprocess_domain_types  — generate the Camunda Domain Type System (semantic keys)
-#                                  and fix known openapi-generator output bugs
+#   3. postprocess              — run the numbered hooks: Domain Type System, semantic
+#                                  field types, and known openapi-generator output fixes
 #
 # Usage:
 #   ./scripts/generate.sh            # generate from the existing bundled spec
@@ -32,8 +32,8 @@ echo "==> Generating Rust client crate with openapi-generator..."
 npx --yes @openapitools/openapi-generator-cli generate \
   -c openapi-generator-config.yaml
 
-echo "==> Post-processing: generating Camunda Domain Type System..."
-python3 scripts/postprocess_domain_types.py \
+echo "==> Post-processing: Domain Type System + semantic fields + generator fixups..."
+python3 scripts/postprocess.py \
   --client-dir client \
   --spec "$BUNDLED_SPEC" \
   --metadata "$BUNDLED_META"

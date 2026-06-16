@@ -136,7 +136,7 @@ impl Job {
 
     /// The BPMN element id that created this job.
     pub fn element_id(&self) -> &str {
-        &self.inner.element_id
+        self.inner.element_id.value()
     }
 
     /// Remaining retries for this job.
@@ -296,7 +296,11 @@ impl JobWorker {
             max_jobs_to_activate: self.config.max_jobs_to_activate,
             fetch_variable: self.config.fetch_variables.clone(),
             request_timeout: Some(self.config.request_timeout_ms),
-            tenant_ids: self.config.tenant_ids.clone(),
+            tenant_ids: self.config.tenant_ids.as_ref().map(|ids| {
+                ids.iter()
+                    .map(|id| models::TenantId::assume_exists(id.clone()))
+                    .collect()
+            }),
             tenant_filter: None,
         };
         let result = self.client.activate_jobs(request).await?;

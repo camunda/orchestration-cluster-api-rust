@@ -28,13 +28,13 @@ pub struct ElementInstanceWaitStateResult {
     pub element_instance_key: Box<models::ElementInstanceKey>,
     /// The element ID for this element instance.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// The BPMN element type of this element instance.
     #[serde(rename = "elementType")]
     pub element_type: models::WaitStateElementTypeEnum,
     /// The tenant ID of the element instance.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The BPMN process ID of the process definition associated to this element instance.
     #[serde(rename = "bpmnProcessId")]
     pub bpmn_process_id: String,
@@ -49,9 +49,9 @@ impl ElementInstanceWaitStateResult {
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         process_instance_key: models::ProcessInstanceKey,
         element_instance_key: models::ElementInstanceKey,
-        element_id: String,
+        element_id: models::ElementId,
         element_type: models::WaitStateElementTypeEnum,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         bpmn_process_id: String,
         details: models::WaitStateDetails,
     ) -> ElementInstanceWaitStateResult {

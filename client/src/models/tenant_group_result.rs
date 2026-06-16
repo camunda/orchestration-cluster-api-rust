@@ -15,11 +15,11 @@ use serde::{Deserialize, Serialize};
 pub struct TenantGroupResult {
     /// The group ID.
     #[serde(rename = "groupId")]
-    pub group_id: String,
+    pub group_id: models::GroupId,
 }
 
 impl TenantGroupResult {
-    pub fn new(group_id: String) -> TenantGroupResult {
+    pub fn new(group_id: models::GroupId) -> TenantGroupResult {
         TenantGroupResult { group_id }
     }
 }

@@ -21,11 +21,15 @@ pub struct RoleUpdateResult {
     pub description: Option<String>,
     /// The ID of the updated role.
     #[serde(rename = "roleId")]
-    pub role_id: String,
+    pub role_id: models::RoleId,
 }
 
 impl RoleUpdateResult {
-    pub fn new(name: String, description: Option<String>, role_id: String) -> RoleUpdateResult {
+    pub fn new(
+        name: String,
+        description: Option<String>,
+        role_id: models::RoleId,
+    ) -> RoleUpdateResult {
         RoleUpdateResult {
             name,
             description,

@@ -33,7 +33,7 @@ pub struct JobActivationRequest {
     pub request_timeout: Option<i64>,
     /// A list of IDs of tenants for which to activate jobs.
     #[serde(rename = "tenantIds", skip_serializing_if = "Option::is_none")]
-    pub tenant_ids: Option<Vec<String>>,
+    pub tenant_ids: Option<Vec<models::TenantId>>,
     /// The tenant filtering strategy - determines whether to use provided tenant IDs or assigned tenant IDs from the authenticated principal's authorized tenants.
     #[serde(rename = "tenantFilter", skip_serializing_if = "Option::is_none")]
     pub tenant_filter: Option<models::TenantFilterEnum>,

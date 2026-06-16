@@ -19,7 +19,7 @@ pub struct VariableResultBase {
     pub name: String,
     /// Tenant ID of this variable.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The key for this variable.
     #[serde(rename = "variableKey")]
     pub variable_key: Box<models::VariableKey>,
@@ -41,7 +41,7 @@ impl VariableResultBase {
     /// Variable response item.
     pub fn new(
         name: String,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         variable_key: models::VariableKey,
         scope_key: models::ScopeKey,
         process_instance_key: models::ProcessInstanceKey,

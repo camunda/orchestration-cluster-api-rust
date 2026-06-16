@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct IncidentProcessInstanceStatisticsByDefinitionResult {
     /// Id of a process definition, from the model. Only ids of process definitions that are deployed are useful.
     #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: String,
+    pub process_definition_id: models::ProcessDefinitionId,
     #[serde(rename = "processDefinitionKey")]
     pub process_definition_key: Box<models::ProcessDefinitionKey>,
     /// The name of the process definition.
@@ -26,7 +26,7 @@ pub struct IncidentProcessInstanceStatisticsByDefinitionResult {
     pub process_definition_version: i32,
     /// The unique identifier of the tenant.
     #[serde(rename = "tenantId")]
-    pub tenant_id: String,
+    pub tenant_id: models::TenantId,
     /// The number of active process instances that currently have an incident with the specified error hash code.
     #[serde(rename = "activeInstancesWithErrorCount")]
     pub active_instances_with_error_count: i64,
@@ -34,11 +34,11 @@ pub struct IncidentProcessInstanceStatisticsByDefinitionResult {
 
 impl IncidentProcessInstanceStatisticsByDefinitionResult {
     pub fn new(
-        process_definition_id: String,
+        process_definition_id: models::ProcessDefinitionId,
         process_definition_key: models::ProcessDefinitionKey,
         process_definition_name: String,
         process_definition_version: i32,
-        tenant_id: String,
+        tenant_id: models::TenantId,
         active_instances_with_error_count: i64,
     ) -> IncidentProcessInstanceStatisticsByDefinitionResult {
         IncidentProcessInstanceStatisticsByDefinitionResult {

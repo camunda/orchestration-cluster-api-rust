@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct CursorForwardPagination {
     /// Use the `endCursor` value from the previous response to fetch the next page of results.
     #[serde(rename = "after", skip_serializing_if = "Option::is_none")]
-    pub after: Option<String>,
+    pub after: Option<models::EndCursor>,
     /// The maximum number of items to return in one request.
     #[serde(rename = "limit", skip_serializing_if = "Option::is_none")]
     pub limit: Option<i32>,

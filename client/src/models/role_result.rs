@@ -19,7 +19,7 @@ pub struct RoleResult {
     pub name: String,
     /// The role id.
     #[serde(rename = "roleId")]
-    pub role_id: String,
+    pub role_id: models::RoleId,
     /// The description of the role.
     #[serde(rename = "description", deserialize_with = "Option::deserialize")]
     pub description: Option<String>,
@@ -27,7 +27,7 @@ pub struct RoleResult {
 
 impl RoleResult {
     /// Role search response item.
-    pub fn new(name: String, role_id: String, description: Option<String>) -> RoleResult {
+    pub fn new(name: String, role_id: models::RoleId, description: Option<String>) -> RoleResult {
         RoleResult {
             name,
             role_id,
