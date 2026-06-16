@@ -6,7 +6,8 @@
 #   1. (optional) bundle:spec  — fetch + bundle upstream spec via camunda-schema-bundler
 #   2. openapi-generator         — generate the `client/` crate (reqwest + serde, async)
 #   3. postprocess              — run the numbered hooks: Domain Type System, semantic
-#                                  field types, and known openapi-generator output fixes
+#                                  field types, known openapi-generator output fixes, and
+#                                  the flat full-surface ergonomic facade
 #
 # Usage:
 #   ./scripts/generate.sh            # generate from the existing bundled spec

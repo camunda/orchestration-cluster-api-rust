@@ -7,6 +7,7 @@ pub mod client;
 pub mod config;
 pub mod errors;
 pub mod eventual;
+pub mod facade_generated;
 pub mod job_worker;
 pub mod logging;
 pub mod retry;

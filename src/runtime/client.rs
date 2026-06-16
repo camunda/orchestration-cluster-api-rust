@@ -134,7 +134,7 @@ impl CamundaClient {
     ///
     /// Drain operations (job completion / failure / BPMN error) bypass this gate so that
     /// in-flight work can always be drained even while the cluster is shedding new load.
-    async fn guarded<T, F, Fut>(&self, op: F) -> Result<T>
+    pub(crate) async fn guarded<T, F, Fut>(&self, op: F) -> Result<T>
     where
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<T>>,

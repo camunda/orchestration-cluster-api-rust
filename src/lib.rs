@@ -7,7 +7,8 @@
 //! * **Authentication strategies**: `OAUTH` (client-credentials), `BASIC`, `NONE`.
 //! * **Typed errors** ([`CamundaError`]).
 //! * **Job workers** ([`JobWorker`]) — poll for jobs, run a handler, auto-complete/fail.
-//! * Access to the full generated API surface via [`CamundaClient::configuration`].
+//! * **Full API surface**: a flat, ergonomic method on [`CamundaClient`] for every REST
+//!   operation (generated), plus a raw escape hatch via [`CamundaClient::configuration`].
 //!
 //! # Quick start
 //!
@@ -48,6 +49,11 @@ pub use runtime::eventual;
 /// [`camunda_orchestration_api_client::apis::configuration::Configuration`] with
 /// [`CamundaClient::configuration`].
 pub use camunda_orchestration_api_client as client;
+
+/// Re-export of the generated operation modules (`*_api`) and their `*Params` request
+/// types, so the parameter types for the full-surface facade methods can be imported
+/// from the SDK crate root (e.g. `camunda_orchestration_sdk::apis::authorization_api`).
+pub use camunda_orchestration_api_client::apis;
 
 /// The Camunda Domain Type System (semantic keys such as `JobKey`, `ProcessInstanceKey`).
 pub use camunda_orchestration_api_client::models;

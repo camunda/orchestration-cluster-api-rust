@@ -14,6 +14,7 @@ Hooks (in order):
   04 regex-dependency            ensure client/Cargo.toml depends on regex
   05 silence-lints               blanket-allow lints in generated lib.rs
   06 cleanup-scaffolding         drop generator scaffolding files
+  07 sdk-facade                  emit src/runtime/facade_generated.rs (flat full-surface facade)
 
 Usage:
     python3 scripts/postprocess.py --client-dir client \\
