@@ -30,6 +30,9 @@ pub struct CamundaConfig {
     pub token_audience: Option<String>,
     /// OAuth scope (optional).
     pub oauth_scope: Option<String>,
+    /// Directory for the on-disk OAuth token cache (`CAMUNDA_OAUTH_CACHE_DIR`). When set,
+    /// fetched tokens are persisted so they survive process restarts.
+    pub oauth_cache_dir: Option<String>,
     /// Basic-auth username.
     pub basic_auth_username: Option<String>,
     /// Basic-auth password.
@@ -38,6 +41,149 @@ pub struct CamundaConfig {
     pub default_tenant_id: Option<String>,
     /// Adaptive backpressure profile (`CAMUNDA_SDK_BACKPRESSURE_PROFILE`).
     pub backpressure_profile: BackpressureProfile,
+    /// SDK log level (`CAMUNDA_SDK_LOG_LEVEL`).
+    pub log_level: LogLevel,
+    /// Default per-operation timeout, in milliseconds, for eventual-consistency polling
+    /// helpers (`CAMUNDA_SDK_EVENTUAL_POLL_DEFAULT_MS`).
+    pub eventual_poll_default_ms: u64,
+    /// Transient-error HTTP retry policy.
+    pub retry: RetryConfig,
+    /// TLS / mutual-TLS configuration.
+    pub tls: TlsConfig,
+    /// Default job-worker settings sourced from `CAMUNDA_WORKER_*`.
+    pub worker_defaults: WorkerDefaults,
+}
+
+/// SDK log level, controlling the verbosity of the SDK's structured logging.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LogLevel {
+    /// Suppress all SDK logging.
+    Off,
+    Error,
+    Warn,
+    #[default]
+    Info,
+    Debug,
+    Trace,
+}
+
+impl std::str::FromStr for LogLevel {
+    type Err = CamundaError;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "off" | "none" | "silent" => Ok(LogLevel::Off),
+            "error" => Ok(LogLevel::Error),
+            "warn" | "warning" => Ok(LogLevel::Warn),
+            "info" | "" => Ok(LogLevel::Info),
+            "debug" => Ok(LogLevel::Debug),
+            "trace" | "silly" | "verbose" => Ok(LogLevel::Trace),
+            other => Err(CamundaError::config(format!(
+                "unknown CAMUNDA_SDK_LOG_LEVEL {other:?} (expected off/error/warn/info/debug/trace)"
+            ))),
+        }
+    }
+}
+
+impl LogLevel {
+    /// The matching [`tracing::Level`], or `None` when logging is off.
+    pub fn to_tracing(self) -> Option<tracing::Level> {
+        match self {
+            LogLevel::Off => None,
+            LogLevel::Error => Some(tracing::Level::ERROR),
+            LogLevel::Warn => Some(tracing::Level::WARN),
+            LogLevel::Info => Some(tracing::Level::INFO),
+            LogLevel::Debug => Some(tracing::Level::DEBUG),
+            LogLevel::Trace => Some(tracing::Level::TRACE),
+        }
+    }
+}
+
+/// Transient-error HTTP retry policy (`CAMUNDA_SDK_HTTP_RETRY_*`).
+///
+/// Initiating operations that fail with a retryable signal (HTTP 429/503, or a network
+/// error) are retried with exponential backoff and full jitter.
+#[derive(Debug, Clone)]
+pub struct RetryConfig {
+    /// Maximum number of attempts (1 disables retries).
+    pub max_attempts: u32,
+    /// Base backoff delay, in milliseconds.
+    pub base_delay_ms: u64,
+    /// Maximum backoff delay, in milliseconds.
+    pub max_delay_ms: u64,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        RetryConfig {
+            max_attempts: 4,
+            base_delay_ms: 100,
+            max_delay_ms: 5_000,
+        }
+    }
+}
+
+/// TLS / mutual-TLS configuration (`CAMUNDA_MTLS_*`).
+///
+/// A client certificate (`cert` + `key`) enables mutual TLS; a `ca` enables trusting a
+/// private certificate authority. Inline PEM values take precedence over the `*_path`
+/// file locations.
+#[derive(Debug, Clone, Default)]
+pub struct TlsConfig {
+    /// Inline client-certificate PEM (`CAMUNDA_MTLS_CERT`).
+    pub cert: Option<String>,
+    /// Inline client-key PEM (`CAMUNDA_MTLS_KEY`).
+    pub key: Option<String>,
+    /// Inline CA-certificate PEM (`CAMUNDA_MTLS_CA`).
+    pub ca: Option<String>,
+    /// Path to a client-certificate PEM (`CAMUNDA_MTLS_CERT_PATH`).
+    pub cert_path: Option<String>,
+    /// Path to a client-key PEM (`CAMUNDA_MTLS_KEY_PATH`).
+    pub key_path: Option<String>,
+    /// Path to a CA-certificate PEM (`CAMUNDA_MTLS_CA_PATH`).
+    pub ca_path: Option<String>,
+    /// Passphrase for an encrypted client key (`CAMUNDA_MTLS_KEY_PASSPHRASE`).
+    pub key_passphrase: Option<String>,
+}
+
+impl TlsConfig {
+    /// Whether any TLS material has been configured.
+    pub fn is_configured(&self) -> bool {
+        self.cert.is_some()
+            || self.key.is_some()
+            || self.ca.is_some()
+            || self.cert_path.is_some()
+            || self.key_path.is_some()
+            || self.ca_path.is_some()
+    }
+}
+
+/// Default job-worker settings sourced from `CAMUNDA_WORKER_*`. Used to seed
+/// [`JobWorkerConfig`](super::job_worker::JobWorkerConfig) defaults.
+#[derive(Debug, Clone)]
+pub struct WorkerDefaults {
+    /// Job activation timeout, in milliseconds (`CAMUNDA_WORKER_TIMEOUT`).
+    pub timeout_ms: i64,
+    /// Maximum concurrent jobs per worker (`CAMUNDA_WORKER_MAX_CONCURRENT_JOBS`).
+    pub max_concurrent_jobs: i32,
+    /// Long-poll request timeout, in milliseconds (`CAMUNDA_WORKER_REQUEST_TIMEOUT`).
+    pub request_timeout_ms: i64,
+    /// Worker name reported to the engine (`CAMUNDA_WORKER_NAME`).
+    pub name: String,
+    /// Maximum random startup delay, in seconds (`CAMUNDA_WORKER_STARTUP_JITTER_MAX_SECONDS`).
+    pub startup_jitter_max_seconds: u64,
+}
+
+impl Default for WorkerDefaults {
+    fn default() -> Self {
+        WorkerDefaults {
+            timeout_ms: 60_000,
+            max_concurrent_jobs: 10,
+            request_timeout_ms: 10_000,
+            name: "rust-sdk-worker".to_string(),
+            startup_jitter_max_seconds: 0,
+        }
+    }
 }
 
 impl CamundaConfig {
@@ -94,6 +240,7 @@ impl CamundaConfig {
             oauth_url,
             token_audience: get("CAMUNDA_TOKEN_AUDIENCE"),
             oauth_scope: get("CAMUNDA_OAUTH_SCOPE"),
+            oauth_cache_dir: get("CAMUNDA_OAUTH_CACHE_DIR"),
             basic_auth_username: get("CAMUNDA_BASIC_AUTH_USERNAME"),
             basic_auth_password: get("CAMUNDA_BASIC_AUTH_PASSWORD"),
             default_tenant_id: get("CAMUNDA_DEFAULT_TENANT_ID")
@@ -101,6 +248,42 @@ impl CamundaConfig {
             backpressure_profile: match get("CAMUNDA_SDK_BACKPRESSURE_PROFILE") {
                 Some(s) => s.parse::<BackpressureProfile>()?,
                 None => BackpressureProfile::default(),
+            },
+            log_level: match get("CAMUNDA_SDK_LOG_LEVEL") {
+                Some(s) => s.parse::<LogLevel>()?,
+                None => LogLevel::default(),
+            },
+            eventual_poll_default_ms: parse_u64(
+                &get,
+                "CAMUNDA_SDK_EVENTUAL_POLL_DEFAULT_MS",
+                10_000,
+            )?,
+            retry: RetryConfig {
+                max_attempts: parse_u64(&get, "CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS", 4)? as u32,
+                base_delay_ms: parse_u64(&get, "CAMUNDA_SDK_HTTP_RETRY_BASE_DELAY_MS", 100)?,
+                max_delay_ms: parse_u64(&get, "CAMUNDA_SDK_HTTP_RETRY_MAX_DELAY_MS", 5_000)?,
+            },
+            tls: TlsConfig {
+                cert: get("CAMUNDA_MTLS_CERT"),
+                key: get("CAMUNDA_MTLS_KEY"),
+                ca: get("CAMUNDA_MTLS_CA"),
+                cert_path: get("CAMUNDA_MTLS_CERT_PATH"),
+                key_path: get("CAMUNDA_MTLS_KEY_PATH"),
+                ca_path: get("CAMUNDA_MTLS_CA_PATH"),
+                key_passphrase: get("CAMUNDA_MTLS_KEY_PASSPHRASE"),
+            },
+            worker_defaults: WorkerDefaults {
+                timeout_ms: parse_u64(&get, "CAMUNDA_WORKER_TIMEOUT", 60_000)? as i64,
+                max_concurrent_jobs: parse_u64(&get, "CAMUNDA_WORKER_MAX_CONCURRENT_JOBS", 10)?
+                    as i32,
+                request_timeout_ms: parse_u64(&get, "CAMUNDA_WORKER_REQUEST_TIMEOUT", 10_000)?
+                    as i64,
+                name: get("CAMUNDA_WORKER_NAME").unwrap_or_else(|| "rust-sdk-worker".to_string()),
+                startup_jitter_max_seconds: parse_u64(
+                    &get,
+                    "CAMUNDA_WORKER_STARTUP_JITTER_MAX_SECONDS",
+                    0,
+                )?,
             },
         };
 
@@ -135,6 +318,16 @@ impl CamundaConfig {
 
 fn env_lookup(key: &str) -> Option<String> {
     std::env::var(key).ok()
+}
+
+/// Parse a non-empty numeric env var, falling back to `default` when unset.
+fn parse_u64(get: &dyn Fn(&str) -> Option<String>, key: &str, default: u64) -> Result<u64> {
+    match get(key) {
+        Some(s) => s.trim().parse::<u64>().map_err(|_| {
+            CamundaError::config(format!("{key} must be a non-negative integer, got {s:?}"))
+        }),
+        None => Ok(default),
+    }
 }
 
 /// Normalize a configured base address into a REST base path ending in `/v2`.

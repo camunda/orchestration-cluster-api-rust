@@ -22,7 +22,7 @@ Upstream dependencies — fix at the source when they misbehave, not by working 
 
 | Path | Ownership and intent |
 | --- | --- |
-| `src/runtime/` | Hand-written runtime (config, auth, errors, client facade, job workers). Primary edit surface. |
+| `src/runtime/` | Hand-written runtime. Modules: `config` (env resolution), `auth` (OAuth/Basic/None + disk token cache), `errors`, `client` (facade), `job_worker` (workers + lifecycle), `backpressure`, `retry` (transient HTTP retry), `eventual` (consistency polling), `tls` (mTLS), `logging` (tracing). Primary edit surface. |
 | `src/lib.rs` | Public crate surface and re-exports. |
 | `client/` | **Generated.** Produced by `make generate`. Never hand-edit. |
 | `scripts/generate.sh` | Pipeline orchestrator: bundle → generate → post-process → build. |

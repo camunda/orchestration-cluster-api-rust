@@ -20,6 +20,7 @@
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -29,6 +30,7 @@ use serde_json::Value;
 use camunda_orchestration_api_client::models;
 
 use super::client::CamundaClient;
+use super::config::WorkerDefaults;
 use super::errors::{CamundaError, Result};
 
 /// Boxed, shareable job handler. You normally pass a closure to [`JobWorker::run`]
@@ -55,6 +57,9 @@ pub struct JobWorkerConfig {
     pub fetch_variables: Option<Vec<String>>,
     /// Tenant ids to activate jobs for.
     pub tenant_ids: Option<Vec<String>>,
+    /// Maximum random startup delay before the first poll, in seconds. Spreads the initial
+    /// activate-jobs stampede when many workers start at once.
+    pub startup_jitter_max_seconds: u64,
 }
 
 impl JobWorkerConfig {
@@ -69,6 +74,23 @@ impl JobWorkerConfig {
             worker_name: "rust-sdk-worker".to_string(),
             fetch_variables: None,
             tenant_ids: None,
+            startup_jitter_max_seconds: 0,
+        }
+    }
+
+    /// Create a config seeded from the SDK's resolved [`WorkerDefaults`] (env-driven), for
+    /// the given job type. Builder methods can still override individual fields.
+    pub fn from_defaults(job_type: impl Into<String>, defaults: &WorkerDefaults) -> Self {
+        JobWorkerConfig {
+            job_type: job_type.into(),
+            max_jobs_to_activate: defaults.max_concurrent_jobs,
+            job_timeout_ms: defaults.timeout_ms,
+            request_timeout_ms: defaults.request_timeout_ms,
+            poll_interval_ms: 100,
+            worker_name: defaults.name.clone(),
+            fetch_variables: None,
+            tenant_ids: None,
+            startup_jitter_max_seconds: defaults.startup_jitter_max_seconds,
         }
     }
 
@@ -107,6 +129,12 @@ impl JobWorkerConfig {
         S: Into<String>,
     {
         self.tenant_ids = Some(ids.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the maximum random startup delay (seconds) applied before the first poll.
+    pub fn startup_jitter_max_seconds(mut self, seconds: u64) -> Self {
+        self.startup_jitter_max_seconds = seconds;
         self
     }
 }
@@ -231,15 +259,64 @@ impl JobAction {
 pub struct JobWorker {
     client: CamundaClient,
     config: JobWorkerConfig,
+    stop: Arc<AtomicBool>,
+}
+
+/// A handle to a spawned [`JobWorker`], used to stop it and await its completion.
+///
+/// Dropping the handle does **not** stop the worker; call [`JobWorkerHandle::stop`] (or
+/// [`CamundaClient::stop_all_workers`](super::client::CamundaClient::stop_all_workers)) for a
+/// graceful shutdown that lets in-flight jobs drain.
+pub struct JobWorkerHandle {
+    job_type: String,
+    worker_name: String,
+    stop: Arc<AtomicBool>,
+    join: tokio::task::JoinHandle<Result<()>>,
+}
+
+impl JobWorkerHandle {
+    /// The job type this worker polls for.
+    pub fn job_type(&self) -> &str {
+        &self.job_type
+    }
+
+    /// The worker name reported to the engine.
+    pub fn worker_name(&self) -> &str {
+        &self.worker_name
+    }
+
+    /// Signal the worker to stop. It finishes draining any in-flight jobs from the current
+    /// batch, then exits before the next poll. Non-blocking.
+    pub fn stop(&self) {
+        self.stop.store(true, Ordering::SeqCst);
+    }
+
+    /// Whether the worker task has finished.
+    pub fn is_finished(&self) -> bool {
+        self.join.is_finished()
+    }
+
+    /// Signal the worker to stop and await its graceful shutdown.
+    pub async fn shutdown(self) -> Result<()> {
+        self.stop.store(true, Ordering::SeqCst);
+        match self.join.await {
+            Ok(result) => result,
+            Err(e) => Err(CamundaError::worker(format!("worker task panicked: {e}"))),
+        }
+    }
 }
 
 impl JobWorker {
     pub(crate) fn new(client: CamundaClient, config: JobWorkerConfig) -> Self {
-        JobWorker { client, config }
+        JobWorker {
+            client,
+            config,
+            stop: Arc::new(AtomicBool::new(false)),
+        }
     }
 
-    /// Run the worker loop, processing jobs with `handler` until an unrecoverable
-    /// error occurs. This future never completes on its own under normal operation.
+    /// Run the worker loop, processing jobs with `handler` until stopped or an
+    /// unrecoverable error occurs.
     pub async fn run<F, Fut>(self, handler: F) -> Result<()>
     where
         F: Fn(Job) -> Fut + Send + Sync + 'static,
@@ -258,9 +335,37 @@ impl JobWorker {
         tokio::spawn(self.run(handler))
     }
 
+    /// Spawn the worker loop and return a [`JobWorkerHandle`] for graceful shutdown.
+    pub fn spawn<F, Fut>(self, handler: F) -> JobWorkerHandle
+    where
+        F: Fn(Job) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = JobAction> + Send + 'static,
+    {
+        let stop = self.stop.clone();
+        let job_type = self.config.job_type.clone();
+        let worker_name = self.config.worker_name.clone();
+        let join = tokio::spawn(self.run(handler));
+        JobWorkerHandle {
+            job_type,
+            worker_name,
+            stop,
+            join,
+        }
+    }
+
     async fn run_boxed(self, handler: JobHandler) -> Result<()> {
+        // Spread the initial activate-jobs stampede when many workers start together.
+        if self.config.startup_jitter_max_seconds > 0 {
+            let max_ms = self.config.startup_jitter_max_seconds.saturating_mul(1000);
+            let delay = (super::rand_fraction() * max_ms as f64) as u64;
+            tokio::time::sleep(Duration::from_millis(delay)).await;
+        }
+
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
         loop {
+            if self.stop.load(Ordering::SeqCst) {
+                return Ok(());
+            }
             let jobs = self.poll().await?;
             if jobs.is_empty() {
                 tokio::time::sleep(poll_interval).await;
@@ -289,6 +394,14 @@ impl JobWorker {
     }
 
     async fn poll(&self) -> Result<Vec<models::ActivatedJobResult>> {
+        // Fall back to the SDK's configured default tenant when none is set on the worker.
+        let tenant_ids = self.config.tenant_ids.clone().or_else(|| {
+            self.client
+                .config()
+                .default_tenant_id
+                .clone()
+                .map(|id| vec![id])
+        });
         let request = models::JobActivationRequest {
             r#type: self.config.job_type.clone(),
             worker: Some(self.config.worker_name.clone()),
@@ -296,7 +409,7 @@ impl JobWorker {
             max_jobs_to_activate: self.config.max_jobs_to_activate,
             fetch_variable: self.config.fetch_variables.clone(),
             request_timeout: Some(self.config.request_timeout_ms),
-            tenant_ids: self.config.tenant_ids.as_ref().map(|ids| {
+            tenant_ids: tenant_ids.map(|ids| {
                 ids.iter()
                     .map(|id| models::TenantId::assume_exists(id.clone()))
                     .collect()

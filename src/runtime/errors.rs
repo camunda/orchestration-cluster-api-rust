@@ -45,6 +45,13 @@ pub enum CamundaError {
     /// unbounded memory growth (waiter queue at capacity).
     #[error("backpressure error: {0}")]
     Backpressure(String),
+
+    /// An eventual-consistency polling helper timed out before its predicate was met.
+    #[error("eventual consistency timeout: condition not met after {elapsed_ms}ms")]
+    EventualConsistencyTimeout {
+        /// How long polling ran before giving up, in milliseconds.
+        elapsed_ms: u64,
+    },
 }
 
 impl CamundaError {

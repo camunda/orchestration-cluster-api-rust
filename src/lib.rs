@@ -32,9 +32,15 @@ pub use runtime::backpressure::{
     BackpressureManager, BackpressureProfile, BackpressureSeverity, BackpressureState,
 };
 pub use runtime::client::{CamundaClient, CamundaOptions};
-pub use runtime::config::CamundaConfig;
+pub use runtime::config::{CamundaConfig, LogLevel, RetryConfig, TlsConfig, WorkerDefaults};
 pub use runtime::errors::{CamundaError, Result};
-pub use runtime::job_worker::{Job, JobAction, JobHandler, JobWorker, JobWorkerConfig};
+pub use runtime::eventual::ConsistencyOptions;
+pub use runtime::job_worker::{
+    Job, JobAction, JobHandler, JobWorker, JobWorkerConfig, JobWorkerHandle,
+};
+
+/// Eventual-consistency polling helpers ([`ConsistencyOptions`]).
+pub use runtime::eventual;
 
 /// Re-export of the generated low-level client (models, apis, configuration).
 ///

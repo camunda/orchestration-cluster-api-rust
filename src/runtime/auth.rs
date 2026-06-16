@@ -7,11 +7,12 @@
 //! * [`AuthStrategy::Basic`] — HTTP Basic authentication.
 //! * [`AuthStrategy::None`] — no authentication (e.g. local development).
 
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use super::config::CamundaConfig;
@@ -56,6 +57,17 @@ struct CachedToken {
     token: String,
     /// Instant after which the token should be considered expired and refreshed.
     refresh_after: Instant,
+    /// Wall-clock instant matching `refresh_after`, used to persist the token to disk
+    /// (an `Instant` has no portable wall-clock representation).
+    refresh_after_wall: SystemTime,
+}
+
+/// On-disk representation of a cached OAuth token (shared across processes).
+#[derive(Debug, Serialize, Deserialize)]
+struct DiskToken {
+    access_token: String,
+    /// Refresh-after time as milliseconds since the Unix epoch.
+    refresh_after_unix_ms: u128,
 }
 
 /// Resolves and applies authentication to outgoing requests.
@@ -80,6 +92,8 @@ struct Inner {
     // Shared HTTP client for token requests.
     http: reqwest::Client,
     cache: Mutex<Option<CachedToken>>,
+    // Optional cross-process token cache directory.
+    oauth_cache_dir: Option<PathBuf>,
 }
 
 impl Authentication {
@@ -97,6 +111,7 @@ impl Authentication {
                 basic_password: config.basic_auth_password.clone(),
                 http,
                 cache: Mutex::new(None),
+                oauth_cache_dir: config.oauth_cache_dir.clone().map(PathBuf::from),
             }),
         }
     }
@@ -126,6 +141,9 @@ impl Authentication {
     }
 
     /// Return a valid OAuth access token, fetching or refreshing as needed.
+    ///
+    /// Token resolution order: in-memory cache → on-disk cache (if
+    /// `CAMUNDA_OAUTH_CACHE_DIR` is set) → token endpoint.
     async fn access_token(&self) -> Result<String> {
         {
             let cache = self.inner.cache.lock().await;
@@ -136,11 +154,96 @@ impl Authentication {
             }
         }
 
+        // Try the cross-process disk cache before hitting the token endpoint.
+        if let Some(disk) = self.read_disk_token() {
+            if Instant::now() < disk.refresh_after {
+                let token = disk.token.clone();
+                let mut cache = self.inner.cache.lock().await;
+                *cache = Some(disk);
+                return Ok(token);
+            }
+        }
+
         let fetched = self.fetch_token().await?;
+        self.write_disk_token(&fetched);
         let mut cache = self.inner.cache.lock().await;
         let token = fetched.token.clone();
         *cache = Some(fetched);
         Ok(token)
+    }
+
+    /// Compute the on-disk cache path for this client's tokens, namespaced by the
+    /// credentials so distinct clients do not collide.
+    fn cache_file_path(&self) -> Option<PathBuf> {
+        use std::hash::{Hash, Hasher};
+        let dir = self.inner.oauth_cache_dir.as_ref()?;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.inner.oauth_url.hash(&mut hasher);
+        self.inner.client_id.hash(&mut hasher);
+        self.inner.audience.hash(&mut hasher);
+        let key = hasher.finish();
+        Some(dir.join(format!("camunda-oauth-{key:016x}.json")))
+    }
+
+    /// Read and decode a token from the disk cache, converting its wall-clock expiry into a
+    /// monotonic [`Instant`]. Returns `None` on any error (missing/corrupt cache).
+    fn read_disk_token(&self) -> Option<CachedToken> {
+        let path = self.cache_file_path()?;
+        let bytes = std::fs::read(&path).ok()?;
+        let disk: DiskToken = serde_json::from_slice(&bytes).ok()?;
+        let now_wall_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()?
+            .as_millis();
+        let refresh_after_wall = UNIX_EPOCH
+            + Duration::from_millis(disk.refresh_after_unix_ms.min(u64::MAX as u128) as u64);
+        // Map the wall-clock expiry onto the monotonic clock.
+        let refresh_after = if disk.refresh_after_unix_ms > now_wall_ms {
+            Instant::now()
+                + Duration::from_millis((disk.refresh_after_unix_ms - now_wall_ms) as u64)
+        } else {
+            Instant::now()
+        };
+        Some(CachedToken {
+            token: disk.access_token,
+            refresh_after,
+            refresh_after_wall,
+        })
+    }
+
+    /// Persist a token to the disk cache atomically (temp file + rename). Best-effort: any
+    /// error is logged and ignored.
+    fn write_disk_token(&self, token: &CachedToken) {
+        let Some(path) = self.cache_file_path() else {
+            return;
+        };
+        let refresh_after_unix_ms = token
+            .refresh_after_wall
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let disk = DiskToken {
+            access_token: token.token.clone(),
+            refresh_after_unix_ms,
+        };
+        let Ok(json) = serde_json::to_vec(&disk) else {
+            return;
+        };
+        if let Some(parent) = path.parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                tracing::warn!(error = %e, "failed to create OAuth cache directory");
+                return;
+            }
+        }
+        let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
+        if let Err(e) = std::fs::write(&tmp, &json) {
+            tracing::warn!(error = %e, "failed to write OAuth cache token");
+            return;
+        }
+        if let Err(e) = std::fs::rename(&tmp, &path) {
+            tracing::warn!(error = %e, "failed to commit OAuth cache token");
+            let _ = std::fs::remove_file(&tmp);
+        }
     }
 
     async fn fetch_token(&self) -> Result<CachedToken> {
@@ -196,9 +299,11 @@ impl Authentication {
         // Refresh 30s before the stated expiry (default 60s lifetime when unspecified).
         let lifetime = token.expires_in.unwrap_or(60);
         let lead = lifetime.saturating_sub(30).max(1);
+        let lead_duration = Duration::from_secs(lead);
         Ok(CachedToken {
             token: token.access_token,
-            refresh_after: Instant::now() + Duration::from_secs(lead),
+            refresh_after: Instant::now() + lead_duration,
+            refresh_after_wall: SystemTime::now() + lead_duration,
         })
     }
 }
