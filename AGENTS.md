@@ -31,7 +31,8 @@ Upstream dependencies — fix at the source when they misbehave, not by working 
 | `openapi-generator-config.yaml` | openapi-generator configuration. |
 | `external-spec/bundled/` | Bundled spec (`rest-api.bundle.json`) + `spec-metadata.json`. Generator inputs. |
 | `external-spec/upstream/` | Transient sparse clone of upstream. **Never commit** (gitignored). |
-| `examples/` | Runnable examples. |
+| `examples/` | Runnable examples. `readme.rs` hosts the region-tagged snippets injected into `README.md` (compiled by `make examples`). |
+| `scripts/sync-readme-snippets.py` | Injects `examples/*.rs` region snippets into `README.md`; `--check` is the CI gate. |
 
 ## The Camunda Domain Type System (important)
 
@@ -71,11 +72,27 @@ The hooks are **idempotent** and fix: missing/broken semantic keys, collapsed se
 ## Build / test / lint
 
 ```bash
-make build   # cargo build --workspace
-make test    # cargo test --workspace  (unit + doctests)
-make lint    # cargo clippy --workspace
-make fmt     # cargo fmt --all
+make build         # cargo build --workspace
+make test          # cargo test --workspace  (unit + doctests)
+make examples      # cargo build --examples  (type-checks README snippet sources)
+make lint          # cargo clippy --workspace --all-targets
+make fmt           # cargo fmt --all
+make sync-readme       # inject examples/*.rs region snippets into README.md
+make sync-readme-check # CI gate: README in sync + every ```rust block backed by an example
+make check         # full local CI gate (build, test, examples, lint, fmt-check, readme-sync)
 ```
+
+CI (`.github/workflows/ci.yml`) runs the same gate (clippy with `-D warnings`) plus a
+non-blocking generation-drift job that regenerates from upstream and reports any diff.
+
+### README examples are compiled (no drift)
+
+Every `rust` code block in `README.md` is injected from a region in `examples/readme.rs` by
+`scripts/sync-readme-snippets.py`. Regions are delimited by `// region <Name>` /
+`// endregion <Name>` and are type-checked via `make examples`. To change a documented
+snippet: edit the region, run `make sync-readme`, commit both files. **Run `cargo fmt`
+before `make sync-readme`** — rustfmt may reflow snippet source, which would otherwise make
+the README and CI disagree.
 
 ### Always-green policy
 

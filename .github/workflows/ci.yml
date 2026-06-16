@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - 'stable/**'
+  pull_request:
+    branches:
+      - main
+      - 'stable/**'
+  workflow_dispatch:
+    inputs:
+      spec_ref:
+        description: "Git ref/branch/tag/SHA in camunda/camunda.git to regenerate the client from (drift check only)."
+        required: false
+        default: ""
+
+# The Rust toolchain (channel + components) is pinned by rust-toolchain.toml, so every
+# step below uses the same compiler/rustfmt/clippy as local `make` targets.
+jobs:
+  commitlint:
+    if: github.event_name == 'pull_request'
+    uses: camunda/sdk-infra/.github/workflows/sdk-commitlint.yml@v1
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Show toolchain
+        run: rustc --version && cargo --version && cargo fmt --version && cargo clippy --version
+
+      - name: Format check
+        run: make fmt-check
+
+      - name: Build workspace
+        run: make build
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Type-check examples (README snippet sources)
+        run: make examples
+
+      - name: Unit & doc tests
+        run: make test
+
+      # Examples are the source of truth for README code blocks. This fails if README.md is
+      # out of sync, or if any ```rust block is not backed by a compilable example.
+      # If it fails, run `make sync-readme` locally and commit the result.
+      - name: Check README snippets are in sync
+        run: make sync-readme-check
+
+  # Non-blocking: regenerate the client from upstream and report any drift, mirroring the
+  # sibling SDKs. Does not fail the build — drift is surfaced for a follow-up regen PR.
+  generation-drift:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+
+      - name: Set up Java (openapi-generator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Regenerate client
+        env:
+          SPEC_REF: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.spec_ref) || vars.SPEC_REF_OVERRIDE || 'main' }}
+        run: make bundle
+
+      - name: Detect generation drift
+        id: drift
+        run: |
+          if ! git diff --quiet; then
+            echo 'drift=true' >> "$GITHUB_OUTPUT"
+            echo '::warning::Regeneration produced changes (reporting only). Run `make bundle` and commit.'
+            git diff --name-only | sed 's/^/CHANGED: /'
+            git diff > _generation-drift.patch || true
+          else
+            echo 'drift=false' >> "$GITHUB_OUTPUT"
+            echo 'No generation drift.'
+          fi
+
+      - name: Upload drift patch
+        if: steps.drift.outputs.drift == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: generation-drift
+          path: _generation-drift.patch
