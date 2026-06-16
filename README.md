@@ -1,4 +1,4 @@
-# Camunda Orchestration Cluster API — Rust SDK
+# Camunda Orchestration Cluster API — Rust SDK (Technical Preview)
 
 Ergonomic Rust SDK for the [Camunda 8 Orchestration Cluster REST API](https://docs.camunda.io/docs/apis-tools/orchestration-cluster-api-rest/orchestration-cluster-api-rest-overview/).
 
@@ -16,6 +16,16 @@ This SDK follows the same architecture as the official
   `ProcessInstanceKey` are nominal newtypes with validation, not bare strings.
 
 Target API version: **8.10** (`main`).
+
+## Support status
+
+This is a **Technical Preview** of the Rust client that will become fully supported in
+Camunda 8.10.0.
+
+The Technical Preview gives you a stable foundation to build on now, with a clear path to
+full support. We don't anticipate major changes — and
+[your feedback](https://github.com/camunda/orchestration-cluster-api-rust/issues) between
+now and 8.10 is what closes that gap.
 
 ## Workspace layout
 
@@ -82,6 +92,9 @@ let client = CamundaClient::new(
         .with("CAMUNDA_TOKEN_AUDIENCE", "zeebe.camunda.io"),
 )?;
 ```
+
+> For a complete, runnable program see
+> [`examples/topology.rs`](https://github.com/camunda/orchestration-cluster-api-rust/blob/main/examples/topology.rs).
 
 ## Authentication
 
@@ -210,6 +223,11 @@ client.spawn_worker(client.worker_config("payment-service"), |job| async move {
 // ... later, on shutdown: drain in-flight jobs and stop every worker gracefully.
 client.stop_all_workers().await?;
 ```
+
+> For complete, runnable programs see
+> [`examples/worker.rs`](https://github.com/camunda/orchestration-cluster-api-rust/blob/main/examples/worker.rs)
+> and
+> [`examples/deploy_start_and_work.rs`](https://github.com/camunda/orchestration-cluster-api-rust/blob/main/examples/deploy_start_and_work.rs).
 
 ## Eventual consistency
 
