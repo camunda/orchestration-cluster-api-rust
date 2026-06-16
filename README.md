@@ -19,13 +19,13 @@ Target API version: **8.10** (`main`).
 
 ## Support status
 
-This is a **Technical Preview** of the Rust client that will become fully supported in
-Camunda 8.10.0.
+This is a **Technical Preview** of the Rust client. It gives you a stable foundation to
+build on now, with a clear path to full support. We don't anticipate major changes — and
+[your feedback](https://github.com/camunda/orchestration-cluster-api-rust/issues) is what
+helps close that gap.
 
-The Technical Preview gives you a stable foundation to build on now, with a clear path to
-full support. We don't anticipate major changes — and
-[your feedback](https://github.com/camunda/orchestration-cluster-api-rust/issues) between
-now and 8.10 is what closes that gap.
+> As a Technical Preview, the API surface may still evolve before it is declared fully
+> supported. Pin a specific version if you need stability.
 
 ## Workspace layout
 
