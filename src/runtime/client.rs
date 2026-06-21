@@ -218,12 +218,13 @@ impl CamundaClient {
             .as_ref()
     }
 
-    /// The shared, lazily-built nano create producer (one persistent socket per client).
+    /// The shared, lazily-built nano create producer (one persistent, failover-capable
+    /// link per client, dialing the cluster's command-stream directory).
     async fn nano_producer(&self, caps: &NanoCaps) -> Result<&Arc<NanoProducer>> {
-        let url = super::nano::ws_url(&self.config.rest_address, &caps.command_stream_path);
+        let endpoints = caps.endpoints.clone();
         self.nano
             .producer
-            .get_or_try_init(|| async { NanoProducer::connect(&url).await })
+            .get_or_try_init(|| async { NanoProducer::start(endpoints).await })
             .await
     }
 

@@ -430,13 +430,9 @@ impl JobWorker {
     /// Run the nano command-stream worker loop: subscribe, then process pushed jobs,
     /// replenishing a delivery credit as each job is acted upon. Honours `stop`.
     async fn run_nano_stream(self, handler: JobHandler, caps: super::nano::NanoCaps) -> Result<()> {
-        let url = super::nano::ws_url(
-            &self.client.config().rest_address,
-            &caps.command_stream_path,
-        );
         let worker = Arc::new(
             super::nano::NanoStreamWorker::subscribe(
-                &url,
+                caps.endpoints.clone(),
                 &self.config.job_type,
                 self.config.max_jobs_to_activate as i64,
                 self.config.fetch_variables.clone(),
