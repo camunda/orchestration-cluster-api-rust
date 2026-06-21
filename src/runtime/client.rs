@@ -16,7 +16,17 @@ use super::config::CamundaConfig;
 use super::errors::{CamundaError, Result};
 use super::eventual::ConsistencyOptions;
 use super::job_worker::{Job, JobAction, JobWorker, JobWorkerConfig, JobWorkerHandle};
+use super::nano::{NanoCaps, NanoProducer};
 use super::{retry, tls};
+
+/// Lazily-resolved nanobpmn command-stream state, shared across client clones.
+#[derive(Clone, Default)]
+pub(crate) struct NanoState {
+    /// `None` until first probe; `Some(None)` = stock Camunda, `Some(Some(_))` = nano.
+    caps: Arc<tokio::sync::OnceCell<Option<NanoCaps>>>,
+    /// Shared create producer, built on first nano create.
+    producer: Arc<tokio::sync::OnceCell<Arc<NanoProducer>>>,
+}
 
 /// Options for constructing a [`CamundaClient`].
 #[derive(Default)]
@@ -60,6 +70,7 @@ pub struct CamundaClient {
     user_agent: String,
     bp: Arc<BackpressureManager>,
     workers: Arc<std::sync::Mutex<Vec<JobWorkerHandle>>>,
+    nano: NanoState,
 }
 
 impl CamundaClient {
@@ -89,6 +100,7 @@ impl CamundaClient {
             ),
             bp,
             workers: Arc::new(std::sync::Mutex::new(Vec::new())),
+            nano: NanoState::default(),
         })
     }
 
@@ -191,6 +203,30 @@ impl CamundaClient {
         .await
     }
 
+    /// Probe the gateway once for nanobpmn command-stream support. Returns `None` for
+    /// stock Camunda (or when disabled by config). Cached for the client's lifetime.
+    pub(crate) async fn nano_caps(&self) -> Option<&NanoCaps> {
+        if !self.config.nano_command_stream {
+            return None;
+        }
+        self.nano
+            .caps
+            .get_or_init(|| async {
+                super::nano::detect(&self.config.rest_address, &self.http).await
+            })
+            .await
+            .as_ref()
+    }
+
+    /// The shared, lazily-built nano create producer (one persistent socket per client).
+    async fn nano_producer(&self, caps: &NanoCaps) -> Result<&Arc<NanoProducer>> {
+        let url = super::nano::ws_url(&self.config.rest_address, &caps.command_stream_path);
+        self.nano
+            .producer
+            .get_or_try_init(|| async { NanoProducer::connect(&url).await })
+            .await
+    }
+
     /// Create (start) a process instance. The configured default tenant id is applied when
     /// the instruction does not already specify one.
     pub async fn create_process_instance(
@@ -198,6 +234,14 @@ impl CamundaClient {
         instruction: models::ProcessInstanceCreationInstruction,
     ) -> Result<models::CreateProcessInstanceResult> {
         let instruction = self.inject_instance_tenant(instruction);
+
+        // nanobpmn upgrade: route the create over the credit-metered command stream.
+        if self.nano_caps().await.is_some() {
+            if let Some(result) = self.create_process_instance_nano(&instruction).await? {
+                return Ok(result);
+            }
+        }
+
         self.guarded(|| {
             let instruction = instruction.clone();
             async move {
@@ -209,6 +253,116 @@ impl CamundaClient {
             }
         })
         .await
+    }
+
+    /// Create a process instance over the nano command stream. Returns `Ok(None)` to
+    /// signal a transparent fall-back to REST (e.g. the socket could not be opened).
+    async fn create_process_instance_nano(
+        &self,
+        instruction: &models::ProcessInstanceCreationInstruction,
+    ) -> Result<Option<models::CreateProcessInstanceResult>> {
+        use models::ProcessInstanceCreationInstruction as I;
+
+        // Extract the fields the command stream understands. The stream create takes a
+        // process-definition id OR key + variables (+ awaitCompletion/fetchVariables).
+        let (
+            id,
+            key,
+            variables,
+            await_completion,
+            fetch_variables,
+            request_timeout,
+            version,
+            tenant,
+        ) = match instruction {
+            I::ProcessInstanceCreationInstructionById(b) => (
+                Some(b.process_definition_id.value().to_string()),
+                None,
+                b.variables.clone(),
+                b.await_completion.unwrap_or(false),
+                b.fetch_variables.clone(),
+                b.request_timeout,
+                b.process_definition_version,
+                b.tenant_id.clone(),
+            ),
+            I::ProcessInstanceCreationInstructionByKey(b) => (
+                None,
+                Some(b.process_definition_key.value().to_string()),
+                b.variables.clone(),
+                b.await_completion.unwrap_or(false),
+                b.fetch_variables.clone(),
+                b.request_timeout,
+                b.process_definition_version,
+                b.tenant_id.clone(),
+            ),
+        };
+
+        let Some(caps) = self.nano_caps().await.cloned() else {
+            return Ok(None);
+        };
+        let producer = match self.nano_producer(&caps).await {
+            Ok(p) => p.clone(),
+            // Socket unavailable: fall back to REST rather than failing the create.
+            Err(e) => {
+                tracing::warn!(error = %e, "nano producer unavailable; falling back to REST");
+                return Ok(None);
+            }
+        };
+
+        let variables_map = variables.map(|m| m.into_iter().collect());
+        let outcome = producer
+            .create(
+                id.as_deref(),
+                key.as_deref(),
+                variables_map,
+                await_completion,
+                fetch_variables,
+                request_timeout,
+            )
+            .await?;
+        tracing::debug!(
+            process_instance_key = %outcome.process_instance_key,
+            process_completed = outcome.process_completed,
+            "created process instance over nano command stream"
+        );
+
+        // The stream create returns the instance key (+ completion outcome). Synthesise a
+        // typed result, echoing the request's definition identity (the stream ack does not
+        // re-send every definition field) and any awaited output variables.
+        let tenant_id = tenant
+            .map(|t| models::TenantId::assume_exists(t.value().to_string()))
+            .or_else(|| {
+                self.config
+                    .default_tenant_id
+                    .clone()
+                    .map(models::TenantId::assume_exists)
+            })
+            .unwrap_or_else(|| models::TenantId::assume_exists("<default>"));
+
+        let result_variables = outcome
+            .variables
+            .and_then(|v| match v {
+                serde_json::Value::Object(m) => Some(m.into_iter().collect()),
+                _ => None,
+            })
+            .unwrap_or_default();
+
+        Ok(Some(models::CreateProcessInstanceResult {
+            process_definition_id: models::ProcessDefinitionId::assume_exists(
+                id.unwrap_or_default(),
+            ),
+            process_definition_version: version.unwrap_or(0),
+            tenant_id,
+            variables: result_variables,
+            process_definition_key: Box::new(models::ProcessDefinitionKey::assume_exists(
+                key.unwrap_or_default(),
+            )),
+            process_instance_key: Box::new(models::ProcessInstanceKey::assume_exists(
+                outcome.process_instance_key,
+            )),
+            tags: Vec::new(),
+            business_id: None,
+        }))
     }
 
     /// Fetch a process instance by key (a read; not subject to backpressure). Returns a

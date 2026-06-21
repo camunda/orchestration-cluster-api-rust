@@ -361,6 +361,13 @@ impl JobWorker {
             tokio::time::sleep(Duration::from_millis(delay)).await;
         }
 
+        // nanobpmn upgrade: when the gateway advertises the command stream, take pushed
+        // jobs over a WebSocket subscription instead of REST long-polling.
+        if let Some(caps) = self.client.nano_caps().await {
+            let caps = caps.clone();
+            return self.run_nano_stream(handler, caps).await;
+        }
+
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
         loop {
             if self.stop.load(Ordering::SeqCst) {
@@ -418,6 +425,81 @@ impl JobWorker {
         };
         let result = self.client.activate_jobs(request).await?;
         Ok(result.jobs)
+    }
+
+    /// Run the nano command-stream worker loop: subscribe, then process pushed jobs,
+    /// replenishing a delivery credit as each job is acted upon. Honours `stop`.
+    async fn run_nano_stream(self, handler: JobHandler, caps: super::nano::NanoCaps) -> Result<()> {
+        let url = super::nano::ws_url(
+            &self.client.config().rest_address,
+            &caps.command_stream_path,
+        );
+        let worker = Arc::new(
+            super::nano::NanoStreamWorker::subscribe(
+                &url,
+                &self.config.job_type,
+                self.config.max_jobs_to_activate as i64,
+                self.config.fetch_variables.clone(),
+                Some(self.config.job_timeout_ms.max(0) as u64),
+                Some(self.config.worker_name.clone()),
+            )
+            .await?,
+        );
+
+        loop {
+            if self.stop.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+            let Some(activated) = worker.next_job(Duration::from_millis(500)).await else {
+                continue;
+            };
+            let job = Job { inner: activated };
+            let handler = handler.clone();
+            let worker = worker.clone();
+            tokio::spawn(async move {
+                let key = job.key().to_string();
+                let action = handler(job).await;
+                apply_action_nano(&worker, &key, action);
+            });
+        }
+    }
+}
+
+/// Translate a [`JobAction`] into a fire-and-forget command-stream frame (each frame
+/// also replenishes one delivery credit).
+fn apply_action_nano(worker: &super::nano::NanoStreamWorker, job_key: &str, action: JobAction) {
+    match action {
+        JobAction::Leave => {
+            // No completion frame would be sent, so replenish the consumed credit
+            // directly to keep the delivery window full.
+            worker.replenish(1);
+        }
+        JobAction::Complete { variables } => {
+            worker.complete(job_key, variables.and_then(value_to_obj));
+        }
+        JobAction::Fail {
+            error_message,
+            retries,
+            variables: _,
+            retry_backoff_ms: _,
+        } => {
+            worker.fail(job_key, retries, Some(error_message));
+        }
+        JobAction::Error {
+            error_code,
+            error_message,
+            variables: _,
+        } => {
+            worker.throw_error(job_key, &error_code, error_message);
+        }
+    }
+}
+
+/// Convert a JSON value into a `serde_json` object map (dropping non-objects).
+fn value_to_obj(value: Value) -> Option<serde_json::Map<String, Value>> {
+    match value {
+        Value::Object(map) => Some(map),
+        _ => None,
     }
 }
 
