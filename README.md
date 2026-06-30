@@ -1,5 +1,9 @@
 # Camunda Orchestration Cluster API — Rust SDK
 
+## Status: Technical Preview
+
+This is a technical preview of the Rust SDK for the Camunda 8 Orchestration Cluster API, provided for evaluation and feedback. We do not intend to make breaking changes to the application integration surface, but do not guarantee that we will not. It will become fully supported with an SLA in a future release.  
+
 Ergonomic Rust SDK for the [Camunda 8 Orchestration Cluster REST API](https://docs.camunda.io/docs/apis-tools/orchestration-cluster-api-rest/orchestration-cluster-api-rest-overview/).
 
 This SDK follows the same architecture as the official
