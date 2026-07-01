@@ -1,0 +1,102 @@
+name: Release
+
+# Publish both workspace crates to crates.io using crates.io Trusted Publishing
+# (OIDC) — no long-lived CARGO_REGISTRY_TOKEN secret. `rust-lang/crates-io-auth-action`
+# exchanges the GitHub Actions OIDC token for a short-lived crates.io token that is
+# automatically revoked when the job finishes.
+#
+# Prerequisites (one-time, on crates.io):
+#   Register a Trusted Publisher for BOTH crates, pointing at this repo + this
+#   workflow file ("release.yml"):
+#     - camunda-orchestration-sdk
+#     - camunda-orchestration-api-client
+#   Trusted Publishing is per-crate, so both must be configured or the publish
+#   step fails to authenticate for the missing one.
+#
+# Release flow:
+#   1. Bump the version in Cargo.toml (and client/Cargo.toml) + Cargo.lock, commit.
+#   2. Tag the commit `vX.Y.Z` and push the tag.
+#   The tag push triggers this workflow, which verifies the tag matches the crate
+#   version, runs the test gate, then publishes the whole workspace atomically
+#   (client first, then the SDK — cargo resolves the order).
+#
+# A manual `workflow_dispatch` run supports `dry_run: true` to exercise everything
+# except the final upload.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Package + verify without uploading to crates.io'
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write   # required for crates.io Trusted Publishing (OIDC)
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      # rust-toolchain.toml pins the channel + components; `rustup show` installs it.
+      - name: Install pinned toolchain
+        run: rustup show && rustc --version && cargo --version
+
+      # For tag releases, fail fast if the tag does not match the crate version so we
+      # never publish vX.Y.Z from a manifest still on a different version.
+      - name: Verify tag matches crate version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          crate_version="$(cargo metadata --no-deps --format-version 1 \
+            | python3 -c "import json,sys; m=json.load(sys.stdin); print(next(p['version'] for p in m['packages'] if p['name']=='camunda-orchestration-sdk'))")"
+          tag_version="${GITHUB_REF_NAME#v}"
+          echo "tag=$tag_version crate=$crate_version"
+          if [ "$tag_version" != "$crate_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match crate version $crate_version"
+            exit 1
+          fi
+
+      - name: Test gate
+        run: cargo test --workspace --locked
+
+      - name: Authenticate to crates.io (Trusted Publishing)
+        id: auth
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish workspace
+        env:
+          # Empty on dry-run (no auth step ran); cargo does not need a token then.
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}" = "true" ]; then
+            cargo publish --workspace --locked --dry-run
+          else
+            cargo publish --workspace --locked
+          fi
