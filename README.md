@@ -353,6 +353,61 @@ Every `rust` code block in this README is injected from a **compilable** example
 To change a documented example, edit the region in `examples/readme.rs`, then run
 `make sync-readme`. The full local gate is `make check`.
 
+## Releasing
+
+Both workspace crates are published to crates.io together, at the same version:
+
+- `camunda-orchestration-api-client` — the generated low-level client.
+- `camunda-orchestration-sdk` — the ergonomic SDK (depends on the client).
+
+Publishing is automated by [`.github/workflows/release.yml`](.github/workflows/release.yml),
+which triggers on any `v*` tag and uploads via [crates.io Trusted Publishing](https://crates.io/docs/trusted-publishing)
+(OIDC) — no long-lived registry token is stored in the repo.
+
+### Cutting a release
+
+1. Bump the version in both `Cargo.toml` and `client/Cargo.toml` (keep them in
+   lockstep), refresh `Cargo.lock` (`cargo update -p camunda-orchestration-sdk`),
+   and commit on `main`.
+2. Dry-run locally to be sure both crates package cleanly:
+
+   ```bash
+   make publish-dry-run   # cargo publish --workspace --locked --dry-run
+   ```
+
+3. Tag the commit and push the tag:
+
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+
+The workflow verifies the tag matches the crate version, runs the test gate, then
+publishes the workspace atomically — the client first, then the SDK (`cargo publish
+--workspace` resolves the order and swaps the path dependency for the registry
+version).
+
+You can also run the workflow manually from the Actions tab with `dry_run: true`
+(the default) to exercise everything except the final upload.
+
+### One-time setup (Trusted Publishing)
+
+Trusted Publishing is configured **per crate**, and a crate must already exist on
+crates.io before you can register a trusted publisher for it. So the very first
+publish needs a bootstrap token:
+
+1. Create a scoped crates.io API token and add it as the repo secret
+   `CARGO_REGISTRY_TOKEN`. The workflow uses this token in preference to OIDC, so
+   the first tagged release publishes both crates with it.
+2. On crates.io, open each crate's **Settings → Trusted Publishing** and add a
+   publisher pointing at this repository and the `release.yml` workflow — for
+   **both** `camunda-orchestration-sdk` and `camunda-orchestration-api-client`.
+3. **Delete the `CARGO_REGISTRY_TOKEN` secret** (and revoke it on crates.io). Every
+   subsequent release then authenticates via OIDC with no stored credentials.
+
+Merging to `main` never publishes anything — only pushing a `v*` tag (or a manual
+dispatch) triggers a release — so you can merge and set up crates.io in either order.
+
 ## License
 
 This SDK is licensed under the [Apache License, Version 2.0](LICENSE).

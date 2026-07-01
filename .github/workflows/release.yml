@@ -5,6 +5,13 @@ name: Release
 # exchanges the GitHub Actions OIDC token for a short-lived crates.io token that is
 # automatically revoked when the job finishes.
 #
+# First publish (bootstrap):
+#   Trusted Publishing can only be configured for a crate that ALREADY exists on
+#   crates.io, so the very first publish of a brand-new crate cannot use OIDC.
+#   Set a temporary `CARGO_REGISTRY_TOKEN` repo secret; the workflow uses it in
+#   preference to OIDC. After both crates exist, register their trusted publishers
+#   (below) and DELETE the secret — every later release then authenticates via OIDC.
+#
 # Prerequisites (one-time, on crates.io):
 #   Register a Trusted Publisher for BOTH crates, pointing at this repo + this
 #   workflow file ("release.yml"):
@@ -47,6 +54,14 @@ jobs:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Trusted Publishing can only be configured AFTER a crate first exists on
+      # crates.io. For the initial publish of a brand-new crate, set a temporary
+      # CARGO_REGISTRY_TOKEN secret; the workflow uses it in preference to OIDC.
+      # Once both crates exist and their trusted publishers are registered, delete
+      # the secret and every release authenticates via OIDC automatically.
+      HAS_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -84,19 +99,24 @@ jobs:
       - name: Test gate
         run: cargo test --workspace --locked
 
+      # OIDC auth is only needed when no bootstrap token is configured and we are
+      # actually uploading. It fails unless a trusted publisher is registered for
+      # every crate, so it is skipped during the token bootstrap and on dry-runs.
       - name: Authenticate to crates.io (Trusted Publishing)
         id: auth
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+        if: ${{ env.HAS_TOKEN == 'false' && env.DRY_RUN != 'true' }}
         uses: rust-lang/crates-io-auth-action@v1
 
       - name: Publish workspace
         env:
-          # Empty on dry-run (no auth step ran); cargo does not need a token then.
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          # Prefer the bootstrap token if present, else the OIDC-exchanged token.
+          # Empty on dry-run (cargo does not need a token then).
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}" = "true" ]; then
+          if [ "$DRY_RUN" = "true" ]; then
             cargo publish --workspace --locked --dry-run
           else
             cargo publish --workspace --locked
           fi
+
