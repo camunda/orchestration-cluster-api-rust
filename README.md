@@ -1,5 +1,9 @@
 # Camunda Orchestration Cluster API — Rust SDK (Technical Preview)
 
+[![crates.io](https://img.shields.io/crates/v/camunda-orchestration-sdk.svg)](https://crates.io/crates/camunda-orchestration-sdk)
+[![docs.rs](https://img.shields.io/docsrs/camunda-orchestration-sdk)](https://docs.rs/camunda-orchestration-sdk)
+[![license](https://img.shields.io/crates/l/camunda-orchestration-sdk.svg)](LICENSE)
+
 Ergonomic Rust SDK for the [Camunda 8 Orchestration Cluster REST API](https://docs.camunda.io/docs/apis-tools/orchestration-cluster-api-rest/orchestration-cluster-api-rest-overview/).
 
 This SDK follows the same architecture as the official
@@ -50,15 +54,24 @@ helps close that gap.
 
 ## Installation
 
-This SDK is a Cargo workspace. To use it from another crate while it is unpublished:
+Add the SDK from crates.io:
+
+```bash
+cargo add camunda-orchestration-sdk
+cargo add tokio --features full
+```
+
+Or add it to `Cargo.toml` directly:
 
 ```toml
 [dependencies]
-camunda-orchestration-sdk = { path = "../orchestration-cluster-api-rust" }
+camunda-orchestration-sdk = "0.1"
 tokio = { version = "1", features = ["full"] }
 ```
 
-The async API requires a Tokio runtime.
+The async API requires a Tokio runtime. The low-level generated client is also
+published as [`camunda-orchestration-api-client`](https://crates.io/crates/camunda-orchestration-api-client),
+but most users only need the `camunda-orchestration-sdk` facade.
 
 ## Quick start
 
