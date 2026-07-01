@@ -355,5 +355,8 @@ To change a documented example, edit the region in `examples/readme.rs`, then ru
 
 ## License
 
-The Camunda OpenAPI specification is subject to the
+This SDK is licensed under the [Apache License, Version 2.0](LICENSE).
+
+The Camunda OpenAPI specification from which the low-level client is generated is subject
+to the
 [Camunda License Version 1.0](https://github.com/camunda/camunda/blob/main/licenses/CAMUNDA-LICENSE-1.0.txt).

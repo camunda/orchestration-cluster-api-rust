@@ -15,6 +15,8 @@ Hooks (in order):
   05 silence-lints               blanket-allow lints in generated lib.rs
   06 cleanup-scaffolding         drop generator scaffolding files
   07 sdk-facade                  emit src/runtime/facade_generated.rs (flat full-surface facade)
+  08 version-skew-tolerance      tolerate unknown enum variants / added fields from newer servers
+  09 license                     set client/Cargo.toml license to Apache-2.0
 
 Usage:
     python3 scripts/postprocess.py --client-dir client \\
