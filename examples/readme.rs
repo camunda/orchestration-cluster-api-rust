@@ -115,6 +115,24 @@ fn semantic_keys() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+async fn full_surface() -> Result<(), Box<dyn std::error::Error>> {
+    use camunda_orchestration_sdk::CamundaClient;
+    let client = CamundaClient::from_env()?;
+    // region FullSurface
+    // Every REST operation has a flat, ergonomic method on the client. Parameter types
+    // are imported from `camunda_orchestration_sdk::apis::<area>_api`.
+    use camunda_orchestration_sdk::apis::process_instance_api::SearchProcessInstancesParams;
+
+    let page = client
+        .search_process_instances(SearchProcessInstancesParams {
+            process_instance_search_query: None,
+        })
+        .await?;
+    println!("found {} process instance(s)", page.items.len());
+    // endregion FullSurface
+    Ok(())
+}
+
 async fn escape_hatch() -> Result<(), Box<dyn std::error::Error>> {
     // region EscapeHatch
     use camunda_orchestration_sdk::client::apis::authentication_api;

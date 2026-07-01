@@ -1,4 +1,4 @@
-.PHONY: help bundle generate build test lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check
+.PHONY: help bundle generate build test lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check publish-dry-run
 
 SPEC_REF ?= main
 
@@ -18,6 +18,7 @@ help:
 	@echo "  make sync-readme        Inject example snippets into README.md"
 	@echo "  make sync-readme-check  Verify README snippets are in sync (CI mode)"
 	@echo "  make check       Run the full CI gate (build, test, examples, lint, fmt, README sync)"
+	@echo "  make publish-dry-run  Package + verify both crates for crates.io without uploading"
 	@echo "  make clean       Remove build artifacts"
 
 # Re-bundle the upstream spec AND regenerate.
@@ -64,6 +65,12 @@ sync-readme-check:
 
 # Full local CI gate.
 check: build test examples lint fmt-check sync-readme-check
+
+# Package + verify both workspace crates for crates.io without uploading. Mirrors
+# what the release workflow runs; publishes client first then the SDK, resolving
+# the path dependency against a temp registry.
+publish-dry-run:
+	cargo publish --workspace --locked --dry-run
 
 clean:
 	cargo clean

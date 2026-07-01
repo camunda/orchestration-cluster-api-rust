@@ -3,7 +3,7 @@ name = "camunda-orchestration-sdk"
 version = "0.1.0"
 edition = "2021"
 description = "Ergonomic Rust SDK for the Camunda 8 Orchestration Cluster REST API"
-license = "Camunda License Version 1.0"
+license = "Apache-2.0"
 repository = "https://github.com/camunda/orchestration-cluster-api-rust"
 readme = "README.md"
 keywords = ["camunda", "zeebe", "bpmn", "workflow", "orchestration"]
@@ -17,12 +17,15 @@ camunda-orchestration-api-client = { path = "client", version = "0.1.0" }
 reqwest = { version = "0.13", default-features = false, features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync", "net"] }
 thiserror = "2"
 async-trait = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
 url = "2"
+# Nano-aware command-stream transport (opt-in upgrade for nanobpmn gateways).
+tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "handshake"] }
+futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

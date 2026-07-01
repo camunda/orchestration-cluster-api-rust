@@ -22,12 +22,12 @@ Upstream dependencies — fix at the source when they misbehave, not by working 
 
 | Path | Ownership and intent |
 | --- | --- |
-| `src/runtime/` | Hand-written runtime. Modules: `config` (env resolution), `auth` (OAuth/Basic/None + disk token cache), `errors`, `client` (facade), `job_worker` (workers + lifecycle), `backpressure`, `retry` (transient HTTP retry), `eventual` (consistency polling), `tls` (mTLS), `logging` (tracing). Primary edit surface. |
+| `src/runtime/` | Hand-written runtime. Modules: `config` (env resolution), `auth` (OAuth/Basic/None + disk token cache), `errors`, `client` (curated facade), `facade_generated` (**generated** full-surface facade — never hand-edit), `job_worker` (workers + lifecycle), `backpressure`, `retry` (transient HTTP retry), `eventual` (consistency polling), `tls` (mTLS), `logging` (tracing). Primary edit surface. |
 | `src/lib.rs` | Public crate surface and re-exports. |
 | `client/` | **Generated.** Produced by `make generate`. Never hand-edit. |
 | `scripts/generate.sh` | Pipeline orchestrator: bundle → generate → post-process → build. |
 | `scripts/postprocess.py` | Orchestrates the numbered post-processing hooks (`scripts/hooks/`). |
-| `scripts/hooks/` | Numbered hooks: `01` Domain Type System, `02` semantic field types, `03` module-path/`Object` fixes, `04` regex dep, `05` lint silencing, `06` cleanup. Primary edit surface for fixing generated output. |
+| `scripts/hooks/` | Numbered hooks: `01` Domain Type System, `02` semantic field types, `03` module-path/`Object` fixes, `04` regex dep, `05` lint silencing, `06` cleanup, `07` full-surface SDK facade. Primary edit surface for fixing generated output. |
 | `openapi-generator-config.yaml` | openapi-generator configuration. |
 | `external-spec/bundled/` | Bundled spec (`rest-api.bundle.json`) + `spec-metadata.json`. Generator inputs. |
 | `external-spec/upstream/` | Transient sparse clone of upstream. **Never commit** (gitignored). |
@@ -61,7 +61,10 @@ make generate    # regenerate from the already-bundled spec
 1. (`--bundle`) `camunda-schema-bundler --ref main` → `external-spec/bundled/*`.
 2. `openapi-generator generate -c openapi-generator-config.yaml` → `client/`.
 3. `scripts/postprocess.py` — runs the numbered hooks (`scripts/hooks/`): Domain Type
-   System, semantic field types, and generator-bug fixes.
+   System, semantic field types, generator-bug fixes, and the full-surface facade
+   (`hook_07` parses `client/src/apis/*_api.rs` and emits `src/runtime/facade_generated.rs`,
+   one `CamundaClient` method per operation routed through `guarded`). It parses the
+   **unformatted** generator output, so it runs before step 4's `cargo fmt`.
 4. `cargo fmt` + `cargo build` on the client crate.
 
 The hooks are **idempotent** and fix: missing/broken semantic keys, collapsed semantic
