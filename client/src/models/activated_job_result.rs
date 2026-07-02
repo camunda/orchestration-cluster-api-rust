@@ -72,7 +72,7 @@ pub struct ActivatedJobResult {
     )]
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
     /// The priority of the job. Higher values indicate higher priority. Jobs created before 8.10 have no stored priority; the API returns 0 for such jobs.
-    #[serde(rename = "priority")]
+    #[serde(default, rename = "priority")]
     pub priority: i32,
 }
 
