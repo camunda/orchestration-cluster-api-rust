@@ -480,12 +480,24 @@ pub struct NanoProducer {
     link: SupervisedLink,
     next_corr: AtomicU64,
     shared: Arc<ProducerShared>,
+    /// Maximum time to wait for a submission credit before giving up with a
+    /// [`CamundaError::Backpressure`]. `None` waits indefinitely (the default,
+    /// matching the historical behaviour). Set via `CAMUNDA_NANO_SUBMIT_TIMEOUT_MS`.
+    submit_timeout: Option<Duration>,
 }
 
 impl NanoProducer {
     /// Connect a new producer over the failover directory `endpoints` (≥1). The supervisor
     /// picks one at random and fails over to a survivor on disconnect.
-    pub async fn start(endpoints: Vec<String>) -> Result<Arc<NanoProducer>> {
+    ///
+    /// `submit_timeout` bounds the per-create submission-credit wait: when the gateway
+    /// withholds credits (admission backpressure) for longer than the budget,
+    /// [`NanoProducer::create`] fails fast with a [`CamundaError::Backpressure`] instead of
+    /// blocking. `None` waits indefinitely — the historical behaviour.
+    pub async fn start(
+        endpoints: Vec<String>,
+        submit_timeout: Option<Duration>,
+    ) -> Result<Arc<NanoProducer>> {
         let shared = Arc::new(ProducerShared {
             credits: AtomicI64::new(0),
             credit_ready: Notify::new(),
@@ -508,6 +520,7 @@ impl NanoProducer {
             link,
             next_corr: AtomicU64::new(1),
             shared,
+            submit_timeout,
         }))
     }
 
@@ -540,6 +553,27 @@ impl NanoProducer {
         }
     }
 
+    /// [`acquire_credit`](Self::acquire_credit) bounded by `submit_timeout`. When the
+    /// gateway withholds credits (admission backpressure) past the deadline, returns a
+    /// [`CamundaError::Backpressure`] so the caller fails fast and can back off, rather
+    /// than blocking indefinitely. With no timeout configured this waits forever.
+    async fn acquire_credit_bounded(&self) -> Result<()> {
+        match self.submit_timeout {
+            Some(budget) => tokio::time::timeout(budget, self.acquire_credit())
+                .await
+                .map_err(|_| {
+                    CamundaError::Backpressure(format!(
+                        "no nano submission credit within {}ms (gateway is applying admission backpressure)",
+                        budget.as_millis()
+                    ))
+                }),
+            None => {
+                self.acquire_credit().await;
+                Ok(())
+            }
+        }
+    }
+
     /// Create a process instance over the command stream.
     pub async fn create(
         &self,
@@ -550,7 +584,7 @@ impl NanoProducer {
         fetch_variables: Option<Vec<String>>,
         request_timeout: Option<i64>,
     ) -> Result<CreateOutcome> {
-        self.acquire_credit().await;
+        self.acquire_credit_bounded().await?;
         let corr = self.next_corr.fetch_add(1, Ordering::SeqCst);
 
         let (ack_tx, ack_rx) = oneshot::channel();

@@ -56,6 +56,12 @@ pub struct CamundaConfig {
     /// advertises it (`CAMUNDA_NANO_COMMAND_STREAM`, default on). When off, the SDK
     /// stays on pure REST even against a nanobpmn gateway.
     pub nano_command_stream: bool,
+    /// Optional bound (milliseconds) on how long a command-stream create waits for a
+    /// submission credit before failing fast with [`CamundaError::Backpressure`]
+    /// (`CAMUNDA_NANO_SUBMIT_TIMEOUT_MS`). `None` (unset or `0`) waits indefinitely for
+    /// intake capacity — the historical behaviour. Client-side only: nothing is sent on
+    /// the wire; it bounds the local wait when the gateway withholds submission credits.
+    pub nano_submit_timeout_ms: Option<u64>,
 }
 
 /// SDK log level, controlling the verbosity of the SDK's structured logging.
@@ -296,6 +302,10 @@ impl CamundaConfig {
                 ),
                 None => true,
             },
+            nano_submit_timeout_ms: match parse_u64(&get, "CAMUNDA_NANO_SUBMIT_TIMEOUT_MS", 0)? {
+                0 => None,
+                ms => Some(ms),
+            },
         };
 
         config.validate()?;
@@ -372,6 +382,23 @@ mod tests {
         let c = cfg(&[]).unwrap();
         assert_eq!(c.rest_address, "http://localhost:8080/v2");
         assert_eq!(c.auth_strategy, AuthStrategy::None);
+    }
+
+    #[test]
+    fn nano_submit_timeout_ms_resolves_optionally() {
+        assert_eq!(cfg(&[]).unwrap().nano_submit_timeout_ms, None);
+        assert_eq!(
+            cfg(&[("CAMUNDA_NANO_SUBMIT_TIMEOUT_MS", "0")])
+                .unwrap()
+                .nano_submit_timeout_ms,
+            None
+        );
+        assert_eq!(
+            cfg(&[("CAMUNDA_NANO_SUBMIT_TIMEOUT_MS", "2500")])
+                .unwrap()
+                .nano_submit_timeout_ms,
+            Some(2500)
+        );
     }
 
     #[test]

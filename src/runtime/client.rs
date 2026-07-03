@@ -222,9 +222,13 @@ impl CamundaClient {
     /// link per client, dialing the cluster's command-stream directory).
     async fn nano_producer(&self, caps: &NanoCaps) -> Result<&Arc<NanoProducer>> {
         let endpoints = caps.endpoints.clone();
+        let submit_timeout = self
+            .config
+            .nano_submit_timeout_ms
+            .map(std::time::Duration::from_millis);
         self.nano
             .producer
-            .get_or_try_init(|| async { NanoProducer::start(endpoints).await })
+            .get_or_try_init(|| async { NanoProducer::start(endpoints, submit_timeout).await })
             .await
     }
 
