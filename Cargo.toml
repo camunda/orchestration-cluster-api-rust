@@ -23,7 +23,7 @@ async-trait = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
 url = "2"
-# Nano-aware command-stream transport (opt-in upgrade for nanobpmn gateways).
+# Nano-aware falcon transport (opt-in upgrade for nanobpmn gateways).
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "handshake"] }
 futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
 

@@ -361,7 +361,7 @@ impl JobWorker {
             tokio::time::sleep(Duration::from_millis(delay)).await;
         }
 
-        // nanobpmn upgrade: when the gateway advertises the command stream, take pushed
+        // nanobpmn upgrade: when the gateway advertises the Falcon, take pushed
         // jobs over a WebSocket subscription instead of REST long-polling.
         if let Some(caps) = self.client.nano_caps().await {
             let caps = caps.clone();
@@ -427,7 +427,7 @@ impl JobWorker {
         Ok(result.jobs)
     }
 
-    /// Run the nano command-stream worker loop: subscribe, then process pushed jobs,
+    /// Run the nano falcon worker loop: subscribe, then process pushed jobs,
     /// replenishing a delivery credit as each job is acted upon. Honours `stop`.
     async fn run_nano_stream(self, handler: JobHandler, caps: super::nano::NanoCaps) -> Result<()> {
         let worker = Arc::new(
@@ -461,7 +461,7 @@ impl JobWorker {
     }
 }
 
-/// Translate a [`JobAction`] into a fire-and-forget command-stream frame (each frame
+/// Translate a [`JobAction`] into a fire-and-forget falcon frame (each frame
 /// also replenishes one delivery credit).
 fn apply_action_nano(worker: &super::nano::NanoStreamWorker, job_key: &str, action: JobAction) {
     match action {

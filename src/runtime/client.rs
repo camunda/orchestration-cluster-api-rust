@@ -19,7 +19,7 @@ use super::job_worker::{Job, JobAction, JobWorker, JobWorkerConfig, JobWorkerHan
 use super::nano::{NanoCaps, NanoProducer};
 use super::{retry, tls};
 
-/// Lazily-resolved nanobpmn command-stream state, shared across client clones.
+/// Lazily-resolved nanobpmn falcon state, shared across client clones.
 #[derive(Clone, Default)]
 pub(crate) struct NanoState {
     /// `None` until first probe; `Some(None)` = stock Camunda, `Some(Some(_))` = nano.
@@ -203,10 +203,10 @@ impl CamundaClient {
         .await
     }
 
-    /// Probe the gateway once for nanobpmn command-stream support. Returns `None` for
+    /// Probe the gateway once for nanobpmn falcon support. Returns `None` for
     /// stock Camunda (or when disabled by config). Cached for the client's lifetime.
     pub(crate) async fn nano_caps(&self) -> Option<&NanoCaps> {
-        if !self.config.nano_command_stream {
+        if !self.config.nano_falcon {
             return None;
         }
         self.nano
@@ -219,7 +219,7 @@ impl CamundaClient {
     }
 
     /// The shared, lazily-built nano create producer (one persistent, failover-capable
-    /// link per client, dialing the cluster's command-stream directory).
+    /// link per client, dialing the cluster's falcon directory).
     async fn nano_producer(&self, caps: &NanoCaps) -> Result<&Arc<NanoProducer>> {
         let endpoints = caps.endpoints.clone();
         let submit_timeout = self
@@ -240,7 +240,7 @@ impl CamundaClient {
     ) -> Result<models::CreateProcessInstanceResult> {
         let instruction = self.inject_instance_tenant(instruction);
 
-        // nanobpmn upgrade: route the create over the credit-metered command stream.
+        // nanobpmn upgrade: route the create over the credit-metered Falcon.
         if self.nano_caps().await.is_some() {
             if let Some(result) = self.create_process_instance_nano(&instruction).await? {
                 return Ok(result);
@@ -260,7 +260,7 @@ impl CamundaClient {
         .await
     }
 
-    /// Create a process instance over the nano command stream. Returns `Ok(None)` to
+    /// Create a process instance over the nano Falcon. Returns `Ok(None)` to
     /// signal a transparent fall-back to REST (e.g. the socket could not be opened).
     async fn create_process_instance_nano(
         &self,
@@ -268,7 +268,7 @@ impl CamundaClient {
     ) -> Result<Option<models::CreateProcessInstanceResult>> {
         use models::ProcessInstanceCreationInstruction as I;
 
-        // Extract the fields the command stream understands. The stream create takes a
+        // Extract the fields the Falcon understands. The stream create takes a
         // process-definition id OR key + variables (+ awaitCompletion/fetchVariables).
         let (
             id,
@@ -328,7 +328,7 @@ impl CamundaClient {
         tracing::debug!(
             process_instance_key = %outcome.process_instance_key,
             process_completed = outcome.process_completed,
-            "created process instance over nano command stream"
+            "created process instance over nano Falcon"
         );
 
         // The stream create returns the instance key (+ completion outcome). Synthesise a
