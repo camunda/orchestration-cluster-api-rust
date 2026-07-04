@@ -8,9 +8,9 @@ pub mod config;
 pub mod errors;
 pub mod eventual;
 pub mod facade_generated;
+pub mod falcon;
 pub mod job_worker;
 pub mod logging;
-pub mod falcon;
 pub mod retry;
 pub mod tls;
 

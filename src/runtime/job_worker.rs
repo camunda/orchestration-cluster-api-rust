@@ -429,7 +429,11 @@ impl JobWorker {
 
     /// Run the falcon worker loop: subscribe, then process pushed jobs,
     /// replenishing a delivery credit as each job is acted upon. Honours `stop`.
-    async fn run_falcon_stream(self, handler: JobHandler, caps: super::falcon::FalconCaps) -> Result<()> {
+    async fn run_falcon_stream(
+        self,
+        handler: JobHandler,
+        caps: super::falcon::FalconCaps,
+    ) -> Result<()> {
         let worker = Arc::new(
             super::falcon::FalconStreamWorker::subscribe(
                 caps.endpoints.clone(),
@@ -463,7 +467,11 @@ impl JobWorker {
 
 /// Translate a [`JobAction`] into a fire-and-forget command-stream frame (each frame
 /// also replenishes one delivery credit).
-fn apply_action_falcon(worker: &super::falcon::FalconStreamWorker, job_key: &str, action: JobAction) {
+fn apply_action_falcon(
+    worker: &super::falcon::FalconStreamWorker,
+    job_key: &str,
+    action: JobAction,
+) {
     match action {
         JobAction::Leave => {
             // No completion frame would be sent, so replenish the consumed credit

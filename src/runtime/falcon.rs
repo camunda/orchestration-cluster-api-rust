@@ -315,9 +315,7 @@ impl SupervisedLink {
             Some(tx) => tx
                 .send(msg)
                 .map_err(|_| CamundaError::Config("falcon stream closed".into())),
-            None => Err(CamundaError::Config(
-                "falcon stream reconnecting".into(),
-            )),
+            None => Err(CamundaError::Config("falcon stream reconnecting".into())),
         }
     }
 }
@@ -817,15 +815,9 @@ mod tests {
             "wss://gw.example.com/falcon"
         );
         // Path without leading slash is normalised.
-        assert_eq!(
-            ws_url("http://h:1/v2", "falcon"),
-            "ws://h:1/falcon"
-        );
+        assert_eq!(ws_url("http://h:1/v2", "falcon"), "ws://h:1/falcon");
         // No /v2 suffix: origin used as-is.
-        assert_eq!(
-            ws_url("http://h:1", "/falcon"),
-            "ws://h:1/falcon"
-        );
+        assert_eq!(ws_url("http://h:1", "/falcon"), "ws://h:1/falcon");
     }
 
     #[test]

@@ -15,8 +15,8 @@ use super::backpressure::{is_backpressure_error, BackpressureManager, Backpressu
 use super::config::CamundaConfig;
 use super::errors::{CamundaError, Result};
 use super::eventual::ConsistencyOptions;
-use super::job_worker::{Job, JobAction, JobWorker, JobWorkerConfig, JobWorkerHandle};
 use super::falcon::{FalconCaps, FalconProducer};
+use super::job_worker::{Job, JobAction, JobWorker, JobWorkerConfig, JobWorkerHandle};
 use super::{retry, tls};
 
 /// Lazily-resolved nanobpmn command-stream state, shared across client clones.
