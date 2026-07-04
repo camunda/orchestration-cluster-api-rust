@@ -53,9 +53,9 @@ pub struct CamundaConfig {
     /// Default job-worker settings sourced from `CAMUNDA_WORKER_*`.
     pub worker_defaults: WorkerDefaults,
     /// Whether to upgrade to the nanobpmn command-stream transport when the gateway
-    /// advertises it (`CAMUNDA_NANO_COMMAND_STREAM`, default on). When off, the SDK
+    /// advertises it (`CAMUNDA_FALCON`, default on). When off, the SDK
     /// stays on pure REST even against a nanobpmn gateway.
-    pub nano_command_stream: bool,
+    pub falcon: bool,
 }
 
 /// SDK log level, controlling the verbosity of the SDK's structured logging.
@@ -289,7 +289,7 @@ impl CamundaConfig {
                     0,
                 )?,
             },
-            nano_command_stream: match get("CAMUNDA_NANO_COMMAND_STREAM") {
+            falcon: match get("CAMUNDA_FALCON") {
                 Some(v) => !matches!(
                     v.trim().to_ascii_lowercase().as_str(),
                     "0" | "off" | "false" | "no"

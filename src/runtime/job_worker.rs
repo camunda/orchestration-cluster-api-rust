@@ -361,11 +361,11 @@ impl JobWorker {
             tokio::time::sleep(Duration::from_millis(delay)).await;
         }
 
-        // nanobpmn upgrade: when the gateway advertises the command stream, take pushed
+        // Falcon upgrade: when the gateway advertises the command stream, take pushed
         // jobs over a WebSocket subscription instead of REST long-polling.
-        if let Some(caps) = self.client.nano_caps().await {
+        if let Some(caps) = self.client.falcon_caps().await {
             let caps = caps.clone();
-            return self.run_nano_stream(handler, caps).await;
+            return self.run_falcon_stream(handler, caps).await;
         }
 
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
@@ -427,11 +427,11 @@ impl JobWorker {
         Ok(result.jobs)
     }
 
-    /// Run the nano command-stream worker loop: subscribe, then process pushed jobs,
+    /// Run the falcon worker loop: subscribe, then process pushed jobs,
     /// replenishing a delivery credit as each job is acted upon. Honours `stop`.
-    async fn run_nano_stream(self, handler: JobHandler, caps: super::nano::NanoCaps) -> Result<()> {
+    async fn run_falcon_stream(self, handler: JobHandler, caps: super::falcon::FalconCaps) -> Result<()> {
         let worker = Arc::new(
-            super::nano::NanoStreamWorker::subscribe(
+            super::falcon::FalconStreamWorker::subscribe(
                 caps.endpoints.clone(),
                 &self.config.job_type,
                 self.config.max_jobs_to_activate as i64,
@@ -455,7 +455,7 @@ impl JobWorker {
             tokio::spawn(async move {
                 let key = job.key().to_string();
                 let action = handler(job).await;
-                apply_action_nano(&worker, &key, action);
+                apply_action_falcon(&worker, &key, action);
             });
         }
     }
@@ -463,7 +463,7 @@ impl JobWorker {
 
 /// Translate a [`JobAction`] into a fire-and-forget command-stream frame (each frame
 /// also replenishes one delivery credit).
-fn apply_action_nano(worker: &super::nano::NanoStreamWorker, job_key: &str, action: JobAction) {
+fn apply_action_falcon(worker: &super::falcon::FalconStreamWorker, job_key: &str, action: JobAction) {
     match action {
         JobAction::Leave => {
             // No completion frame would be sent, so replenish the consumed credit

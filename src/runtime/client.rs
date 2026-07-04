@@ -16,16 +16,16 @@ use super::config::CamundaConfig;
 use super::errors::{CamundaError, Result};
 use super::eventual::ConsistencyOptions;
 use super::job_worker::{Job, JobAction, JobWorker, JobWorkerConfig, JobWorkerHandle};
-use super::nano::{NanoCaps, NanoProducer};
+use super::falcon::{FalconCaps, FalconProducer};
 use super::{retry, tls};
 
 /// Lazily-resolved nanobpmn command-stream state, shared across client clones.
 #[derive(Clone, Default)]
-pub(crate) struct NanoState {
-    /// `None` until first probe; `Some(None)` = stock Camunda, `Some(Some(_))` = nano.
-    caps: Arc<tokio::sync::OnceCell<Option<NanoCaps>>>,
-    /// Shared create producer, built on first nano create.
-    producer: Arc<tokio::sync::OnceCell<Arc<NanoProducer>>>,
+pub(crate) struct FalconState {
+    /// `None` until first probe; `Some(None)` = stock Camunda, `Some(Some(_))` = nanobpmn (Falcon).
+    caps: Arc<tokio::sync::OnceCell<Option<FalconCaps>>>,
+    /// Shared create producer, built on first falcon create.
+    producer: Arc<tokio::sync::OnceCell<Arc<FalconProducer>>>,
 }
 
 /// Options for constructing a [`CamundaClient`].
@@ -70,7 +70,7 @@ pub struct CamundaClient {
     user_agent: String,
     bp: Arc<BackpressureManager>,
     workers: Arc<std::sync::Mutex<Vec<JobWorkerHandle>>>,
-    nano: NanoState,
+    falcon: FalconState,
 }
 
 impl CamundaClient {
@@ -100,7 +100,7 @@ impl CamundaClient {
             ),
             bp,
             workers: Arc::new(std::sync::Mutex::new(Vec::new())),
-            nano: NanoState::default(),
+            falcon: FalconState::default(),
         })
     }
 
@@ -205,26 +205,26 @@ impl CamundaClient {
 
     /// Probe the gateway once for nanobpmn command-stream support. Returns `None` for
     /// stock Camunda (or when disabled by config). Cached for the client's lifetime.
-    pub(crate) async fn nano_caps(&self) -> Option<&NanoCaps> {
-        if !self.config.nano_command_stream {
+    pub(crate) async fn falcon_caps(&self) -> Option<&FalconCaps> {
+        if !self.config.falcon {
             return None;
         }
-        self.nano
+        self.falcon
             .caps
             .get_or_init(|| async {
-                super::nano::detect(&self.config.rest_address, &self.http).await
+                super::falcon::detect(&self.config.rest_address, &self.http).await
             })
             .await
             .as_ref()
     }
 
-    /// The shared, lazily-built nano create producer (one persistent, failover-capable
+    /// The shared, lazily-built falcon create producer (one persistent, failover-capable
     /// link per client, dialing the cluster's command-stream directory).
-    async fn nano_producer(&self, caps: &NanoCaps) -> Result<&Arc<NanoProducer>> {
+    async fn falcon_producer(&self, caps: &FalconCaps) -> Result<&Arc<FalconProducer>> {
         let endpoints = caps.endpoints.clone();
-        self.nano
+        self.falcon
             .producer
-            .get_or_try_init(|| async { NanoProducer::start(endpoints).await })
+            .get_or_try_init(|| async { FalconProducer::start(endpoints).await })
             .await
     }
 
@@ -236,9 +236,9 @@ impl CamundaClient {
     ) -> Result<models::CreateProcessInstanceResult> {
         let instruction = self.inject_instance_tenant(instruction);
 
-        // nanobpmn upgrade: route the create over the credit-metered command stream.
-        if self.nano_caps().await.is_some() {
-            if let Some(result) = self.create_process_instance_nano(&instruction).await? {
+        // Falcon upgrade: route the create over the credit-metered command stream.
+        if self.falcon_caps().await.is_some() {
+            if let Some(result) = self.create_process_instance_falcon(&instruction).await? {
                 return Ok(result);
             }
         }
@@ -256,9 +256,9 @@ impl CamundaClient {
         .await
     }
 
-    /// Create a process instance over the nano command stream. Returns `Ok(None)` to
+    /// Create a process instance over the falcon stream. Returns `Ok(None)` to
     /// signal a transparent fall-back to REST (e.g. the socket could not be opened).
-    async fn create_process_instance_nano(
+    async fn create_process_instance_falcon(
         &self,
         instruction: &models::ProcessInstanceCreationInstruction,
     ) -> Result<Option<models::CreateProcessInstanceResult>> {
@@ -298,14 +298,14 @@ impl CamundaClient {
             ),
         };
 
-        let Some(caps) = self.nano_caps().await.cloned() else {
+        let Some(caps) = self.falcon_caps().await.cloned() else {
             return Ok(None);
         };
-        let producer = match self.nano_producer(&caps).await {
+        let producer = match self.falcon_producer(&caps).await {
             Ok(p) => p.clone(),
             // Socket unavailable: fall back to REST rather than failing the create.
             Err(e) => {
-                tracing::warn!(error = %e, "nano producer unavailable; falling back to REST");
+                tracing::warn!(error = %e, "falcon producer unavailable; falling back to REST");
                 return Ok(None);
             }
         };
@@ -324,7 +324,7 @@ impl CamundaClient {
         tracing::debug!(
             process_instance_key = %outcome.process_instance_key,
             process_completed = outcome.process_completed,
-            "created process instance over nano command stream"
+            "created process instance over falcon stream"
         );
 
         // The stream create returns the instance key (+ completion outcome). Synthesise a

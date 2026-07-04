@@ -1,4 +1,4 @@
-//! Nano-aware command-stream transport.
+//! Falcon Protocol transport (nanobpmn command-stream upgrade).
 //!
 //! [nanobpmn](https://github.com/jwulf/nano-bpm) is an API/behaviour superset of the
 //! Camunda 8 Orchestration Cluster. In addition to the REST API this SDK targets, a
@@ -15,7 +15,7 @@
 //! `GET /v2/topology`; the response carries a `nano` object only on a nanobpmn gateway
 //! ([`detect`]). Against stock Camunda the probe finds no `nano` field and the SDK
 //! stays on its byte-identical REST path. The behaviour is gated by
-//! `CAMUNDA_NANO_COMMAND_STREAM` (default on; set `off`/`false`/`0` to force pure REST).
+//! `CAMUNDA_FALCON` (default on; set `off`/`false`/`0` to force pure REST).
 //!
 //! Only plaintext `ws://` is supported (local-cluster demos / non-TLS gateways); a
 //! `wss://`-derived URL falls back to REST.
@@ -34,24 +34,24 @@ use camunda_orchestration_api_client::models;
 
 use super::errors::{CamundaError, Result};
 
-/// Default command-stream path advertised by a nanobpmn gateway.
-const DEFAULT_COMMAND_STREAM_PATH: &str = "/command-stream";
+/// Default Falcon command-stream path advertised by a nanobpmn gateway.
+const DEFAULT_COMMAND_STREAM_PATH: &str = "/falcon";
 
 /// How long to wait for a create `CommandResult` before giving up.
 const CREATE_ACK_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Detected nanobpmn capabilities, derived from `GET /v2/topology`.
 #[derive(Debug, Clone)]
-pub struct NanoCaps {
+pub struct FalconCaps {
     /// Command-stream WebSocket URLs for every node in the cluster (the failover
     /// directory). Single-element for a single-node gateway. The transport picks one at
     /// random on connect and fails over to another on disconnect.
     pub endpoints: Vec<String>,
 }
 
-/// Returns `true` unless `CAMUNDA_NANO_COMMAND_STREAM` is explicitly disabled.
+/// Returns `true` unless `CAMUNDA_FALCON` is explicitly disabled.
 pub fn command_stream_enabled() -> bool {
-    match std::env::var("CAMUNDA_NANO_COMMAND_STREAM") {
+    match std::env::var("CAMUNDA_FALCON") {
         Ok(v) => !matches!(
             v.trim().to_ascii_lowercase().as_str(),
             "0" | "off" | "false" | "no"
@@ -66,7 +66,7 @@ pub fn command_stream_enabled() -> bool {
 /// disabled by config, when the gateway is not reachable over plaintext `ws://`, or on
 /// any error — in every case the caller falls back to REST, so detection never fails a
 /// request.
-pub async fn detect(rest_address: &str, http: &reqwest::Client) -> Option<NanoCaps> {
+pub async fn detect(rest_address: &str, http: &reqwest::Client) -> Option<FalconCaps> {
     if !command_stream_enabled() {
         return None;
     }
@@ -85,12 +85,12 @@ pub async fn detect(rest_address: &str, http: &reqwest::Client) -> Option<NanoCa
         return None;
     }
     let command_stream_path = nano
-        .get("commandStreamPath")
+        .get("falconPath")
         .and_then(Value::as_str)
         .unwrap_or(DEFAULT_COMMAND_STREAM_PATH)
         .to_string();
     let endpoints = endpoints_from_topology(rest_address, &command_stream_path, &body);
-    Some(NanoCaps { endpoints })
+    Some(FalconCaps { endpoints })
 }
 
 /// Build the command-stream failover directory from a `/v2/topology` body.
@@ -189,7 +189,7 @@ type DialPair = (
 async fn dial(url: &str) -> Result<DialPair> {
     let (ws, _resp) = tokio_tungstenite::connect_async(url)
         .await
-        .map_err(|e| CamundaError::Config(format!("nano command-stream connect failed: {e}")))?;
+        .map_err(|e| CamundaError::Config(format!("falcon connect failed: {e}")))?;
     let (mut sink, mut stream) = ws.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
     let (frame_tx, frame_rx) = mpsc::unbounded_channel::<Value>();
@@ -235,10 +235,10 @@ async fn dial(url: &str) -> Result<DialPair> {
 
 /// Default read-idle timeout: with no frame (not even a heartbeat) for this long, the
 /// link assumes the node is gone (e.g. paused / partitioned) and fails over. Overridable
-/// via `NANO_LINK_IDLE_MS`. Adapted upward from the gateway's advertised heartbeat.
+/// via `FALCON_LINK_IDLE_MS`. Adapted upward from the gateway's advertised heartbeat.
 fn link_idle_default() -> Duration {
     Duration::from_millis(
-        std::env::var("NANO_LINK_IDLE_MS")
+        std::env::var("FALCON_LINK_IDLE_MS")
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(4000),
@@ -304,7 +304,7 @@ impl SupervisedLink {
         match ready_rx.await {
             Ok(Ok(())) => Ok(SupervisedLink { inner }),
             Ok(Err(e)) => Err(e),
-            Err(_) => Err(CamundaError::Config("nano link supervisor exited".into())),
+            Err(_) => Err(CamundaError::Config("falcon link supervisor exited".into())),
         }
     }
 
@@ -314,9 +314,9 @@ impl SupervisedLink {
         match guard.as_ref() {
             Some(tx) => tx
                 .send(msg)
-                .map_err(|_| CamundaError::Config("nano command stream closed".into())),
+                .map_err(|_| CamundaError::Config("falcon stream closed".into())),
             None => Err(CamundaError::Config(
-                "nano command stream reconnecting".into(),
+                "falcon stream reconnecting".into(),
             )),
         }
     }
@@ -363,7 +363,7 @@ async fn supervise(inner: Arc<LinkInner>, hooks: LinkHooks, ready_tx: oneshot::S
                         let _ = rt.send(Ok(()));
                     }
                 } else {
-                    tracing::info!(endpoint = %url, failovers = n - 1, "nano link reconnected");
+                    tracing::info!(endpoint = %url, failovers = n - 1, "falcon link reconnected");
                 }
                 (hooks.on_connect)(&tx);
 
@@ -373,7 +373,7 @@ async fn supervise(inner: Arc<LinkInner>, hooks: LinkHooks, ready_tx: oneshot::S
                         Ok(Some(frame)) => (hooks.on_frame)(&frame),
                         Ok(None) => break, // socket closed
                         Err(_) => {
-                            tracing::warn!(endpoint = %url, "nano link idle timeout; failing over");
+                            tracing::warn!(endpoint = %url, "falcon link idle timeout; failing over");
                             break;
                         }
                     }
@@ -412,7 +412,7 @@ struct PendingCreate {
     ack: oneshot::Sender<(u16, Value)>,
 }
 
-/// Shared state between [`NanoProducer`]'s public surface and its reader task. Kept in
+/// Shared state between [`FalconProducer`]'s public surface and its reader task. Kept in
 /// its own `Arc` so the reader closure can capture it directly (no self-reference).
 struct ProducerShared {
     credits: AtomicI64,
@@ -474,18 +474,18 @@ impl ProducerShared {
 /// A persistent, credit-metered create producer over a single command-stream socket.
 ///
 /// Cloneable handles share one socket. Creation is gated on the server-granted
-/// submission-credit window: when credits are exhausted, [`NanoProducer::create`]
+/// submission-credit window: when credits are exhausted, [`FalconProducer::create`]
 /// *waits* (no `503`, no client-side retry) until the gateway replenishes.
-pub struct NanoProducer {
+pub struct FalconProducer {
     link: SupervisedLink,
     next_corr: AtomicU64,
     shared: Arc<ProducerShared>,
 }
 
-impl NanoProducer {
+impl FalconProducer {
     /// Connect a new producer over the failover directory `endpoints` (≥1). The supervisor
     /// picks one at random and fails over to a survivor on disconnect.
-    pub async fn start(endpoints: Vec<String>) -> Result<Arc<NanoProducer>> {
+    pub async fn start(endpoints: Vec<String>) -> Result<Arc<FalconProducer>> {
         let shared = Arc::new(ProducerShared {
             credits: AtomicI64::new(0),
             credit_ready: Notify::new(),
@@ -504,7 +504,7 @@ impl NanoProducer {
         };
         let link = SupervisedLink::start(endpoints, hooks).await?;
 
-        Ok(Arc::new(NanoProducer {
+        Ok(Arc::new(FalconProducer {
             link,
             next_corr: AtomicU64::new(1),
             shared,
@@ -600,8 +600,8 @@ impl NanoProducer {
 
         let (status, body) = tokio::time::timeout(CREATE_ACK_TIMEOUT, ack_rx)
             .await
-            .map_err(|_| CamundaError::Config("nano create timed out".into()))?
-            .map_err(|_| CamundaError::Config("nano command stream closed".into()))?;
+            .map_err(|_| CamundaError::Config("falcon create timed out".into()))?
+            .map_err(|_| CamundaError::Config("falcon stream closed".into()))?;
 
         if status != 200 {
             self.shared.await_pending.lock().unwrap().remove(&corr);
@@ -648,7 +648,7 @@ impl NanoProducer {
                 _ => {
                     self.shared.await_pending.lock().unwrap().remove(&corr);
                     return Err(CamundaError::Config(
-                        "nano await-completion timed out (node paused or partitioned)".into(),
+                        "falcon await-completion timed out (node paused or partitioned)".into(),
                     ));
                 }
             }
@@ -670,15 +670,15 @@ impl NanoProducer {
 ///
 /// Subscribes to one job type with an initial credit batch; the gateway pushes matching
 /// jobs (each consuming a delivery credit). After acting on a job, the caller replenishes
-/// one credit via [`NanoStreamWorker::replenish`], keeping in-flight work bounded by the
+/// one credit via [`FalconStreamWorker::replenish`], keeping in-flight work bounded by the
 /// initial credit window (= `max_jobs_to_activate`).
-pub struct NanoStreamWorker {
+pub struct FalconStreamWorker {
     link: SupervisedLink,
     jobs: tokio::sync::Mutex<mpsc::UnboundedReceiver<models::ActivatedJobResult>>,
     job_type: String,
 }
 
-impl NanoStreamWorker {
+impl FalconStreamWorker {
     /// Connect over the failover directory `endpoints` (≥1), subscribe to `job_type`, and
     /// start buffering pushed jobs. On failover the subscription is automatically re-sent to
     /// the survivor, so the worker keeps receiving jobs across a node pause/restart.
@@ -689,7 +689,7 @@ impl NanoStreamWorker {
         fetch_variable: Option<Vec<String>>,
         timeout_ms: Option<u64>,
         worker: Option<String>,
-    ) -> Result<NanoStreamWorker> {
+    ) -> Result<FalconStreamWorker> {
         let (jobs_tx, jobs_rx) = mpsc::unbounded_channel::<models::ActivatedJobResult>();
 
         let on_frame = move |frame: &Value| {
@@ -731,7 +731,7 @@ impl NanoStreamWorker {
         };
         let link = SupervisedLink::start(endpoints, hooks).await?;
 
-        Ok(NanoStreamWorker {
+        Ok(FalconStreamWorker {
             link,
             jobs: tokio::sync::Mutex::new(jobs_rx),
             job_type: job_type.to_string(),
@@ -805,38 +805,38 @@ mod tests {
     #[test]
     fn ws_url_strips_v2_and_swaps_scheme() {
         assert_eq!(
-            ws_url("http://localhost:8080/v2", "/command-stream"),
-            "ws://localhost:8080/command-stream"
+            ws_url("http://localhost:8080/v2", "/falcon"),
+            "ws://localhost:8080/falcon"
         );
         assert_eq!(
-            ws_url("http://localhost:8080/v2/", "/command-stream"),
-            "ws://localhost:8080/command-stream"
+            ws_url("http://localhost:8080/v2/", "/falcon"),
+            "ws://localhost:8080/falcon"
         );
         assert_eq!(
-            ws_url("https://gw.example.com/v2", "/command-stream"),
-            "wss://gw.example.com/command-stream"
+            ws_url("https://gw.example.com/v2", "/falcon"),
+            "wss://gw.example.com/falcon"
         );
         // Path without leading slash is normalised.
         assert_eq!(
-            ws_url("http://h:1/v2", "command-stream"),
-            "ws://h:1/command-stream"
+            ws_url("http://h:1/v2", "falcon"),
+            "ws://h:1/falcon"
         );
         // No /v2 suffix: origin used as-is.
         assert_eq!(
-            ws_url("http://h:1", "/command-stream"),
-            "ws://h:1/command-stream"
+            ws_url("http://h:1", "/falcon"),
+            "ws://h:1/falcon"
         );
     }
 
     #[test]
     fn command_stream_flag_defaults_on() {
-        std::env::remove_var("CAMUNDA_NANO_COMMAND_STREAM");
+        std::env::remove_var("CAMUNDA_FALCON");
         assert!(command_stream_enabled());
-        std::env::set_var("CAMUNDA_NANO_COMMAND_STREAM", "off");
+        std::env::set_var("CAMUNDA_FALCON", "off");
         assert!(!command_stream_enabled());
-        std::env::set_var("CAMUNDA_NANO_COMMAND_STREAM", "1");
+        std::env::set_var("CAMUNDA_FALCON", "1");
         assert!(command_stream_enabled());
-        std::env::remove_var("CAMUNDA_NANO_COMMAND_STREAM");
+        std::env::remove_var("CAMUNDA_FALCON");
     }
 
     #[test]
@@ -857,15 +857,15 @@ mod tests {
         // A two-node cluster: node 0 reports itself as the self-placeholder 0.0.0.0,
         // which must be rewritten to the host we actually connected on (127.0.0.1).
         let body = serde_json::json!({
-            "nano": { "commandStreamPath": "/command-stream" },
+            "nano": { "falconPath": "/falcon" },
             "brokers": [
                 { "nodeId": 0, "host": "0.0.0.0", "port": 8080 },
                 { "nodeId": 1, "host": "127.0.0.1", "port": 8081 }
             ]
         });
-        let eps = endpoints_from_topology("http://127.0.0.1:8080/v2", "/command-stream", &body);
-        assert!(eps.contains(&"ws://127.0.0.1:8080/command-stream".to_string()));
-        assert!(eps.contains(&"ws://127.0.0.1:8081/command-stream".to_string()));
+        let eps = endpoints_from_topology("http://127.0.0.1:8080/v2", "/falcon", &body);
+        assert!(eps.contains(&"ws://127.0.0.1:8080/falcon".to_string()));
+        assert!(eps.contains(&"ws://127.0.0.1:8081/falcon".to_string()));
         // De-duplicated: the configured address coincides with node 0.
         assert_eq!(eps.len(), 2);
     }
@@ -873,9 +873,9 @@ mod tests {
     #[test]
     fn endpoints_from_topology_single_node_fallback() {
         // No brokers array → just the configured address.
-        let body = serde_json::json!({ "nano": { "commandStreamPath": "/command-stream" } });
-        let eps = endpoints_from_topology("http://localhost:8080/v2", "/command-stream", &body);
-        assert_eq!(eps, vec!["ws://localhost:8080/command-stream".to_string()]);
+        let body = serde_json::json!({ "nano": { "falconPath": "/falcon" } });
+        let eps = endpoints_from_topology("http://localhost:8080/v2", "/falcon", &body);
+        assert_eq!(eps, vec!["ws://localhost:8080/falcon".to_string()]);
     }
 
     #[test]

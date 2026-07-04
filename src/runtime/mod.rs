@@ -10,7 +10,7 @@ pub mod eventual;
 pub mod facade_generated;
 pub mod job_worker;
 pub mod logging;
-pub mod nano;
+pub mod falcon;
 pub mod retry;
 pub mod tls;
 
