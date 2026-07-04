@@ -15,7 +15,9 @@
 //! `GET /v2/topology`; the response carries a `nano` object only on a nanobpmn gateway
 //! ([`detect`]). Against stock Camunda the probe finds no `nano` field and the SDK
 //! stays on its byte-identical REST path. The behaviour is gated by
-//! `CAMUNDA_FALCON` (default on; set `off`/`false`/`0` to force pure REST).
+//! `CAMUNDA_FALCON` (default on; set `off`/`false`/`0` to force pure REST) or
+//! `CAMUNDA_FORCE_REST=1` (semantic alias for "even if the gateway advertises
+//! Falcon, don't use it" — useful when a proxy blocks WebSockets).
 //!
 //! Only plaintext `ws://` is supported (local-cluster demos / non-TLS gateways); a
 //! `wss://`-derived URL falls back to REST.
@@ -49,13 +51,28 @@ pub struct FalconCaps {
     pub endpoints: Vec<String>,
 }
 
-/// Returns `true` unless `CAMUNDA_FALCON` is explicitly disabled.
+/// Returns `false` when the Falcon transport must be off:
+///
+/// * `CAMUNDA_FORCE_REST` is truthy (any value except `0`/`off`/`false`/`no`), *or*
+/// * `CAMUNDA_FALCON` is explicitly falsy (`0`/`off`/`false`/`no`).
+///
+/// Otherwise returns `true`. `CAMUNDA_FORCE_REST` is a semantic alias for
+/// "use plain REST even if the gateway advertises Falcon", intended for
+/// environments where WebSockets are blocked (corporate proxies etc.).
 pub fn command_stream_enabled() -> bool {
-    match std::env::var("CAMUNDA_FALCON") {
-        Ok(v) => !matches!(
+    fn is_truthy(v: &str) -> bool {
+        !matches!(
             v.trim().to_ascii_lowercase().as_str(),
-            "0" | "off" | "false" | "no"
-        ),
+            "" | "0" | "off" | "false" | "no"
+        )
+    }
+    if let Ok(v) = std::env::var("CAMUNDA_FORCE_REST") {
+        if is_truthy(&v) {
+            return false;
+        }
+    }
+    match std::env::var("CAMUNDA_FALCON") {
+        Ok(v) => is_truthy(&v),
         Err(_) => true,
     }
 }
@@ -823,12 +840,37 @@ mod tests {
     #[test]
     fn command_stream_flag_defaults_on() {
         std::env::remove_var("CAMUNDA_FALCON");
+        std::env::remove_var("CAMUNDA_FORCE_REST");
         assert!(command_stream_enabled());
         std::env::set_var("CAMUNDA_FALCON", "off");
         assert!(!command_stream_enabled());
         std::env::set_var("CAMUNDA_FALCON", "1");
         assert!(command_stream_enabled());
         std::env::remove_var("CAMUNDA_FALCON");
+    }
+
+    #[test]
+    fn force_rest_env_disables_falcon() {
+        // Guard: this test mutates process env; keep it serial-friendly by
+        // cleaning up on both entry and exit.
+        std::env::remove_var("CAMUNDA_FALCON");
+        std::env::remove_var("CAMUNDA_FORCE_REST");
+        assert!(command_stream_enabled());
+        for truthy in ["1", "true", "TRUE", "yes", "on"] {
+            std::env::set_var("CAMUNDA_FORCE_REST", truthy);
+            assert!(
+                !command_stream_enabled(),
+                "CAMUNDA_FORCE_REST={truthy} should disable falcon",
+            );
+        }
+        for falsy in ["0", "off", "false", "no", ""] {
+            std::env::set_var("CAMUNDA_FORCE_REST", falsy);
+            assert!(
+                command_stream_enabled(),
+                "CAMUNDA_FORCE_REST={falsy:?} should not disable falcon",
+            );
+        }
+        std::env::remove_var("CAMUNDA_FORCE_REST");
     }
 
     #[test]

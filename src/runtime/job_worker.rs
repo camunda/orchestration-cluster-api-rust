@@ -362,12 +362,27 @@ impl JobWorker {
         }
 
         // Falcon upgrade: when the gateway advertises the command stream, take pushed
-        // jobs over a WebSocket subscription instead of REST long-polling.
+        // jobs over a WebSocket subscription instead of REST long-polling. When the
+        // subscription cannot be established (e.g. a proxy blocks WebSockets), fall
+        // back to the REST poll loop instead of failing the worker.
         if let Some(caps) = self.client.falcon_caps().await {
             let caps = caps.clone();
-            return self.run_falcon_stream(handler, caps).await;
+            match self.try_run_falcon_stream(handler.clone(), caps).await {
+                Ok(()) => return Ok(()),
+                Err(FalconStartError::SubscribeFailed(e)) => {
+                    tracing::warn!(
+                        job_type = %self.config.job_type,
+                        error = %e,
+                        "falcon subscribe failed; falling back to REST job polling",
+                    );
+                }
+            }
         }
 
+        self.run_rest_poll(handler).await
+    }
+
+    async fn run_rest_poll(self, handler: JobHandler) -> Result<()> {
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
         loop {
             if self.stop.load(Ordering::SeqCst) {
@@ -427,24 +442,27 @@ impl JobWorker {
         Ok(result.jobs)
     }
 
-    /// Run the falcon worker loop: subscribe, then process pushed jobs,
-    /// replenishing a delivery credit as each job is acted upon. Honours `stop`.
-    async fn run_falcon_stream(
-        self,
+    /// Attempt to run the falcon push-based worker loop. Returns a
+    /// `FalconStartError` when the initial subscribe fails so the caller can
+    /// transparently fall back to REST polling.
+    async fn try_run_falcon_stream(
+        &self,
         handler: JobHandler,
         caps: super::falcon::FalconCaps,
-    ) -> Result<()> {
-        let worker = Arc::new(
-            super::falcon::FalconStreamWorker::subscribe(
-                caps.endpoints.clone(),
-                &self.config.job_type,
-                self.config.max_jobs_to_activate as i64,
-                self.config.fetch_variables.clone(),
-                Some(self.config.job_timeout_ms.max(0) as u64),
-                Some(self.config.worker_name.clone()),
-            )
-            .await?,
-        );
+    ) -> std::result::Result<(), FalconStartError> {
+        let worker = match super::falcon::FalconStreamWorker::subscribe(
+            caps.endpoints.clone(),
+            &self.config.job_type,
+            self.config.max_jobs_to_activate as i64,
+            self.config.fetch_variables.clone(),
+            Some(self.config.job_timeout_ms.max(0) as u64),
+            Some(self.config.worker_name.clone()),
+        )
+        .await
+        {
+            Ok(w) => Arc::new(w),
+            Err(e) => return Err(FalconStartError::SubscribeFailed(e)),
+        };
 
         loop {
             if self.stop.load(Ordering::SeqCst) {
@@ -463,6 +481,13 @@ impl JobWorker {
             });
         }
     }
+}
+
+/// Falcon worker startup outcomes distinguishable from normal loop errors.
+enum FalconStartError {
+    /// The initial WebSocket subscribe/handshake failed. The caller falls back
+    /// to REST polling.
+    SubscribeFailed(CamundaError),
 }
 
 /// Translate a [`JobAction`] into a fire-and-forget command-stream frame (each frame
