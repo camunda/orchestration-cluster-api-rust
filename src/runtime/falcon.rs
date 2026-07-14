@@ -200,9 +200,11 @@ type DialPair = (
 /// sender) and a reader task that decodes server frames into the returned channel.
 ///
 /// Heartbeats and Pings are answered inline by the reader (so the gateway doesn't reap an
-/// idle socket); every other text frame is forwarded as parsed JSON. When the socket
-/// closes or errors, the frame channel ends (`recv()` yields `None`), which the
-/// [`SupervisedLink`] supervisor treats as a disconnect.
+/// idle socket). Heartbeats are additionally forwarded as liveness ticks so the
+/// [`SupervisedLink`] supervisor's read-idle timer treats a quiet-but-healthy link as
+/// alive (it discards them before the client hooks); every other text frame is forwarded
+/// as parsed JSON. When the socket closes or errors, the frame channel ends (`recv()`
+/// yields `None`), which the supervisor treats as a disconnect.
 async fn dial(url: &str) -> Result<DialPair> {
     let (ws, _resp) = tokio_tungstenite::connect_async(url)
         .await
@@ -221,7 +223,7 @@ async fn dial(url: &str) -> Result<DialPair> {
         let _ = sink.close().await;
     });
 
-    // Reader task: decode text frames, auto-answer heartbeats/pings, forward the rest.
+    // Reader task: decode text frames, auto-answer heartbeats/pings, forward everything.
     let writer = tx.clone();
     tokio::spawn(async move {
         while let Some(Ok(msg)) = stream.next().await {
@@ -229,8 +231,12 @@ async fn dial(url: &str) -> Result<DialPair> {
                 Message::Text(text) => {
                     if let Ok(value) = serde_json::from_str::<Value>(&text) {
                         if value.get("type").and_then(Value::as_str) == Some("heartbeat") {
+                            // Answer so the gateway's phantom-connection reaper keeps us.
                             let _ = writer.send(Message::Text(r#"{"type":"heartbeat"}"#.into()));
-                            continue;
+                            // Then fall through and forward the heartbeat too: the
+                            // supervisor uses it as a liveness tick to reset its read-idle
+                            // timer (a quiet-but-healthy link must not be mistaken for a
+                            // dead node) and discards it before the client frame hooks.
                         }
                         if frame_tx.send(value).is_err() {
                             break;
@@ -250,16 +256,41 @@ async fn dial(url: &str) -> Result<DialPair> {
     Ok((tx, frame_rx))
 }
 
-/// Default read-idle timeout: with no frame (not even a heartbeat) for this long, the
-/// link assumes the node is gone (e.g. paused / partitioned) and fails over. Overridable
-/// via `FALCON_LINK_IDLE_MS`. Adapted upward from the gateway's advertised heartbeat.
-fn link_idle_default() -> Duration {
-    Duration::from_millis(
-        std::env::var("FALCON_LINK_IDLE_MS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(4000),
-    )
+/// Assumed heartbeat cadence (ms) before the gateway's `Welcome` advertises the real
+/// one. Mirrors the gateway default; the derived idle timeout is refined the moment the
+/// first `Welcome` frame lands.
+const DEFAULT_HEARTBEAT_MS: u64 = 15_000;
+/// Missed-heartbeat tolerance before a silent link is declared dead. Matches the
+/// gateway's own phantom-connection reaper (`LIVENESS_TIMEOUT_MS = 3 × HEARTBEAT_MS`),
+/// so client and server agree on when a quiet link is actually gone.
+const IDLE_HEARTBEAT_MULT: u64 = 3;
+
+/// Read-idle timeout: with no frame — not even a heartbeat — for this long, the link
+/// assumes the node is gone (paused / partitioned) and fails over. Derived from the
+/// gateway's advertised heartbeat cadence as `3 × heartbeat_ms`, so a healthy link that
+/// is merely quiet (backpressured, or with no jobs to deliver) is never mistaken for a
+/// dead node. The earlier flat 4 s default failed over on ordinary backpressure silence
+/// (the gateway heartbeats only every 15 s), storming reconnects across the cluster and
+/// starving job dispatch. Overridable via `FALCON_LINK_IDLE_MS`.
+fn link_idle(heartbeat_ms: u64) -> Duration {
+    let override_ms = std::env::var("FALCON_LINK_IDLE_MS")
+        .ok()
+        .and_then(|v| v.parse().ok());
+    link_idle_inner(heartbeat_ms, override_ms)
+}
+
+/// Pure core of [`link_idle`] (env override injected) so it is unit-testable without
+/// touching process environment.
+fn link_idle_inner(heartbeat_ms: u64, override_ms: Option<u64>) -> Duration {
+    if let Some(ms) = override_ms {
+        return Duration::from_millis(ms);
+    }
+    let hb = if heartbeat_ms == 0 {
+        DEFAULT_HEARTBEAT_MS
+    } else {
+        heartbeat_ms
+    };
+    Duration::from_millis(hb.saturating_mul(IDLE_HEARTBEAT_MULT))
 }
 
 /// Handle one decoded server frame.
@@ -358,7 +389,7 @@ fn pick_endpoint<'a>(endpoints: &'a [String], avoid: Option<&str>, seed: &mut u6
 
 /// The reconnect loop. Runs until the process ends (the link lives for the client's life).
 async fn supervise(inner: Arc<LinkInner>, hooks: LinkHooks, ready_tx: oneshot::Sender<Result<()>>) {
-    let idle = link_idle_default();
+    let mut idle = link_idle(DEFAULT_HEARTBEAT_MS);
     let mut seed = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64 | 1)
@@ -385,7 +416,26 @@ async fn supervise(inner: Arc<LinkInner>, hooks: LinkHooks, ready_tx: oneshot::S
                 // Pump frames; a read-idle timeout means the node went away silently.
                 loop {
                     match tokio::time::timeout(idle, frames.recv()).await {
-                        Ok(Some(frame)) => (hooks.on_frame)(&frame),
+                        Ok(Some(frame)) => {
+                            match frame.get("type").and_then(Value::as_str) {
+                                // Liveness only: receiving it already reset the idle
+                                // timer above — do not surface it to the client hooks.
+                                Some("heartbeat") => continue,
+                                // The gateway advertises its real heartbeat cadence in
+                                // Welcome; refine the idle timeout to 3× it (matching the
+                                // gateway's reaper). Still delivered to the hooks so the
+                                // producer seeds its submission-credit window.
+                                Some("welcome") => {
+                                    if let Some(ms) =
+                                        frame.get("heartbeatMs").and_then(Value::as_u64)
+                                    {
+                                        idle = link_idle(ms);
+                                    }
+                                }
+                                _ => {}
+                            }
+                            (hooks.on_frame)(&frame);
+                        }
                         Ok(None) => break, // socket closed
                         Err(_) => {
                             tracing::warn!(endpoint = %url, "falcon link idle timeout; failing over");
@@ -930,6 +980,24 @@ mod tests {
         assert_eq!(
             pick_endpoint(&one, Some("ws://solo/cs"), &mut seed),
             "ws://solo/cs"
+        );
+    }
+
+    #[test]
+    fn link_idle_scales_with_heartbeat_cadence() {
+        // Derived as 3 × the gateway's advertised cadence — matching the gateway's own
+        // phantom-connection reaper — so a quiet-but-healthy link is never mistaken for
+        // a dead node (the old flat 4 s default failed over on 15 s heartbeat gaps).
+        assert_eq!(link_idle_inner(15_000, None), Duration::from_millis(45_000));
+        // A zero / missing advertised cadence falls back to the assumed default.
+        assert_eq!(
+            link_idle_inner(0, None),
+            Duration::from_millis(DEFAULT_HEARTBEAT_MS * IDLE_HEARTBEAT_MULT)
+        );
+        // An explicit override wins outright (tuning / tests).
+        assert_eq!(
+            link_idle_inner(15_000, Some(1_234)),
+            Duration::from_millis(1_234)
         );
     }
 }
