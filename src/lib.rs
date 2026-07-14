@@ -37,7 +37,7 @@ pub use runtime::config::{CamundaConfig, LogLevel, RetryConfig, TlsConfig, Worke
 pub use runtime::errors::{CamundaError, Result};
 pub use runtime::eventual::ConsistencyOptions;
 pub use runtime::job_worker::{
-    Job, JobAction, JobHandler, JobWorker, JobWorkerConfig, JobWorkerHandle,
+    Job, JobAction, JobHandler, JobWorker, JobWorkerConfig, JobWorkerHandle, ReadyCallback,
 };
 
 /// Eventual-consistency polling helpers ([`ConsistencyOptions`]).
