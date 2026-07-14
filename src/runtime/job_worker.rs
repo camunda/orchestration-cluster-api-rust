@@ -38,8 +38,14 @@ use super::errors::{CamundaError, Result};
 pub type JobHandler =
     Arc<dyn Fn(Job) -> Pin<Box<dyn Future<Output = JobAction> + Send>> + Send + Sync>;
 
+/// Callback invoked once, when a worker becomes ready to receive jobs — i.e. its
+/// Falcon command-stream subscription has been established, or (when Falcon is
+/// unavailable) its REST poll loop has been entered. Useful for readiness gates and
+/// probes; the SDK guarantees it fires at most once per worker run.
+pub type ReadyCallback = Arc<dyn Fn() + Send + Sync>;
+
 /// Configuration for a [`JobWorker`].
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct JobWorkerConfig {
     /// The job type to poll for (required).
     pub job_type: String,
@@ -60,6 +66,30 @@ pub struct JobWorkerConfig {
     /// Maximum random startup delay before the first poll, in seconds. Spreads the initial
     /// activate-jobs stampede when many workers start at once.
     pub startup_jitter_max_seconds: u64,
+    /// Optional callback fired once when the worker becomes ready to receive jobs
+    /// (Falcon subscription established, or REST poll loop entered). Set via
+    /// [`JobWorkerConfig::on_ready`]. Excluded from [`Debug`] output.
+    pub on_ready: Option<ReadyCallback>,
+}
+
+impl std::fmt::Debug for JobWorkerConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JobWorkerConfig")
+            .field("job_type", &self.job_type)
+            .field("max_jobs_to_activate", &self.max_jobs_to_activate)
+            .field("job_timeout_ms", &self.job_timeout_ms)
+            .field("request_timeout_ms", &self.request_timeout_ms)
+            .field("poll_interval_ms", &self.poll_interval_ms)
+            .field("worker_name", &self.worker_name)
+            .field("fetch_variables", &self.fetch_variables)
+            .field("tenant_ids", &self.tenant_ids)
+            .field(
+                "startup_jitter_max_seconds",
+                &self.startup_jitter_max_seconds,
+            )
+            .field("on_ready", &self.on_ready.as_ref().map(|_| "<callback>"))
+            .finish()
+    }
 }
 
 impl JobWorkerConfig {
@@ -75,6 +105,7 @@ impl JobWorkerConfig {
             fetch_variables: None,
             tenant_ids: None,
             startup_jitter_max_seconds: 0,
+            on_ready: None,
         }
     }
 
@@ -91,6 +122,7 @@ impl JobWorkerConfig {
             fetch_variables: None,
             tenant_ids: None,
             startup_jitter_max_seconds: defaults.startup_jitter_max_seconds,
+            on_ready: None,
         }
     }
 
@@ -135,6 +167,20 @@ impl JobWorkerConfig {
     /// Set the maximum random startup delay (seconds) applied before the first poll.
     pub fn startup_jitter_max_seconds(mut self, seconds: u64) -> Self {
         self.startup_jitter_max_seconds = seconds;
+        self
+    }
+
+    /// Register a callback fired once when this worker becomes ready to receive jobs
+    /// (its Falcon subscription is established, or it has entered the REST poll loop).
+    ///
+    /// Useful for readiness gates — e.g. deferring load generation until every worker
+    /// is actually subscribed. The callback runs on a Tokio worker thread, so keep it
+    /// cheap and non-blocking (increment a counter, send on a channel, etc.).
+    pub fn on_ready<F>(mut self, f: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.on_ready = Some(Arc::new(f));
         self
     }
 }
@@ -315,6 +361,14 @@ impl JobWorker {
         }
     }
 
+    /// Invoke the configured `on_ready` callback, if any. Each run path calls this
+    /// exactly once at the moment the worker is ready to receive jobs.
+    fn fire_ready(&self) {
+        if let Some(cb) = &self.config.on_ready {
+            cb();
+        }
+    }
+
     /// Run the worker loop, processing jobs with `handler` until stopped or an
     /// unrecoverable error occurs.
     pub async fn run<F, Fut>(self, handler: F) -> Result<()>
@@ -383,6 +437,10 @@ impl JobWorker {
     }
 
     async fn run_rest_poll(self, handler: JobHandler) -> Result<()> {
+        // Ready in the REST case = the poll loop is about to start (there is no
+        // subscription handshake). Fires whether we're pure-REST or fell back from a
+        // failed Falcon subscribe.
+        self.fire_ready();
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
         loop {
             if self.stop.load(Ordering::SeqCst) {
@@ -463,6 +521,10 @@ impl JobWorker {
             Ok(w) => Arc::new(w),
             Err(e) => return Err(FalconStartError::SubscribeFailed(e)),
         };
+
+        // Ready in the Falcon case = the subscription handshake completed, so the
+        // gateway will now push jobs to this worker. Fire before entering the loop.
+        self.fire_ready();
 
         loop {
             if self.stop.load(Ordering::SeqCst) {
@@ -643,5 +705,34 @@ mod tests {
         assert_eq!(map.get("k"), Some(&serde_json::json!(1)));
         // Non-object payloads are dropped (the engine requires an object).
         assert!(value_to_map(serde_json::json!(42)).is_none());
+    }
+
+    #[test]
+    fn on_ready_builder_stores_callback() {
+        let c = JobWorkerConfig::new("t");
+        assert!(c.on_ready.is_none());
+        let c = c.on_ready(|| {});
+        assert!(c.on_ready.is_some());
+    }
+
+    #[test]
+    fn on_ready_callback_is_invoked() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let hits = Arc::new(AtomicUsize::new(0));
+        let hits2 = hits.clone();
+        let c = JobWorkerConfig::new("t").on_ready(move || {
+            hits2.fetch_add(1, Ordering::SeqCst);
+        });
+        // Invoke the stored callback the way the run loop would.
+        (c.on_ready.as_ref().unwrap())();
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn debug_omits_callback_body() {
+        let c = JobWorkerConfig::new("t").on_ready(|| {});
+        let s = format!("{c:?}");
+        assert!(s.contains("on_ready"));
+        assert!(s.contains("<callback>"));
     }
 }
