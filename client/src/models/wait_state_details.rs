@@ -34,18 +34,3 @@ impl Default for WaitStateDetails {
         Self::Job(Default::default())
     }
 }
-
-/// The variable events that trigger condition re-evaluation. Empty means all events.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-pub enum Events {
-    #[serde(rename = "create")]
-    Create,
-    #[serde(rename = "update")]
-    Update,
-}
-
-impl Default for Events {
-    fn default() -> Events {
-        Self::Create
-    }
-}
