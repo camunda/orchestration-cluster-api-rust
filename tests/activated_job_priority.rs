@@ -1,12 +1,15 @@
-//! Regression test for issue #2:
-//! `ActivatedJobResult.priority` must tolerate an absent value.
+//! Regression test for issue #2 (and its recurrence class):
+//! `ActivatedJobResult` must tolerate hot-path fields that upstream `main`
+//! marks required but released/alpha servers do not all emit yet.
 //!
-//! The upstream `main` spec marks `priority` required, but released and alpha
-//! servers (8.9.x, 8.10.0-alpha*) omit it from `POST /v2/jobs/activation`
-//! responses. Without `#[serde(default)]` this made *every* activation with at
-//! least one job fail to deserialize with "missing field `priority`", silently
-//! stalling job workers. Hook 08 (version-skew-tolerance) applies the default;
-//! this test guards the behavior against regeneration drift.
+//! The upstream `main` spec marks `priority`, `physicalTenantId`, `businessId`
+//! and `leaseToken` required, but released and alpha servers (8.9.x,
+//! 8.10.0-alpha*) omit them from `POST /v2/jobs/activation` responses. Without
+//! `#[serde(default)]` a single missing field made *every* activation with at
+//! least one job fail to deserialize with "missing field `<x>`", silently
+//! stalling job workers. Hook 08 (version-skew-tolerance) applies the defaults;
+//! this test guards the behavior — for the whole field class, not just
+//! `priority` — against regeneration drift.
 
 use camunda_orchestration_sdk::models::ActivatedJobResult;
 
@@ -33,7 +36,7 @@ fn job_json_without_priority() -> serde_json::Value {
         "userTask": null,
         "tags": [],
         "rootProcessInstanceKey": null
-        // note: no "priority" key
+        // note: no "priority", "physicalTenantId", "businessId" or "leaseToken"
     })
 }
 
@@ -52,4 +55,25 @@ fn deserializes_job_when_priority_is_present() {
     let job: ActivatedJobResult =
         serde_json::from_value(value).expect("activation job with `priority` must deserialize");
     assert_eq!(job.priority, 42, "present priority must be read through");
+}
+
+#[test]
+fn deserializes_job_when_lease_and_tenant_fields_absent() {
+    // Guards the defect class: every hot-path field that `main` marks required
+    // but older servers omit must tolerate absence, not just `priority`.
+    let value = job_json_without_priority();
+    let job: ActivatedJobResult = serde_json::from_value(value)
+        .expect("activation job without lease/tenant fields must deserialize");
+    assert_eq!(
+        job.physical_tenant_id, "",
+        "absent physicalTenantId must default to empty"
+    );
+    assert!(
+        job.business_id.is_none(),
+        "absent businessId must default to None"
+    );
+    assert!(
+        job.lease_token.is_none(),
+        "absent leaseToken must default to None"
+    );
 }
