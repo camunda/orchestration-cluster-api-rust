@@ -13,6 +13,15 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`assign_process_instance_business_id`]
+#[derive(Clone, Debug)]
+pub struct AssignProcessInstanceBusinessIdParams {
+    /// The key of the process instance to assign the business id to.
+    pub process_instance_key: String,
+    pub process_instance_business_id_assignment_instruction:
+        models::ProcessInstanceBusinessIdAssignmentInstruction,
+}
+
 /// struct for passing parameters to the method [`cancel_process_instance`]
 #[derive(Clone, Debug)]
 pub struct CancelProcessInstanceParams {
@@ -77,6 +86,13 @@ pub struct GetProcessInstanceStatisticsParams {
     pub process_instance_key: String,
 }
 
+/// struct for passing parameters to the method [`get_process_instance_wait_state_statistics`]
+#[derive(Clone, Debug)]
+pub struct GetProcessInstanceWaitStateStatisticsParams {
+    /// The assigned key of the process instance, which acts as a unique identifier for this process instance.
+    pub process_instance_key: String,
+}
+
 /// struct for passing parameters to the method [`migrate_process_instance`]
 #[derive(Clone, Debug)]
 pub struct MigrateProcessInstanceParams {
@@ -121,6 +137,21 @@ pub struct ResolveProcessInstanceIncidentsParams {
     pub process_instance_key: String,
 }
 
+/// struct for passing parameters to the method [`resume_process_instance`]
+#[derive(Clone, Debug)]
+pub struct ResumeProcessInstanceParams {
+    /// The key of the process instance to resume.
+    pub process_instance_key: String,
+    pub resume_process_instance_request: Option<models::ResumeProcessInstanceRequest>,
+}
+
+/// struct for passing parameters to the method [`resume_process_instances_batch_operation`]
+#[derive(Clone, Debug)]
+pub struct ResumeProcessInstancesBatchOperationParams {
+    pub process_instance_resumption_batch_operation_request:
+        models::ProcessInstanceResumptionBatchOperationRequest,
+}
+
 /// struct for passing parameters to the method [`search_process_instance_incidents`]
 #[derive(Clone, Debug)]
 pub struct SearchProcessInstanceIncidentsParams {
@@ -133,6 +164,33 @@ pub struct SearchProcessInstanceIncidentsParams {
 #[derive(Clone, Debug)]
 pub struct SearchProcessInstancesParams {
     pub process_instance_search_query: Option<models::ProcessInstanceSearchQuery>,
+}
+
+/// struct for passing parameters to the method [`suspend_process_instance`]
+#[derive(Clone, Debug)]
+pub struct SuspendProcessInstanceParams {
+    /// The key of the process instance to suspend.
+    pub process_instance_key: String,
+    pub suspend_process_instance_request: Option<models::SuspendProcessInstanceRequest>,
+}
+
+/// struct for passing parameters to the method [`suspend_process_instances_batch_operation`]
+#[derive(Clone, Debug)]
+pub struct SuspendProcessInstancesBatchOperationParams {
+    pub process_instance_suspension_batch_operation_request:
+        models::ProcessInstanceSuspensionBatchOperationRequest,
+}
+
+/// struct for typed errors of method [`assign_process_instance_business_id`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AssignProcessInstanceBusinessIdError {
+    Status400(),
+    Status404(models::ProblemDetail),
+    Status409(models::ProblemDetail),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
 }
 
 /// struct for typed errors of method [`cancel_process_instance`]
@@ -240,6 +298,17 @@ pub enum GetProcessInstanceStatisticsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_process_instance_wait_state_statistics`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetProcessInstanceWaitStateStatisticsError {
+    Status400(),
+    Status401(),
+    Status403(),
+    Status500(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`migrate_process_instance`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -308,6 +377,29 @@ pub enum ResolveProcessInstanceIncidentsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`resume_process_instance`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ResumeProcessInstanceError {
+    Status400(),
+    Status404(models::ProblemDetail),
+    Status409(models::ProblemDetail),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`resume_process_instances_batch_operation`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ResumeProcessInstancesBatchOperationError {
+    Status400(models::ProblemDetail),
+    Status401(),
+    Status403(),
+    Status500(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`search_process_instance_incidents`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -329,6 +421,73 @@ pub enum SearchProcessInstancesError {
     Status403(),
     Status500(),
     UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`suspend_process_instance`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SuspendProcessInstanceError {
+    Status400(),
+    Status404(models::ProblemDetail),
+    Status409(models::ProblemDetail),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`suspend_process_instances_batch_operation`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SuspendProcessInstancesBatchOperationError {
+    Status400(models::ProblemDetail),
+    Status401(),
+    Status403(),
+    Status500(),
+    UnknownValue(serde_json::Value),
+}
+
+/// Assigns a business id to an already-running process instance that currently has none.  The assignment is single and irreversible: only artifacts created after the assignment (for example future jobs, user tasks, decision instances, and message subscriptions) carry the business id, while existing artifacts are not retroactively enriched. Re-sending the same business id succeeds as a no-op. This endpoint is only useful while business id uniqueness enforcement is disabled; when it is enabled, the request is rejected with a 409 response.
+pub async fn assign_process_instance_business_id(
+    configuration: &configuration::Configuration,
+    params: AssignProcessInstanceBusinessIdParams,
+) -> Result<(), Error<AssignProcessInstanceBusinessIdError>> {
+    let uri_str = format!(
+        "{}/process-instances/{processInstanceKey}/business-id-assignment",
+        configuration.base_path,
+        processInstanceKey = crate::apis::urlencode(params.process_instance_key)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.process_instance_business_id_assignment_instruction);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<AssignProcessInstanceBusinessIdError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 /// Cancels a running process instance. As a cancellation includes more than just the removal of the process instance resource, the cancellation resource must be posted. Cancellation can wait on listener-related processing; when that processing does not complete in time, this endpoint can return 504. Other gateway timeout causes are also possible. Retry with backoff and inspect listener worker availability and logs when this repeats.
@@ -784,6 +943,61 @@ pub async fn get_process_instance_statistics(
     }
 }
 
+/// Get statistics about waiting element instances by the process instance key, grouped by element id.
+pub async fn get_process_instance_wait_state_statistics(
+    configuration: &configuration::Configuration,
+    params: GetProcessInstanceWaitStateStatisticsParams,
+) -> Result<
+    models::ProcessInstanceWaitStateStatisticsQueryResult,
+    Error<GetProcessInstanceWaitStateStatisticsError>,
+> {
+    let uri_str = format!(
+        "{}/process-instances/{processInstanceKey}/statistics/wait-states",
+        configuration.base_path,
+        processInstanceKey = crate::apis::urlencode(params.process_instance_key)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ProcessInstanceWaitStateStatisticsQueryResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ProcessInstanceWaitStateStatisticsQueryResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetProcessInstanceWaitStateStatisticsError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Migrates a process instance to a new process definition. This request can contain multiple mapping instructions to define mapping between the active process instance's elements and target process definition elements.  Use this to upgrade a process instance to a new version of a process or to a different process definition, e.g. to keep your running instances up-to-date with the latest process improvements.
 pub async fn migrate_process_instance(
     configuration: &configuration::Configuration,
@@ -1082,6 +1296,100 @@ pub async fn resolve_process_instance_incidents(
     }
 }
 
+/// Resumes a suspended process instance, returning it to the ACTIVE state and continuing processing. Only process instances in the SUSPENDED state can be resumed.
+pub async fn resume_process_instance(
+    configuration: &configuration::Configuration,
+    params: ResumeProcessInstanceParams,
+) -> Result<(), Error<ResumeProcessInstanceError>> {
+    let uri_str = format!(
+        "{}/process-instances/{processInstanceKey}/resumption",
+        configuration.base_path,
+        processInstanceKey = crate::apis::urlencode(params.process_instance_key)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.resume_process_instance_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ResumeProcessInstanceError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Resumes multiple suspended process instances. Since only SUSPENDED root instances can be resumed, any given filters for state and parentProcessInstanceKey are ignored and overridden during this batch operation. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
+pub async fn resume_process_instances_batch_operation(
+    configuration: &configuration::Configuration,
+    params: ResumeProcessInstancesBatchOperationParams,
+) -> Result<models::BatchOperationCreatedResult, Error<ResumeProcessInstancesBatchOperationError>> {
+    let uri_str = format!("{}/process-instances/resumption", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.process_instance_resumption_batch_operation_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BatchOperationCreatedResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BatchOperationCreatedResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ResumeProcessInstancesBatchOperationError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Search for incidents caused by the process instance or any of its called process or decision instances.  Although the `processInstanceKey` is provided as a path parameter to indicate the root process instance, you may also include a `processInstanceKey` within the filter object to narrow results to specific child process instances. This is useful, for example, if you want to isolate incidents associated with subprocesses or called processes under the root instance while excluding incidents directly tied to the root.
 pub async fn search_process_instance_incidents(
     configuration: &configuration::Configuration,
@@ -1179,6 +1487,101 @@ pub async fn search_process_instances(
     } else {
         let content = resp.text().await?;
         let entity: Option<SearchProcessInstancesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Suspends a running process instance, pausing further processing until it is resumed. Only process instances in the ACTIVE state can be suspended.
+pub async fn suspend_process_instance(
+    configuration: &configuration::Configuration,
+    params: SuspendProcessInstanceParams,
+) -> Result<(), Error<SuspendProcessInstanceError>> {
+    let uri_str = format!(
+        "{}/process-instances/{processInstanceKey}/suspension",
+        configuration.base_path,
+        processInstanceKey = crate::apis::urlencode(params.process_instance_key)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.suspend_process_instance_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<SuspendProcessInstanceError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Suspends multiple running process instances. Since only ACTIVE root instances can be suspended, any given filters for state and parentProcessInstanceKey are ignored and overridden during this batch operation. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
+pub async fn suspend_process_instances_batch_operation(
+    configuration: &configuration::Configuration,
+    params: SuspendProcessInstancesBatchOperationParams,
+) -> Result<models::BatchOperationCreatedResult, Error<SuspendProcessInstancesBatchOperationError>>
+{
+    let uri_str = format!("{}/process-instances/suspension", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.process_instance_suspension_batch_operation_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BatchOperationCreatedResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BatchOperationCreatedResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<SuspendProcessInstancesBatchOperationError> =
+            serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

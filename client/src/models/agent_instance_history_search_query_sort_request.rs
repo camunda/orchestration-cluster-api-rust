@@ -32,8 +32,8 @@ pub enum Field {
     ProducedAt,
     #[serde(rename = "historyItemKey")]
     HistoryItemKey,
-    #[serde(rename = "iteration")]
-    Iteration,
+    #[serde(rename = "loopIteration")]
+    LoopIteration,
 }
 
 impl Default for Field {

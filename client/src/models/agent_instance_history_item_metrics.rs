@@ -14,23 +14,23 @@ use serde::{Deserialize, Serialize};
 /// AgentInstanceHistoryItemMetrics : Per-call token and latency metrics for an ASSISTANT history item.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AgentInstanceHistoryItemMetrics {
-    /// Input tokens consumed by this LLM call.
-    #[serde(rename = "inputTokens")]
-    pub input_tokens: i64,
-    /// Output tokens produced by this LLM call.
-    #[serde(rename = "outputTokens")]
-    pub output_tokens: i64,
-    /// Wall-clock duration of the LLM call in milliseconds.
-    #[serde(rename = "durationMs")]
-    pub duration_ms: i64,
+    /// Input tokens consumed by this LLM call. Null when not provided.
+    #[serde(rename = "inputTokens", deserialize_with = "Option::deserialize")]
+    pub input_tokens: Option<i64>,
+    /// Output tokens produced by this LLM call. Null when not provided.
+    #[serde(rename = "outputTokens", deserialize_with = "Option::deserialize")]
+    pub output_tokens: Option<i64>,
+    /// Wall-clock duration of the LLM call in milliseconds. Null when not provided.
+    #[serde(rename = "durationMs", deserialize_with = "Option::deserialize")]
+    pub duration_ms: Option<i64>,
 }
 
 impl AgentInstanceHistoryItemMetrics {
     /// Per-call token and latency metrics for an ASSISTANT history item.
     pub fn new(
-        input_tokens: i64,
-        output_tokens: i64,
-        duration_ms: i64,
+        input_tokens: Option<i64>,
+        output_tokens: Option<i64>,
+        duration_ms: Option<i64>,
     ) -> AgentInstanceHistoryItemMetrics {
         AgentInstanceHistoryItemMetrics {
             input_tokens,

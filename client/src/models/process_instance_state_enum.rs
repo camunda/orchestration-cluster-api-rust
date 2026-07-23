@@ -19,6 +19,8 @@ pub enum ProcessInstanceStateEnum {
     Active,
     #[serde(rename = "COMPLETED")]
     Completed,
+    #[serde(rename = "SUSPENDED")]
+    Suspended,
     #[serde(rename = "TERMINATED")]
     Terminated,
 }
@@ -28,6 +30,7 @@ impl std::fmt::Display for ProcessInstanceStateEnum {
         match self {
             Self::Active => write!(f, "ACTIVE"),
             Self::Completed => write!(f, "COMPLETED"),
+            Self::Suspended => write!(f, "SUSPENDED"),
             Self::Terminated => write!(f, "TERMINATED"),
         }
     }

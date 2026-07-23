@@ -17,6 +17,7 @@ Hooks (in order):
   07 sdk-facade                  emit src/runtime/facade_generated.rs (flat full-surface facade)
   08 version-skew-tolerance      tolerate unknown enum variants / added fields from newer servers
   09 crate-metadata              set client/Cargo.toml license (Apache-2.0) + repository/homepage/docs
+  10 dedupe-hoisted-enums        drop hoisted dead top-level enums from tagged-union model files
 
 Usage:
     python3 scripts/postprocess.py --client-dir client \\

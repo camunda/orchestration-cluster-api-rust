@@ -29,9 +29,9 @@ pub struct AgentInstanceHistoryItemResult {
     /// The lease token of the activation that produced this item.
     #[serde(rename = "jobLease")]
     pub job_lease: String,
-    /// The sequential iteration number this item belongs to. Null if not provided by the connector.
-    #[serde(rename = "iteration", deserialize_with = "Option::deserialize")]
-    pub iteration: Option<i32>,
+    /// The loopIteration this item belongs to. A loopIteration is one pass through the agent feedback loop: one LLM call, its tool dispatches, and their results. Null if not provided by the connector.
+    #[serde(rename = "loopIteration", deserialize_with = "Option::deserialize")]
+    pub loop_iteration: Option<i32>,
     /// The role of this history item in the conversation.
     #[serde(rename = "role")]
     pub role: models::AgentInstanceHistoryRoleEnum,
@@ -41,7 +41,7 @@ pub struct AgentInstanceHistoryItemResult {
     /// Tool calls for this item. Empty for USER items and ASSISTANT items with no tool dispatches. ASSISTANT items: dispatched tool calls with arguments populated. TOOL_RESULT items: single-entry array referencing the originating tool call (arguments null).
     #[serde(rename = "toolCalls")]
     pub tool_calls: Vec<models::AgentInstanceToolCall>,
-    /// Per-call token and latency metrics. Present on ASSISTANT items only.
+    /// Per-call token and latency metrics. Null when metrics were not provided at creation time.
     #[serde(rename = "metrics", deserialize_with = "Option::deserialize")]
     pub metrics: Option<Box<models::AgentInstanceHistoryItemMetrics>>,
     /// The commit status of this history item.
@@ -60,7 +60,7 @@ impl AgentInstanceHistoryItemResult {
         element_instance_key: models::ElementInstanceKey,
         job_key: models::JobKey,
         job_lease: String,
-        iteration: Option<i32>,
+        loop_iteration: Option<i32>,
         role: models::AgentInstanceHistoryRoleEnum,
         content: Vec<models::AgentInstanceMessageContent>,
         tool_calls: Vec<models::AgentInstanceToolCall>,
@@ -74,7 +74,7 @@ impl AgentInstanceHistoryItemResult {
             element_instance_key: Box::new(element_instance_key),
             job_key: Box::new(job_key),
             job_lease,
-            iteration,
+            loop_iteration,
             role,
             content,
             tool_calls,

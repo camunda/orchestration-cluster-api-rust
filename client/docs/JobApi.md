@@ -15,6 +15,7 @@ Method | HTTP request | Description
 [**search_jobs**](JobApi.md#search_jobs) | **POST** /jobs/search | Search jobs
 [**throw_job_error**](JobApi.md#throw_job_error) | **POST** /jobs/{jobKey}/error | Throw error for job
 [**update_job**](JobApi.md#update_job) | **PATCH** /jobs/{jobKey} | Update job
+[**update_jobs_batch_operation**](JobApi.md#update_jobs_batch_operation) | **POST** /jobs/batch-update | Update jobs (batch)
 
 
 
@@ -350,6 +351,36 @@ Name | Type | Description  | Required | Notes
 
 - **Content-Type**: application/json
 - **Accept**: application/problem+json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## update_jobs_batch_operation
+
+> models::BatchOperationCreatedResult update_jobs_batch_operation(job_batch_update_request)
+Update jobs (batch)
+
+Creates a batch operation to update jobs matching the given filter. At least one changeset field must be non-null. This is done asynchronously; the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}). 
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**job_batch_update_request** | [**JobBatchUpdateRequest**](JobBatchUpdateRequest.md) |  | [required] |
+
+### Return type
+
+[**models::BatchOperationCreatedResult**](BatchOperationCreatedResult.md)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json, application/problem+json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

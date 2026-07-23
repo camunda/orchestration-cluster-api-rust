@@ -23,6 +23,22 @@ pub struct JobCompletionRequest {
     pub variables: Option<Option<std::collections::HashMap<String, serde_json::Value>>>,
     #[serde(rename = "result", skip_serializing_if = "Option::is_none")]
     pub result: Option<Box<models::JobResult>>,
+    /// The token identifying a leased job's activation, obtained from `ActivatedJobResult.leaseToken`. For a leased job, the matching token must be supplied to prove the command comes from the worker that holds the current lease; a command with no token is rejected. A command carrying a stale token is likewise rejected, fencing the job against a superseded activation (for example, after the job timed out or failed and was re-activated by another worker). A job that was activated without a lease requires no token.
+    #[serde(
+        rename = "leaseToken",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub lease_token: Option<Option<String>>,
+    /// An optional business id to assign to the process instance the job belongs to, as part of completing the job, letting a worker set the identifier from work it just performed. The business id can only be assigned to a root process instance: if the job belongs to a child process instance (one started by a call activity), the completion is rejected. An empty business id is likewise rejected. The assignment is single and irreversible and is only accepted while business id uniqueness is disabled. Only artifacts created after the assignment carry the business id; already-existing ones are not enriched. Completing with a business id that differs from one already assigned rejects the whole completion, leaving the job open; re-sending the identical business id is an idempotent no-op.
+    #[serde(
+        rename = "businessId",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub business_id: Option<Option<String>>,
 }
 
 impl JobCompletionRequest {
@@ -30,6 +46,8 @@ impl JobCompletionRequest {
         JobCompletionRequest {
             variables: None,
             result: None,
+            lease_token: None,
+            business_id: None,
         }
     }
 }

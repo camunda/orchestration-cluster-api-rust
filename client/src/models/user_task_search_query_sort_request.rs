@@ -40,6 +40,8 @@ pub enum Field {
     Priority,
     #[serde(rename = "name")]
     Name,
+    #[serde(rename = "businessId")]
+    BusinessId,
 }
 
 impl Default for Field {

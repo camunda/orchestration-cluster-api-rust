@@ -21,11 +21,33 @@ NUMBER = 8
 NAME = "version-skew-tolerance"
 
 # (file under src/models, serde rename of the field, rust field declaration line)
+#
+# All entries below sit on the job-activation hot path (`ActivatedJobResult`).
+# Upstream `main` marks them required, but released and alpha servers do not all
+# emit them yet, so without `#[serde(default)]` a single missing field makes the
+# whole activate-jobs response fail to deserialize and silently stalls workers.
+# `businessId` / `leaseToken` keep their `deserialize_with = "Option::deserialize"`
+# attribute; adding `default` only affects the absent-key case (absent -> None).
 _DEFAULTABLE = [
     (
         "activated_job_result.rs",
         '#[serde(rename = "priority")]',
         "pub priority: i32,",
+    ),
+    (
+        "activated_job_result.rs",
+        '#[serde(rename = "physicalTenantId")]',
+        "pub physical_tenant_id: String,",
+    ),
+    (
+        "activated_job_result.rs",
+        '#[serde(rename = "businessId", deserialize_with = "Option::deserialize")]',
+        "pub business_id: Option<models::BusinessId>,",
+    ),
+    (
+        "activated_job_result.rs",
+        '#[serde(rename = "leaseToken", deserialize_with = "Option::deserialize")]',
+        "pub lease_token: Option<String>,",
     ),
 ]
 

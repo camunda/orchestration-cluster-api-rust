@@ -21,6 +21,12 @@ pub enum WaitStateTypeEnum {
     Message,
     #[serde(rename = "USER_TASK")]
     UserTask,
+    #[serde(rename = "TIMER")]
+    Timer,
+    #[serde(rename = "SIGNAL")]
+    Signal,
+    #[serde(rename = "CONDITION")]
+    Condition,
 }
 
 impl std::fmt::Display for WaitStateTypeEnum {
@@ -29,6 +35,9 @@ impl std::fmt::Display for WaitStateTypeEnum {
             Self::Job => write!(f, "JOB"),
             Self::Message => write!(f, "MESSAGE"),
             Self::UserTask => write!(f, "USER_TASK"),
+            Self::Timer => write!(f, "TIMER"),
+            Self::Signal => write!(f, "SIGNAL"),
+            Self::Condition => write!(f, "CONDITION"),
         }
     }
 }

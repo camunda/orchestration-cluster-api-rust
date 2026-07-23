@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 /// CorrelatedMessageSubscriptionFilter : Correlated message subscriptions search filter.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CorrelatedMessageSubscriptionFilter {
+    /// Filter by the business id stored on the correlated message subscription — for message start event correlations the correlating message's business id, and for catch, boundary, or intermediate event correlations the subscribing process instance's business id. Supports advanced string filtering, including `$like` with `*`/`?` wildcards.
+    #[serde(rename = "businessId", skip_serializing_if = "Option::is_none")]
+    pub business_id: Option<Box<models::StringFilterProperty>>,
     /// The correlation key of the message.
     #[serde(rename = "correlationKey", skip_serializing_if = "Option::is_none")]
     pub correlation_key: Option<Box<models::StringFilterProperty>>,
@@ -62,6 +65,7 @@ impl CorrelatedMessageSubscriptionFilter {
     /// Correlated message subscriptions search filter.
     pub fn new() -> CorrelatedMessageSubscriptionFilter {
         CorrelatedMessageSubscriptionFilter {
+            business_id: None,
             correlation_key: None,
             correlation_time: None,
             element_id: None,

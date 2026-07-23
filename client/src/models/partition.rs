@@ -23,15 +23,19 @@ pub struct Partition {
     /// Describes the current health of the partition.
     #[serde(rename = "health")]
     pub health: Health,
+    /// Describes the current operational state of the partition within the cluster configuration.
+    #[serde(rename = "state")]
+    pub state: State,
 }
 
 impl Partition {
     /// Provides information on a partition within a broker node.
-    pub fn new(partition_id: i32, role: Role, health: Health) -> Partition {
+    pub fn new(partition_id: i32, role: Role, health: Health, state: State) -> Partition {
         Partition {
             partition_id,
             role,
             health,
+            state,
         }
     }
 }
@@ -65,5 +69,25 @@ pub enum Health {
 impl Default for Health {
     fn default() -> Health {
         Self::Healthy
+    }
+}
+/// Describes the current operational state of the partition within the cluster configuration.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub enum State {
+    #[serde(rename = "unknown")]
+    Unknown,
+    #[serde(rename = "joining")]
+    Joining,
+    #[serde(rename = "active")]
+    Active,
+    #[serde(rename = "leaving")]
+    Leaving,
+    #[serde(rename = "recovering")]
+    Recovering,
+}
+
+impl Default for State {
+    fn default() -> State {
+        Self::Unknown
     }
 }

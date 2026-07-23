@@ -64,6 +64,7 @@ pub enum CreateAgentInstanceError {
     Status401(),
     Status403(),
     Status404(models::ProblemDetail),
+    Status409(models::ProblemDetail),
     Status500(),
     Status503(),
     UnknownValue(serde_json::Value),

@@ -1474,6 +1474,26 @@ impl CamundaClient {
         .await
     }
 
+    /// Update jobs (batch) (`POST /jobs/batch-update`).
+    pub async fn update_jobs_batch_operation(
+        &self,
+        params: camunda_orchestration_api_client::apis::job_api::UpdateJobsBatchOperationParams,
+    ) -> Result<models::BatchOperationCreatedResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::job_api::update_jobs_batch_operation(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
+
     /// Get license status (`GET /license`).
     pub async fn get_license(&self) -> Result<models::LicenseResponse> {
         self.guarded(|| async {
@@ -1718,6 +1738,21 @@ impl CamundaClient {
         .await
     }
 
+    /// Search process definition variable names (`POST /process-definitions/{processDefinitionKey}/variable-names/search`).
+    pub async fn search_process_definition_variable_names(
+        &self,
+        params: camunda_orchestration_api_client::apis::process_definition_api::SearchProcessDefinitionVariableNamesParams,
+    ) -> Result<models::ProcessDefinitionVariableNameSearchQueryResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::process_definition_api::search_process_definition_variable_names(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     /// Search process definitions (`POST /process-definitions/search`).
     pub async fn search_process_definitions(
         &self,
@@ -1728,6 +1763,21 @@ impl CamundaClient {
             async move {
                 let cfg = self.configuration().await?;
                 Ok(camunda_orchestration_api_client::apis::process_definition_api::search_process_definitions(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
+    /// Assign business id to process instance (`POST /process-instances/{processInstanceKey}/business-id-assignment`).
+    pub async fn assign_process_instance_business_id(
+        &self,
+        params: camunda_orchestration_api_client::apis::process_instance_api::AssignProcessInstanceBusinessIdParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::process_instance_api::assign_process_instance_business_id(&cfg, params).await?)
             }
         })
         .await
@@ -1823,6 +1873,21 @@ impl CamundaClient {
         .await
     }
 
+    /// Get wait state statistics (`GET /process-instances/{processInstanceKey}/statistics/wait-states`).
+    pub async fn get_process_instance_wait_state_statistics(
+        &self,
+        params: camunda_orchestration_api_client::apis::process_instance_api::GetProcessInstanceWaitStateStatisticsParams,
+    ) -> Result<models::ProcessInstanceWaitStateStatisticsQueryResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::process_instance_api::get_process_instance_wait_state_statistics(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     /// Migrate process instance (`POST /process-instances/{processInstanceKey}/migration`).
     pub async fn migrate_process_instance(
         &self,
@@ -1913,6 +1978,36 @@ impl CamundaClient {
         .await
     }
 
+    /// Resume process instance (`POST /process-instances/{processInstanceKey}/resumption`).
+    pub async fn resume_process_instance(
+        &self,
+        params: camunda_orchestration_api_client::apis::process_instance_api::ResumeProcessInstanceParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::process_instance_api::resume_process_instance(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
+    /// Resume process instances (batch) (`POST /process-instances/resumption`).
+    pub async fn resume_process_instances_batch_operation(
+        &self,
+        params: camunda_orchestration_api_client::apis::process_instance_api::ResumeProcessInstancesBatchOperationParams,
+    ) -> Result<models::BatchOperationCreatedResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::process_instance_api::resume_process_instances_batch_operation(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     /// Search related incidents (`POST /process-instances/{processInstanceKey}/incidents/search`).
     pub async fn search_process_instance_incidents(
         &self,
@@ -1938,6 +2033,74 @@ impl CamundaClient {
             async move {
                 let cfg = self.configuration().await?;
                 Ok(camunda_orchestration_api_client::apis::process_instance_api::search_process_instances(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
+    /// Suspend process instance (`POST /process-instances/{processInstanceKey}/suspension`).
+    pub async fn suspend_process_instance(
+        &self,
+        params: camunda_orchestration_api_client::apis::process_instance_api::SuspendProcessInstanceParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::process_instance_api::suspend_process_instance(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
+    /// Suspend process instances (batch) (`POST /process-instances/suspension`).
+    pub async fn suspend_process_instances_batch_operation(
+        &self,
+        params: camunda_orchestration_api_client::apis::process_instance_api::SuspendProcessInstancesBatchOperationParams,
+    ) -> Result<models::BatchOperationCreatedResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::process_instance_api::suspend_process_instances_batch_operation(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
+    /// Change cluster mode (`PATCH /mode`).
+    pub async fn change_cluster_mode(
+        &self,
+        params: camunda_orchestration_api_client::apis::recovery_api::ChangeClusterModeParams,
+    ) -> Result<models::ClusterModeChangeResponse> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::recovery_api::change_cluster_mode(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
+
+    /// Restore from a backup (`POST /restore`).
+    pub async fn restore(
+        &self,
+        params: camunda_orchestration_api_client::apis::recovery_api::RestoreParams,
+    ) -> Result<models::ClusterModeChangeResponse> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::recovery_api::restore(&cfg, params)
+                        .await?,
+                )
             }
         })
         .await
@@ -2372,6 +2535,26 @@ impl CamundaClient {
                 Ok(
                     camunda_orchestration_api_client::apis::role_api::update_role(&cfg, params)
                         .await?,
+                )
+            }
+        })
+        .await
+    }
+
+    /// Resolve secrets (alpha) (`POST /secrets/resolve`).
+    pub async fn resolve_secrets(
+        &self,
+        params: camunda_orchestration_api_client::apis::secret_api::ResolveSecretsParams,
+    ) -> Result<models::SecretResolveResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::secret_api::resolve_secrets(
+                        &cfg, params,
+                    )
+                    .await?,
                 )
             }
         })

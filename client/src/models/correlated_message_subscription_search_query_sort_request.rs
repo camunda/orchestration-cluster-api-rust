@@ -28,6 +28,8 @@ impl CorrelatedMessageSubscriptionSearchQuerySortRequest {
 /// The field to sort by.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Field {
+    #[serde(rename = "businessId")]
+    BusinessId,
     #[serde(rename = "correlationKey")]
     CorrelationKey,
     #[serde(rename = "correlationTime")]
@@ -56,6 +58,6 @@ pub enum Field {
 
 impl Default for Field {
     fn default() -> Field {
-        Self::CorrelationKey
+        Self::BusinessId
     }
 }

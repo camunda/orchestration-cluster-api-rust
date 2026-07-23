@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CorrelatedMessageSubscriptionResult {
+    /// The business id associated with this correlated message subscription. For a message start event correlation, it is the business id carried by the correlating message that was stamped on the started process instance to enforce its uniqueness. For a catch, boundary, or intermediate event correlation, it is the business id of the subscribing process instance, captured when the subscription was opened. It is `null` when the relevant process instance has no business id.
+    #[serde(rename = "businessId", deserialize_with = "Option::deserialize")]
+    pub business_id: Option<models::BusinessId>,
     /// The correlation key of the message.
     #[serde(rename = "correlationKey", deserialize_with = "Option::deserialize")]
     pub correlation_key: Option<String>,
@@ -62,6 +65,7 @@ pub struct CorrelatedMessageSubscriptionResult {
 
 impl CorrelatedMessageSubscriptionResult {
     pub fn new(
+        business_id: Option<models::BusinessId>,
         correlation_key: Option<String>,
         correlation_time: chrono::DateTime<chrono::FixedOffset>,
         element_id: String,
@@ -77,6 +81,7 @@ impl CorrelatedMessageSubscriptionResult {
         tenant_id: models::TenantId,
     ) -> CorrelatedMessageSubscriptionResult {
         CorrelatedMessageSubscriptionResult {
+            business_id,
             correlation_key,
             correlation_time,
             element_id,

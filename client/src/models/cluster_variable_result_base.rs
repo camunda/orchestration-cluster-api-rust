@@ -22,6 +22,12 @@ pub struct ClusterVariableResultBase {
     /// Only provided if the cluster variable scope is TENANT. Null for global scope variables.
     #[serde(rename = "tenantId", deserialize_with = "Option::deserialize")]
     pub tenant_id: Option<String>,
+    /// A generic key-value metadata bag attached to the cluster variable. Values are strings or numbers.
+    #[serde(rename = "metadata")]
+    pub metadata:
+        std::collections::HashMap<String, models::CreateClusterVariableRequestMetadataValue>,
+    #[serde(rename = "kind")]
+    pub kind: models::ClusterVariableKindEnum,
 }
 
 impl ClusterVariableResultBase {
@@ -30,11 +36,18 @@ impl ClusterVariableResultBase {
         name: models::ClusterVariableName,
         scope: models::ClusterVariableScopeEnum,
         tenant_id: Option<String>,
+        metadata: std::collections::HashMap<
+            String,
+            models::CreateClusterVariableRequestMetadataValue,
+        >,
+        kind: models::ClusterVariableKindEnum,
     ) -> ClusterVariableResultBase {
         ClusterVariableResultBase {
             name,
             scope,
             tenant_id,
+            metadata,
+            kind,
         }
     }
 }

@@ -47,6 +47,9 @@ pub struct ProcessDefinitionFilter {
     /// Indicates whether the start event of the process has an associated Form Key.
     #[serde(rename = "hasStartForm", skip_serializing_if = "Option::is_none")]
     pub has_start_form: Option<bool>,
+    /// Filter by whether the process definition has been deleted. When not set, both deleted and non-deleted process definitions are returned. Set to `false` to exclude deleted definitions (recommended for most use cases). Set to `true` to return only deleted definitions that are still retained in secondary storage.
+    #[serde(rename = "isDeleted", skip_serializing_if = "Option::is_none")]
+    pub is_deleted: Option<bool>,
 }
 
 impl ProcessDefinitionFilter {
@@ -62,6 +65,7 @@ impl ProcessDefinitionFilter {
             tenant_id: None,
             process_definition_key: None,
             has_start_form: None,
+            is_deleted: None,
         }
     }
 }

@@ -23,14 +23,14 @@ pub struct AgentInstanceHistoryItemRequest {
     /// Opaque lease token received from the job activation response.
     #[serde(rename = "jobLease")]
     pub job_lease: String,
-    /// Sequential iteration number this item belongs to. Omit if not grouping items into iterations.
+    /// The loopIteration this item belongs to. A loopIteration is one pass through the agent feedback loop: one LLM call, its tool dispatches, and their results. Omit if not grouping items by loopIteration.
     #[serde(
-        rename = "iteration",
+        rename = "loopIteration",
         default,
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub iteration: Option<Option<i32>>,
+    pub loop_iteration: Option<Option<i32>>,
     /// The role of this history item in the conversation.
     #[serde(rename = "role")]
     pub role: models::AgentInstanceHistoryRoleEnum,
@@ -72,7 +72,7 @@ impl AgentInstanceHistoryItemRequest {
             element_instance_key: Box::new(element_instance_key),
             job_key: Box::new(job_key),
             job_lease,
-            iteration: None,
+            loop_iteration: None,
             role,
             content,
             tool_calls: None,

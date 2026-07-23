@@ -7,6 +7,8 @@ Name | Type | Description | Notes
 **name** | **String** | The name of the cluster variable. Unique within its scope (global or tenant-specific). | 
 **scope** | [**models::ClusterVariableScopeEnum**](ClusterVariableScopeEnum.md) |  | 
 **tenant_id** | Option<**String**> | Only provided if the cluster variable scope is TENANT. Null for global scope variables. | 
+**metadata** | [**std::collections::HashMap<String, models::CreateClusterVariableRequestMetadataValue>**](CreateClusterVariableRequestMetadataValue.md) | A generic key-value metadata bag attached to the cluster variable. Values are strings or numbers. | 
+**kind** | [**models::ClusterVariableKindEnum**](ClusterVariableKindEnum.md) |  | 
 **value** | **String** | Value of this cluster variable. Can be truncated. | 
 **is_truncated** | **bool** | Whether the value is truncated or not. | 
 

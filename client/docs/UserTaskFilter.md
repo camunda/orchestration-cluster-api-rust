@@ -6,6 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **state** | Option<[**models::UserTaskStateFilterProperty**](UserTaskStateFilterProperty.md)> | The user task state. | [optional]
 **assignee** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The assignee of the user task. | [optional]
+**business_id** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The business ID of the owning process instance the user task belongs to. This only works for user tasks created with 8.10 and onwards. Tasks from prior versions don't contain this data and cannot be found.  | [optional]
 **priority** | Option<[**models::IntegerFilterProperty**](IntegerFilterProperty.md)> | The priority of the user task. | [optional]
 **element_id** | Option<**String**> | The element ID of the user task. | [optional]
 **name** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The task name. This only works for data created with 8.8 and onwards. Instances from prior versions don't contain this data and cannot be found.  | [optional]

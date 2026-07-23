@@ -208,7 +208,7 @@ pub enum AssignRoleToUserError {
 #[serde(untagged)]
 pub enum CreateRoleError {
     Status400(),
-    Status401(models::ProblemDetail),
+    Status401(),
     Status403(models::ProblemDetail),
     Status409(models::ProblemDetail),
     Status500(),

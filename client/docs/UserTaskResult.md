@@ -26,6 +26,7 @@ Name | Type | Description | Notes
 **process_definition_key** | **models::ProcessDefinitionKey** | The key of the process definition. | 
 **process_instance_key** | **models::ProcessInstanceKey** | The key of the process instance. | 
 **root_process_instance_key** | Option<**models::ProcessInstanceKey**> | The key of the root process instance. The root process instance is the top-level ancestor in the process instance hierarchy. This field is only present for data belonging to process instance hierarchies created in version 8.9 or later.  | 
+**business_id** | Option<**String**> | The business ID of the owning process instance, inherited when the user task was created. This is `null` for user tasks created before version 8.10, and for user tasks whose owning process instance has no business ID.  | 
 **form_key** | Option<**models::FormKey**> | The key of the form. | 
 **tags** | **HashSet<String>** | List of tags. Tags need to start with a letter; then alphanumerics, `_`, `-`, `:`, or `.`; length ≤ 100. | 
 

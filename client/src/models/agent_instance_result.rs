@@ -21,7 +21,7 @@ pub struct AgentInstanceResult {
     /// The static definition of the agent, including model, provider, and system prompt.
     #[serde(rename = "definition")]
     pub definition: Box<models::AgentInstanceDefinition>,
-    /// Aggregated metrics across all iterations of this agent instance.
+    /// Aggregated metrics across all loopIterations of this agent instance.
     #[serde(rename = "metrics")]
     pub metrics: Box<models::AgentInstanceMetrics>,
     /// The configured limits for this agent instance, set once at creation.

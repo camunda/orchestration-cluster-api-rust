@@ -43,6 +43,9 @@ pub struct ActivatedJobResult {
     /// The ID of the tenant that owns the job.
     #[serde(rename = "tenantId")]
     pub tenant_id: models::TenantId,
+    /// The ID of the physical tenant that the job-activation request was routed to; the default physical tenant when the request did not specify one.
+    #[serde(default, rename = "physicalTenantId")]
+    pub physical_tenant_id: String,
     /// The key, a unique identifier for the job.
     #[serde(rename = "jobKey")]
     pub job_key: Box<models::JobKey>,
@@ -71,9 +74,23 @@ pub struct ActivatedJobResult {
         deserialize_with = "Option::deserialize"
     )]
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
+    /// The business ID of the owning process instance, inherited when the job was created. This is `null` for jobs created before version 8.10 and for jobs whose owning process instance has no business ID.
+    #[serde(
+        default,
+        rename = "businessId",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub business_id: Option<models::BusinessId>,
     /// The priority of the job. Higher values indicate higher priority. Jobs created before 8.10 have no stored priority; the API returns 0 for such jobs.
     #[serde(default, rename = "priority")]
     pub priority: i32,
+    /// The lease token identifying this activation. This is `null` when the job was activated without a lease.
+    #[serde(
+        default,
+        rename = "leaseToken",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub lease_token: Option<String>,
 }
 
 impl ActivatedJobResult {
@@ -88,6 +105,7 @@ impl ActivatedJobResult {
         deadline: i64,
         variables: std::collections::HashMap<String, serde_json::Value>,
         tenant_id: models::TenantId,
+        physical_tenant_id: String,
         job_key: models::JobKey,
         process_instance_key: models::ProcessInstanceKey,
         process_definition_key: models::ProcessDefinitionKey,
@@ -97,7 +115,9 @@ impl ActivatedJobResult {
         user_task: Option<models::UserTaskProperties>,
         tags: Vec<String>,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
+        business_id: Option<models::BusinessId>,
         priority: i32,
+        lease_token: Option<String>,
     ) -> ActivatedJobResult {
         ActivatedJobResult {
             r#type,
@@ -110,6 +130,7 @@ impl ActivatedJobResult {
             deadline,
             variables,
             tenant_id,
+            physical_tenant_id,
             job_key: Box::new(job_key),
             process_instance_key: Box::new(process_instance_key),
             process_definition_key: Box::new(process_definition_key),
@@ -127,7 +148,9 @@ impl ActivatedJobResult {
             } else {
                 None
             },
+            business_id,
             priority,
+            lease_token,
         }
     }
 }

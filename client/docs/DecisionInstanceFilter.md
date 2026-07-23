@@ -16,6 +16,7 @@ Name | Type | Description | Notes
 **decision_evaluation_key** | Option<**models::DecisionEvaluationKey**> | The key of the parent decision evaluation. Note that this is not the identifier of an individual decision instance; the `decisionEvaluationInstanceKey` is the identifier for a decision instance.  | [optional]
 **process_definition_key** | Option<**models::ProcessDefinitionKey**> | The key of the process definition. | [optional]
 **process_instance_key** | Option<**models::ProcessInstanceKey**> | The key of the process instance. | [optional]
+**business_id** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The business ID of the owning process instance the decision instance belongs to. This only works for decision instances created with 8.10 and onwards. Decision instances from prior versions and standalone evaluations don't contain this data and cannot be found.  | [optional]
 **decision_definition_key** | Option<[**models::DecisionDefinitionKeyFilterProperty**](DecisionDefinitionKeyFilterProperty.md)> | The key of the decision. | [optional]
 **element_instance_key** | Option<[**models::ElementInstanceKeyFilterProperty**](ElementInstanceKeyFilterProperty.md)> | The key of the element instance this decision instance is linked to. | [optional]
 **root_decision_definition_key** | Option<[**models::DecisionDefinitionKeyFilterProperty**](DecisionDefinitionKeyFilterProperty.md)> | The key of the root decision definition. | [optional]

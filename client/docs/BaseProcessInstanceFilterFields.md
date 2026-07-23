@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **end_date** | Option<[**models::DateTimeFilterProperty**](DateTimeFilterProperty.md)> | The end date. | [optional]
 **state** | Option<[**models::ProcessInstanceStateFilterProperty**](ProcessInstanceStateFilterProperty.md)> | The process instance state. | [optional]
 **has_incident** | Option<**bool**> | Whether this process instance has a related incident or not. | [optional]
+**suspended_date** | Option<[**models::DateTimeFilterProperty**](DateTimeFilterProperty.md)> | The time this process instance most recently entered the SUSPENDED state. This is cleared (null) again once the process instance is resumed.  | [optional]
 **tenant_id** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The tenant id. | [optional]
 **variables** | Option<[**Vec<models::VariableValueFilterProperty>**](VariableValueFilterProperty.md)> | The process instance variables. | [optional]
 **process_instance_key** | Option<[**models::ProcessInstanceKeyFilterProperty**](ProcessInstanceKeyFilterProperty.md)> | The key of this process instance. | [optional]

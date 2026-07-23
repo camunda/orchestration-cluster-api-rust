@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**business_id** | Option<**String**> | The business ID of the owning process instance, inherited when the decision instance was evaluated. This is `null` for decision instances created before version 8.10, for standalone decision evaluations, and for decision instances whose owning process instance has no business ID.  | 
 **decision_definition_id** | **String** | The ID of the DMN decision. | 
 **decision_definition_key** | **models::DecisionDefinitionKey** | The key of the decision. | 
 **decision_definition_name** | **String** | The name of the DMN decision. | 

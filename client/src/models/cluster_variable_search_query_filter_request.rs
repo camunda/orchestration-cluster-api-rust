@@ -29,6 +29,12 @@ pub struct ClusterVariableSearchQueryFilterRequest {
     /// Filter cluster variables by truncation status of their stored values. When true, returns only variables whose stored values are truncated (i.e., the value exceeds the storage size limit and is truncated in storage). When false, returns only variables with non-truncated stored values. This filter is based on the underlying storage characteristic, not the response format.
     #[serde(rename = "isTruncated", skip_serializing_if = "Option::is_none")]
     pub is_truncated: Option<bool>,
+    /// Filter by metadata entries. A map of metadata key to an advanced filter on that key's value. Metadata values are strings or numbers.
+    #[serde(rename = "metadata", skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<std::collections::HashMap<String, models::AdvancedMetadataValueFilter>>,
+    /// The kind filter for cluster variables.
+    #[serde(rename = "kind", skip_serializing_if = "Option::is_none")]
+    pub kind: Option<Box<models::ClusterVariableKindFilterProperty>>,
 }
 
 impl ClusterVariableSearchQueryFilterRequest {
@@ -40,6 +46,8 @@ impl ClusterVariableSearchQueryFilterRequest {
             scope: None,
             tenant_id: None,
             is_truncated: None,
+            metadata: None,
+            kind: None,
         }
     }
 }

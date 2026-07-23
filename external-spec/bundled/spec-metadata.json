@@ -1,6 +1,6 @@
 {
   "schemaVersion": "2.0.0",
-  "specHash": "sha256:26f2149071b5d3b472ac5cbebadeed03e4eac7ee29f5f90cb2d9f54fd2f0c16a",
+  "specHash": "sha256:d13bc9d204c7e72691377d7ac75c580db83acec006dbd3f4635c4fbe05245865",
   "semanticKeys": [
     {
       "name": "AgentHistoryItemKey",
@@ -1462,6 +1462,22 @@
       "stableId": "category-filter-property"
     },
     {
+      "name": "ClusterVariableKindFilterProperty",
+      "kind": "union-wrapper",
+      "description": "ClusterVariableKindEnum property with full advanced search capabilities.",
+      "branches": [
+        {
+          "branchType": "ref",
+          "ref": "ClusterVariableKindExactMatch"
+        },
+        {
+          "branchType": "ref",
+          "ref": "AdvancedClusterVariableKindFilter"
+        }
+      ],
+      "stableId": "cluster-variable-kind-filter-property"
+    },
+    {
       "name": "ClusterVariableScopeFilterProperty",
       "kind": "union-wrapper",
       "description": "ClusterVariableScopeEnum property with full advanced search capabilities.",
@@ -2188,6 +2204,18 @@
         {
           "branchType": "ref",
           "ref": "UserTaskWaitStateDetails"
+        },
+        {
+          "branchType": "ref",
+          "ref": "TimerWaitStateDetails"
+        },
+        {
+          "branchType": "ref",
+          "ref": "SignalWaitStateDetails"
+        },
+        {
+          "branchType": "ref",
+          "ref": "ConditionWaitStateDetails"
         }
       ],
       "stableId": "wait-state-details"
@@ -2672,6 +2700,14 @@
       ]
     },
     {
+      "operationId": "searchProcessDefinitionVariableNames",
+      "path": "/process-definitions/{processDefinitionKey}/variable-names/search",
+      "method": "post",
+      "tags": [
+        "Process definition"
+      ]
+    },
+    {
       "operationId": "getProcessDefinitionXML",
       "path": "/process-definitions/{processDefinitionKey}/xml",
       "method": "get",
@@ -2730,6 +2766,14 @@
     {
       "operationId": "getProcessInstanceStatistics",
       "path": "/process-instances/{processInstanceKey}/statistics/element-instances",
+      "method": "get",
+      "tags": [
+        "Process instance"
+      ]
+    },
+    {
+      "operationId": "getProcessInstanceWaitStateStatistics",
+      "path": "/process-instances/{processInstanceKey}/statistics/wait-states",
       "method": "get",
       "tags": [
         "Process instance"
@@ -2987,6 +3031,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.10"
       }
     },
@@ -3015,6 +3065,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.10"
       }
     },
@@ -3045,6 +3101,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.10"
       }
     },
@@ -3074,6 +3136,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.10"
       }
     },
@@ -3105,13 +3174,19 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-semantic-establishes": {
-          "kind": "AgentInstanceIteration",
+          "kind": "AgentInstanceLoopIteration",
           "identifiedBy": [
             {
               "in": "body",
-              "name": "iteration",
-              "semanticType": "IterationId"
+              "name": "loopIteration",
+              "semanticType": "LoopIterationId"
             }
           ]
         },
@@ -3146,6 +3221,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.10"
       }
     },
@@ -3175,6 +3256,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "AUDIT_LOG",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -3203,6 +3291,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "AUDIT_LOG",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -3229,6 +3323,7 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [],
         "x-added-in-version": "8.8"
       }
     },
@@ -3261,6 +3356,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "AUTHORIZATION",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3290,6 +3391,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "AUTHORIZATION",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3318,6 +3426,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "AUTHORIZATION",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3351,6 +3465,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "AUTHORIZATION",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3378,6 +3498,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "AUTHORIZATION",
+            "permissionType": "DELETE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3407,6 +3533,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "BATCH",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3436,6 +3569,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "BATCH",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3464,6 +3604,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "BATCH",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3493,6 +3639,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "BATCH",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3522,6 +3674,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "BATCH",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3551,6 +3709,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "BATCH",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -3579,6 +3743,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "SYSTEM",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -3604,6 +3774,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "SYSTEM",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -3632,6 +3808,12 @@
       "successResponseSchemaRef": "ClusterVariableResult",
       "successStatus": 200,
       "vendorExtensions": {
+        "x-required-permissions": [
+          {
+            "resourceType": "CLUSTER_VARIABLE",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-eventually-consistent": false,
         "x-semantic-establishes": {
           "kind": "GlobalClusterVariable",
@@ -3670,6 +3852,12 @@
       "successResponseSchemaRef": "ClusterVariableResult",
       "successStatus": 200,
       "vendorExtensions": {
+        "x-required-permissions": [
+          {
+            "resourceType": "CLUSTER_VARIABLE",
+            "permissionType": "READ"
+          }
+        ],
         "x-eventually-consistent": true,
         "x-semantic-requires": {
           "kind": "GlobalClusterVariable",
@@ -3710,6 +3898,12 @@
       "successResponseSchemaRef": "ClusterVariableResult",
       "successStatus": 200,
       "vendorExtensions": {
+        "x-required-permissions": [
+          {
+            "resourceType": "CLUSTER_VARIABLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-eventually-consistent": false,
         "x-semantic-requires": {
           "kind": "GlobalClusterVariable",
@@ -3746,6 +3940,12 @@
       "requestBodyContentTypes": [],
       "successStatus": 204,
       "vendorExtensions": {
+        "x-required-permissions": [
+          {
+            "resourceType": "CLUSTER_VARIABLE",
+            "permissionType": "DELETE"
+          }
+        ],
         "x-eventually-consistent": false,
         "x-semantic-requires": {
           "kind": "GlobalClusterVariable",
@@ -3788,6 +3988,13 @@
       "successResponseSchemaRef": "ClusterVariableSearchQueryResult",
       "successStatus": 200,
       "vendorExtensions": {
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "CLUSTER_VARIABLE",
+            "permissionType": "READ"
+          }
+        ],
         "x-eventually-consistent": true,
         "x-added-in-version": "8.9"
       }
@@ -3819,6 +4026,12 @@
       "successResponseSchemaRef": "ClusterVariableResult",
       "successStatus": 200,
       "vendorExtensions": {
+        "x-required-permissions": [
+          {
+            "resourceType": "CLUSTER_VARIABLE",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-eventually-consistent": false,
         "x-semantic-establishes": {
           "kind": "TenantClusterVariable",
@@ -3872,6 +4085,12 @@
       "successResponseSchemaRef": "ClusterVariableResult",
       "successStatus": 200,
       "vendorExtensions": {
+        "x-required-permissions": [
+          {
+            "resourceType": "CLUSTER_VARIABLE",
+            "permissionType": "READ"
+          }
+        ],
         "x-eventually-consistent": true,
         "x-semantic-requires": {
           "kind": "TenantClusterVariable",
@@ -3917,6 +4136,12 @@
       "successResponseSchemaRef": "ClusterVariableResult",
       "successStatus": 200,
       "vendorExtensions": {
+        "x-required-permissions": [
+          {
+            "resourceType": "CLUSTER_VARIABLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-eventually-consistent": false,
         "x-semantic-requires": {
           "kind": "TenantClusterVariable",
@@ -3958,6 +4183,12 @@
       "requestBodyContentTypes": [],
       "successStatus": 204,
       "vendorExtensions": {
+        "x-required-permissions": [
+          {
+            "resourceType": "CLUSTER_VARIABLE",
+            "permissionType": "DELETE"
+          }
+        ],
         "x-eventually-consistent": false,
         "x-semantic-requires": {
           "kind": "TenantClusterVariable",
@@ -4001,6 +4232,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "CREATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -4030,6 +4267,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -4062,6 +4306,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "DECISION_DEFINITION",
+            "permissionType": "CREATE_DECISION_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -4091,6 +4341,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "DECISION_DEFINITION",
+            "permissionType": "READ_DECISION_DEFINITION"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -4119,6 +4376,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "DECISION_DEFINITION",
+            "permissionType": "READ_DECISION_DEFINITION"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -4146,6 +4409,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "DECISION_DEFINITION",
+            "permissionType": "READ_DECISION_DEFINITION"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -4175,6 +4444,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "DECISION_DEFINITION",
+            "permissionType": "READ_DECISION_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -4203,6 +4479,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "DECISION_DEFINITION",
+            "permissionType": "READ_DECISION_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -4233,6 +4515,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "DECISION_DEFINITION",
+            "permissionType": "DELETE_DECISION_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -4262,6 +4550,20 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE"
+              },
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE_BATCH_OPERATION_DELETE_DECISION_INSTANCE"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -4291,6 +4593,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "DECISION_REQUIREMENTS_DEFINITION",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -4319,6 +4628,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "DECISION_REQUIREMENTS_DEFINITION",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -4346,6 +4661,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "DECISION_REQUIREMENTS_DEFINITION",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -4374,6 +4695,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "RESOURCE",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -4411,6 +4738,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "DOCUMENT",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -4444,6 +4777,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "DOCUMENT",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-added-in-version": "8.7"
       }
     },
@@ -4480,6 +4819,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "DOCUMENT",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -4512,6 +4857,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "DOCUMENT",
+            "permissionType": "DELETE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -4552,6 +4903,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "DOCUMENT",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-added-in-version": "8.7"
       }
     },
@@ -4582,6 +4939,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -4611,6 +4974,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.10"
       }
     },
@@ -4640,6 +5010,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -4668,6 +5045,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -4699,6 +5082,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -4729,6 +5118,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -4757,6 +5152,16 @@
       "successResponseSchemaRef": "ExpressionEvaluationResult",
       "successStatus": 200,
       "vendorExtensions": {
+        "x-required-permissions": [
+          {
+            "resourceType": "EXPRESSION",
+            "permissionType": "EVALUATE"
+          },
+          {
+            "dynamic": true,
+            "note": "When the expression is evaluated in the scope of a process instance (scopeKey resolves to an instance), additionally requires READ_PROCESS_INSTANCE on PROCESS_DEFINITION for that process. Skipped when unscoped."
+          }
+        ],
         "x-eventually-consistent": false,
         "x-added-in-version": "8.9"
       }
@@ -4786,6 +5191,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "RESOURCE",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.10"
       }
     },
@@ -4815,6 +5226,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GLOBAL_LISTENER",
+            "permissionType": "CREATE_TASK_LISTENER"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "GlobalTaskListener",
           "identifiedBy": [
@@ -4853,6 +5270,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "GLOBAL_LISTENER",
+            "permissionType": "READ_TASK_LISTENER"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "GlobalTaskListener",
           "bind": {
@@ -4893,6 +5316,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GLOBAL_LISTENER",
+            "permissionType": "UPDATE_TASK_LISTENER"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "GlobalTaskListener",
           "bind": {
@@ -4929,6 +5358,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GLOBAL_LISTENER",
+            "permissionType": "DELETE_TASK_LISTENER"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "GlobalTaskListener",
           "bind": {
@@ -4967,6 +5402,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "GLOBAL_LISTENER",
+            "permissionType": "READ_TASK_LISTENER"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -4996,6 +5438,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "Group",
           "identifiedBy": [
@@ -5035,6 +5483,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -5063,6 +5518,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Group",
           "bind": {
@@ -5103,6 +5564,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Group",
           "bind": {
@@ -5139,6 +5606,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "DELETE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Group",
           "bind": {
@@ -5179,6 +5652,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Group",
           "bind": {
@@ -5216,6 +5696,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "GroupClientMembership",
           "shape": "edge",
@@ -5260,6 +5746,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "GroupClientMembership",
           "bind": {
@@ -5304,6 +5796,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "MAPPING_RULE",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Group",
           "bind": {
@@ -5341,6 +5840,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "GroupMappingRuleMembership",
           "shape": "edge",
@@ -5385,6 +5890,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "GroupMappingRuleMembership",
           "bind": {
@@ -5429,6 +5940,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Group",
           "bind": {
@@ -5469,6 +5987,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Group",
           "bind": {
@@ -5506,6 +6031,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "GroupUserMembership",
           "shape": "edge",
@@ -5550,6 +6081,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "GROUP",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "GroupUserMembership",
           "bind": {
@@ -5592,6 +6129,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -5620,6 +6164,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -5650,6 +6200,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -5679,6 +6235,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -5708,6 +6270,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -5737,6 +6305,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -5766,6 +6341,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -5796,6 +6378,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -5826,6 +6414,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -5856,6 +6450,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -5886,7 +6486,56 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
+      }
+    },
+    {
+      "operationId": "updateJobsBatchOperation",
+      "path": "/jobs/batch-update",
+      "method": "post",
+      "tags": [
+        "Job"
+      ],
+      "summary": "Update jobs (batch)",
+      "description": "Creates a batch operation to update jobs matching the given filter. At least one changeset field must be non-null. This is done asynchronously; the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).\n",
+      "eventuallyConsistent": false,
+      "hasRequestBody": true,
+      "requestBodyUnion": false,
+      "bodyOnly": true,
+      "pathParams": [],
+      "queryParams": [],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "jobs.yaml",
+      "requestBodyContentTypes": [
+        "application/json"
+      ],
+      "requestBodySchemaRef": "JobBatchUpdateRequest",
+      "successResponseSchemaRef": "BatchOperationCreatedResult",
+      "successStatus": 200,
+      "vendorExtensions": {
+        "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE"
+              },
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE_BATCH_OPERATION_UPDATE_JOB"
+              }
+            ]
+          }
+        ],
+        "x-added-in-version": "8.10"
       }
     },
     {
@@ -5925,6 +6574,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "SYSTEM",
+            "permissionType": "READ_JOB_METRIC"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -5954,6 +6610,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "SYSTEM",
+            "permissionType": "READ_JOB_METRIC"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -5983,6 +6646,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "SYSTEM",
+            "permissionType": "READ_JOB_METRIC"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -6012,6 +6682,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "SYSTEM",
+            "permissionType": "READ_JOB_METRIC"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -6041,6 +6718,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -6067,6 +6751,7 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [],
         "x-added-in-version": "8.6"
       }
     },
@@ -6096,6 +6781,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "MAPPING_RULE",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "MappingRule",
           "identifiedBy": [
@@ -6135,6 +6826,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "MAPPING_RULE",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6163,6 +6861,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "MAPPING_RULE",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "MappingRule",
           "bind": {
@@ -6203,6 +6907,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "MAPPING_RULE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "MappingRule",
           "bind": {
@@ -6239,6 +6949,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "MAPPING_RULE",
+            "permissionType": "DELETE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "MappingRule",
           "bind": {
@@ -6277,6 +6993,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6306,6 +7029,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "dynamic": true,
+            "note": "Resolved from the matched subscription — CREATE_PROCESS_INSTANCE (start-event) or UPDATE_PROCESS_INSTANCE (intermediate) on PROCESS_DEFINITION."
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -6335,6 +7064,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "MESSAGE",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -6364,6 +7099,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_DEFINITION"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6393,6 +7135,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -6422,6 +7171,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -6450,6 +7206,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_DEFINITION"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6478,6 +7240,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_DEFINITION"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6509,7 +7277,52 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
+      }
+    },
+    {
+      "operationId": "searchProcessDefinitionVariableNames",
+      "path": "/process-definitions/{processDefinitionKey}/variable-names/search",
+      "method": "post",
+      "tags": [
+        "Process definition"
+      ],
+      "summary": "Search process definition variable names",
+      "description": "Search for distinct variable names defined on a process definition, optionally narrowed by the name filter.",
+      "eventuallyConsistent": true,
+      "hasRequestBody": true,
+      "requestBodyUnion": false,
+      "bodyOnly": false,
+      "pathParams": [
+        "processDefinitionKey"
+      ],
+      "queryParams": [],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "process-definitions.yaml",
+      "requestBodyContentTypes": [
+        "application/json"
+      ],
+      "requestBodySchemaRef": "ProcessDefinitionVariableNameSearchQuery",
+      "successResponseSchemaRef": "ProcessDefinitionVariableNameSearchQueryResult",
+      "successStatus": 200,
+      "vendorExtensions": {
+        "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
+        "x-added-in-version": "8.10"
       }
     },
     {
@@ -6536,6 +7349,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_DEFINITION"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6565,6 +7384,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -6597,6 +7423,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "CREATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -6626,6 +7458,20 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE"
+              },
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE_BATCH_OPERATION_CANCEL_PROCESS_INSTANCE"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6655,6 +7501,20 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE"
+              },
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE_BATCH_OPERATION_DELETE_PROCESS_INSTANCE"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -6684,6 +7544,20 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE"
+              },
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE_BATCH_OPERATION_RESOLVE_INCIDENT"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6713,6 +7587,20 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE"
+              },
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE_BATCH_OPERATION_MIGRATE_PROCESS_INSTANCE"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6742,7 +7630,64 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE"
+              },
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE_BATCH_OPERATION_MODIFY_PROCESS_INSTANCE"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.8"
+      }
+    },
+    {
+      "operationId": "resumeProcessInstancesBatchOperation",
+      "path": "/process-instances/resumption",
+      "method": "post",
+      "tags": [
+        "Process instance"
+      ],
+      "summary": "Resume process instances (batch)",
+      "description": "Resumes multiple suspended process instances.\nSince only SUSPENDED root instances can be resumed, any given\nfilters for state and parentProcessInstanceKey are ignored and overridden during this batch operation.\nThis is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).\n",
+      "eventuallyConsistent": false,
+      "hasRequestBody": true,
+      "requestBodyUnion": false,
+      "bodyOnly": true,
+      "pathParams": [],
+      "queryParams": [],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "process-instances.yaml",
+      "requestBodyContentTypes": [
+        "application/json"
+      ],
+      "requestBodySchemaRef": "ProcessInstanceResumptionBatchOperationRequest",
+      "successResponseSchemaRef": "BatchOperationCreatedResult",
+      "successStatus": 200,
+      "vendorExtensions": {
+        "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE"
+              },
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE_BATCH_OPERATION_SUSPEND_PROCESS_INSTANCE"
+              }
+            ]
+          }
+        ],
+        "x-added-in-version": "8.10"
       }
     },
     {
@@ -6771,7 +7716,57 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
+      }
+    },
+    {
+      "operationId": "suspendProcessInstancesBatchOperation",
+      "path": "/process-instances/suspension",
+      "method": "post",
+      "tags": [
+        "Process instance"
+      ],
+      "summary": "Suspend process instances (batch)",
+      "description": "Suspends multiple running process instances.\nSince only ACTIVE root instances can be suspended, any given\nfilters for state and parentProcessInstanceKey are ignored and overridden during this batch operation.\nThis is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).\n",
+      "eventuallyConsistent": false,
+      "hasRequestBody": true,
+      "requestBodyUnion": false,
+      "bodyOnly": true,
+      "pathParams": [],
+      "queryParams": [],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "process-instances.yaml",
+      "requestBodyContentTypes": [
+        "application/json"
+      ],
+      "requestBodySchemaRef": "ProcessInstanceSuspensionBatchOperationRequest",
+      "successResponseSchemaRef": "BatchOperationCreatedResult",
+      "successStatus": 200,
+      "vendorExtensions": {
+        "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE"
+              },
+              {
+                "resourceType": "BATCH",
+                "permissionType": "CREATE_BATCH_OPERATION_SUSPEND_PROCESS_INSTANCE"
+              }
+            ]
+          }
+        ],
+        "x-added-in-version": "8.10"
       }
     },
     {
@@ -6799,7 +7794,49 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
+      }
+    },
+    {
+      "operationId": "assignProcessInstanceBusinessId",
+      "path": "/process-instances/{processInstanceKey}/business-id-assignment",
+      "method": "post",
+      "tags": [
+        "Process instance"
+      ],
+      "summary": "Assign business id to process instance",
+      "description": "Assigns a business id to an already-running process instance that currently has none.\n\nThe assignment is single and irreversible: only artifacts created after the assignment\n(for example future jobs, user tasks, decision instances, and message subscriptions) carry\nthe business id, while existing artifacts are not retroactively enriched. Re-sending the\nsame business id succeeds as a no-op. This endpoint is only useful while business id\nuniqueness enforcement is disabled; when it is enabled, the request is rejected with a 409\nresponse.\n",
+      "eventuallyConsistent": false,
+      "hasRequestBody": true,
+      "requestBodyUnion": false,
+      "bodyOnly": false,
+      "pathParams": [
+        "processInstanceKey"
+      ],
+      "queryParams": [],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "process-instances.yaml",
+      "requestBodyContentTypes": [
+        "application/json"
+      ],
+      "requestBodySchemaRef": "ProcessInstanceBusinessIdAssignmentInstruction",
+      "successStatus": 204,
+      "vendorExtensions": {
+        "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
+        "x-added-in-version": "8.10"
       }
     },
     {
@@ -6826,6 +7863,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6856,6 +7899,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "CANCEL_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -6886,6 +7935,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "DELETE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -6914,6 +7969,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -6945,6 +8006,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -6975,6 +8042,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "UPDATE_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -7005,7 +8078,49 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "MODIFY_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.6"
+      }
+    },
+    {
+      "operationId": "resumeProcessInstance",
+      "path": "/process-instances/{processInstanceKey}/resumption",
+      "method": "post",
+      "tags": [
+        "Process instance"
+      ],
+      "summary": "Resume process instance",
+      "description": "Resumes a suspended process instance, returning it to the ACTIVE state and continuing processing.\nOnly process instances in the SUSPENDED state can be resumed.\n",
+      "eventuallyConsistent": false,
+      "hasRequestBody": true,
+      "requestBodyUnion": false,
+      "bodyOnly": false,
+      "pathParams": [
+        "processInstanceKey"
+      ],
+      "queryParams": [],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "process-instances.yaml",
+      "requestBodyContentTypes": [
+        "application/json"
+      ],
+      "requestBodySchemaRef": "ResumeProcessInstanceRequest",
+      "successStatus": 204,
+      "vendorExtensions": {
+        "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "SUSPEND_PROCESS_INSTANCE"
+          }
+        ],
+        "x-added-in-version": "8.10"
       }
     },
     {
@@ -7033,6 +8148,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -7061,7 +8182,85 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
+      }
+    },
+    {
+      "operationId": "getProcessInstanceWaitStateStatistics",
+      "path": "/process-instances/{processInstanceKey}/statistics/wait-states",
+      "method": "get",
+      "tags": [
+        "Process instance"
+      ],
+      "summary": "Get wait state statistics",
+      "description": "Get statistics about waiting element instances by the process instance key, grouped by element id.",
+      "eventuallyConsistent": true,
+      "hasRequestBody": false,
+      "requestBodyUnion": false,
+      "bodyOnly": false,
+      "pathParams": [
+        "processInstanceKey"
+      ],
+      "queryParams": [],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "process-instances.yaml",
+      "requestBodyContentTypes": [],
+      "successResponseSchemaRef": "ProcessInstanceWaitStateStatisticsQueryResult",
+      "successStatus": 200,
+      "vendorExtensions": {
+        "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
+        "x-added-in-version": "8.10"
+      }
+    },
+    {
+      "operationId": "suspendProcessInstance",
+      "path": "/process-instances/{processInstanceKey}/suspension",
+      "method": "post",
+      "tags": [
+        "Process instance"
+      ],
+      "summary": "Suspend process instance",
+      "description": "Suspends a running process instance, pausing further processing until it is resumed.\nOnly process instances in the ACTIVE state can be suspended.\n",
+      "eventuallyConsistent": false,
+      "hasRequestBody": true,
+      "requestBodyUnion": false,
+      "bodyOnly": false,
+      "pathParams": [
+        "processInstanceKey"
+      ],
+      "queryParams": [],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "process-instances.yaml",
+      "requestBodyContentTypes": [
+        "application/json"
+      ],
+      "requestBodySchemaRef": "SuspendProcessInstanceRequest",
+      "successStatus": 204,
+      "vendorExtensions": {
+        "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "SUSPEND_PROCESS_INSTANCE"
+          }
+        ],
+        "x-added-in-version": "8.10"
       }
     },
     {
@@ -7090,6 +8289,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "RESOURCE",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.10"
       }
     },
@@ -7118,6 +8324,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "RESOURCE",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.7"
       }
     },
@@ -7145,6 +8357,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "RESOURCE",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.7"
       }
     },
@@ -7172,6 +8390,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "RESOURCE",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.10"
       }
     },
@@ -7203,6 +8427,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "dynamic": true,
+            "note": "Resolved from the deployed resource type — DELETE_PROCESS, DELETE_DRD, DELETE_FORM or DELETE_RESOURCE on RESOURCE."
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -7232,6 +8462,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "Role",
           "identifiedBy": [
@@ -7271,6 +8507,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -7299,6 +8542,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Role",
           "bind": {
@@ -7339,6 +8588,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Role",
           "bind": {
@@ -7375,6 +8630,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "DELETE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Role",
           "bind": {
@@ -7415,6 +8676,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Role",
           "bind": {
@@ -7452,6 +8720,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "RoleClientMembership",
           "shape": "edge",
@@ -7496,6 +8770,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "RoleClientMembership",
           "bind": {
@@ -7540,6 +8820,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Role",
           "bind": {
@@ -7577,6 +8864,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "RoleGroupMembership",
           "shape": "edge",
@@ -7622,6 +8915,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "RoleGroupMembership",
           "bind": {
@@ -7666,6 +8965,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "MAPPING_RULE",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Role",
           "bind": {
@@ -7703,6 +9009,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "RoleMappingRuleMembership",
           "shape": "edge",
@@ -7747,6 +9059,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "RoleMappingRuleMembership",
           "bind": {
@@ -7791,6 +9109,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Role",
           "bind": {
@@ -7828,6 +9153,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "RoleUserMembership",
           "shape": "edge",
@@ -7872,6 +9203,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "RoleUserMembership",
           "bind": {
@@ -7886,6 +9223,42 @@
           }
         },
         "x-added-in-version": "8.8"
+      }
+    },
+    {
+      "operationId": "resolveSecrets",
+      "path": "/secrets/resolve",
+      "method": "post",
+      "tags": [
+        "Secret"
+      ],
+      "summary": "Resolve secrets (alpha)",
+      "description": "Resolve a deduplicated batch of `camunda.secrets.*` references for the caller's\nphysical tenant in a single round-trip.\n\nEach reference is authorized and resolved independently. For valid requests, the endpoint\nalways responds with HTTP 200: successfully resolved references are returned in `resolved`,\nwhile references that could not be resolved (for example not found, malformed or over-long,\nor the caller lacks `SECRET:REVEAL` on that reference) are returned in `errors`. A failure of\none reference never fails the others. Only structurally invalid requests are rejected with\nHTTP 400: a missing or non-array `references` field, more than 20 references, or a null entry.\n\nThis endpoint is an alpha feature and may be subject to change in future releases.\n\nPhase 1: the secret backend is mocked. Only a fixed allow-list of references resolves;\nevery other authorized, valid reference returns `NOT_FOUND`.\n",
+      "eventuallyConsistent": false,
+      "hasRequestBody": true,
+      "requestBodyUnion": false,
+      "bodyOnly": true,
+      "pathParams": [],
+      "queryParams": [],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "secrets.yaml",
+      "requestBodyContentTypes": [
+        "application/json"
+      ],
+      "requestBodySchemaRef": "SecretResolveRequest",
+      "successResponseSchemaRef": "SecretResolveResult",
+      "successStatus": 200,
+      "vendorExtensions": {
+        "x-eventually-consistent": false,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "SECRET",
+            "permissionType": "REVEAL"
+          }
+        ],
+        "x-added-in-version": "8.10"
       }
     },
     {
@@ -7914,6 +9287,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "dynamic": true,
+            "note": "First-admin bootstrap — allowed anonymously until an initial admin exists; otherwise requires USER CREATE and ROLE UPDATE."
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -7943,6 +9322,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "dynamic": true,
+            "note": "Resolved from the matched signal subscription — CREATE_PROCESS_INSTANCE (start-event) or UPDATE_PROCESS_INSTANCE (intermediate) on PROCESS_DEFINITION."
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -7968,6 +9353,7 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [],
         "x-added-in-version": "8.8"
       }
     },
@@ -8011,6 +9397,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "SYSTEM",
+            "permissionType": "READ_USAGE_METRIC"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -8036,6 +9429,7 @@
       "successResponseSchemaRef": "SystemConfigurationResponse",
       "successStatus": 200,
       "vendorExtensions": {
+        "x-required-permissions": [],
         "x-eventually-consistent": false,
         "x-added-in-version": "8.9"
       }
@@ -8066,6 +9460,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "Tenant",
           "identifiedBy": [
@@ -8105,6 +9505,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -8133,6 +9540,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Tenant",
           "bind": {
@@ -8173,6 +9586,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Tenant",
           "bind": {
@@ -8209,6 +9628,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "DELETE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Tenant",
           "bind": {
@@ -8249,6 +9674,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Tenant",
           "bind": {
@@ -8286,6 +9718,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "TenantClientMembership",
           "shape": "edge",
@@ -8330,6 +9768,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "TenantClientMembership",
           "bind": {
@@ -8374,6 +9818,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Tenant",
           "bind": {
@@ -8411,6 +9862,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "TenantGroupMembership",
           "shape": "edge",
@@ -8456,6 +9913,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "TenantGroupMembership",
           "bind": {
@@ -8500,6 +9963,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "MAPPING_RULE",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Tenant",
           "bind": {
@@ -8537,6 +10007,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "TenantMappingRuleMembership",
           "shape": "edge",
@@ -8581,6 +10057,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "TenantMappingRuleMembership",
           "bind": {
@@ -8625,6 +10107,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "ROLE",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Tenant",
           "bind": {
@@ -8662,6 +10151,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "TenantRoleMembership",
           "shape": "edge",
@@ -8706,6 +10201,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "TenantRoleMembership",
           "bind": {
@@ -8750,6 +10251,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "Tenant",
           "bind": {
@@ -8787,6 +10295,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "TenantUserMembership",
           "shape": "edge",
@@ -8831,6 +10345,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "TENANT",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "TenantUserMembership",
           "bind": {
@@ -8870,7 +10390,74 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [],
         "x-added-in-version": "8.5"
+      }
+    },
+    {
+      "operationId": "changeClusterMode",
+      "path": "/mode",
+      "method": "patch",
+      "tags": [
+        "Recovery"
+      ],
+      "summary": "Change cluster mode",
+      "description": "Transitions the cluster between processing and recovery mode. This is a non-blocking operation: the request is acknowledged once the change has been accepted, before the transition itself has completed. Entering recovery mode deactivates all partitions so that only a restricted set of read-only operations remains available; exiting recovery mode returns the cluster to normal processing. Returns the planned cluster change so its progress can be monitored via the topology.",
+      "eventuallyConsistent": false,
+      "hasRequestBody": false,
+      "requestBodyUnion": false,
+      "bodyOnly": false,
+      "pathParams": [],
+      "queryParams": [
+        {
+          "name": "mode",
+          "required": true
+        },
+        {
+          "name": "dryRun",
+          "required": false
+        }
+      ],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "cluster.yaml",
+      "requestBodyContentTypes": [],
+      "successResponseSchemaRef": "ClusterModeChangeResponse",
+      "successStatus": 200,
+      "vendorExtensions": {
+        "x-eventually-consistent": false,
+        "x-required-permissions": [],
+        "x-added-in-version": "8.10"
+      }
+    },
+    {
+      "operationId": "restore",
+      "path": "/restore",
+      "method": "post",
+      "tags": [
+        "Recovery"
+      ],
+      "summary": "Restore from a backup",
+      "description": "Restores the cluster from a backup. The restore is described either by a single backup ID or by a time range (`from`/`to`) that selects the backups to restore. This endpoint is only accessible while the cluster is in recovery mode; requests are rejected otherwise. The request is validated and acknowledged, but the restore itself is performed asynchronously.",
+      "eventuallyConsistent": false,
+      "hasRequestBody": true,
+      "requestBodyUnion": false,
+      "bodyOnly": true,
+      "pathParams": [],
+      "queryParams": [],
+      "requestBodyUnionRefs": [],
+      "optionalTenantIdInBody": false,
+      "sourceFile": "cluster.yaml",
+      "requestBodyContentTypes": [
+        "application/json"
+      ],
+      "requestBodySchemaRef": "RestoreRequest",
+      "successResponseSchemaRef": "ClusterModeChangeResponse",
+      "successStatus": 202,
+      "vendorExtensions": {
+        "x-eventually-consistent": false,
+        "x-required-permissions": [],
+        "x-added-in-version": "8.10"
       }
     },
     {
@@ -8899,6 +10486,12 @@
       "successStatus": 201,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "USER",
+            "permissionType": "CREATE"
+          }
+        ],
         "x-semantic-establishes": {
           "kind": "User",
           "identifiedBy": [
@@ -8938,6 +10531,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "USER",
+            "permissionType": "READ"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -8966,6 +10566,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "USER",
+            "permissionType": "READ"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "User",
           "bind": {
@@ -9006,6 +10612,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "USER",
+            "permissionType": "UPDATE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "User",
           "bind": {
@@ -9042,6 +10654,12 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "resourceType": "USER",
+            "permissionType": "DELETE"
+          }
+        ],
         "x-semantic-requires": {
           "kind": "User",
           "bind": {
@@ -9080,6 +10698,21 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "PROCESS_DEFINITION",
+                "permissionType": "READ_USER_TASK"
+              },
+              {
+                "resourceType": "USER_TASK",
+                "permissionType": "READ"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.6"
       }
     },
@@ -9108,6 +10741,20 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "PROCESS_DEFINITION",
+                "permissionType": "READ_USER_TASK"
+              },
+              {
+                "resourceType": "USER_TASK",
+                "permissionType": "READ"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -9138,6 +10785,20 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "PROCESS_DEFINITION",
+                "permissionType": "UPDATE_USER_TASK"
+              },
+              {
+                "resourceType": "USER_TASK",
+                "permissionType": "UPDATE"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.5"
       }
     },
@@ -9165,6 +10826,20 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "PROCESS_DEFINITION",
+                "permissionType": "UPDATE_USER_TASK"
+              },
+              {
+                "resourceType": "USER_TASK",
+                "permissionType": "UPDATE"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.5"
       }
     },
@@ -9195,6 +10870,20 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "PROCESS_DEFINITION",
+                "permissionType": "UPDATE_USER_TASK"
+              },
+              {
+                "resourceType": "USER_TASK",
+                "permissionType": "UPDATE"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.5"
       }
     },
@@ -9226,6 +10915,20 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "PROCESS_DEFINITION",
+                "permissionType": "READ_USER_TASK"
+              },
+              {
+                "resourceType": "USER_TASK",
+                "permissionType": "READ"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.9"
       }
     },
@@ -9256,6 +10959,28 @@
       "successStatus": 204,
       "vendorExtensions": {
         "x-eventually-consistent": false,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "PROCESS_DEFINITION",
+                "permissionType": "UPDATE_USER_TASK"
+              },
+              {
+                "resourceType": "PROCESS_DEFINITION",
+                "permissionType": "COMPLETE_USER_TASK"
+              },
+              {
+                "resourceType": "USER_TASK",
+                "permissionType": "UPDATE"
+              },
+              {
+                "resourceType": "USER_TASK",
+                "permissionType": "COMPLETE"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.5"
       }
     },
@@ -9287,10 +11012,17 @@
       "requestBodyContentTypes": [
         "application/json"
       ],
+      "requestBodySchemaRef": "UserTaskEffectiveVariableSearchQueryRequest",
       "successResponseSchemaRef": "VariableSearchQueryResult",
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -9319,6 +11051,20 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "anyOf": [
+              {
+                "resourceType": "PROCESS_DEFINITION",
+                "permissionType": "READ_USER_TASK"
+              },
+              {
+                "resourceType": "USER_TASK",
+                "permissionType": "READ"
+              }
+            ]
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -9355,6 +11101,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -9389,6 +11141,13 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-permission-enforcement": "filter",
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     },
@@ -9417,6 +11176,12 @@
       "successStatus": 200,
       "vendorExtensions": {
         "x-eventually-consistent": true,
+        "x-required-permissions": [
+          {
+            "resourceType": "PROCESS_DEFINITION",
+            "permissionType": "READ_PROCESS_INSTANCE"
+          }
+        ],
         "x-added-in-version": "8.8"
       }
     }
@@ -9634,9 +11399,9 @@
   ],
   "integrity": {
     "totalSemanticKeys": 41,
-    "totalUnions": 64,
-    "totalOperations": 193,
-    "totalEventuallyConsistent": 90,
+    "totalUnions": 65,
+    "totalOperations": 204,
+    "totalEventuallyConsistent": 92,
     "totalDeprecatedEnumSchemas": 2,
     "totalSemanticProviders": 23
   }

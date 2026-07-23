@@ -21,6 +21,12 @@ pub enum WaitStateDetails {
     Message(Box<models::MessageWaitStateDetails>),
     #[serde(rename = "USER_TASK")]
     UserTask(Box<models::UserTaskWaitStateDetails>),
+    #[serde(rename = "TIMER")]
+    Timer(Box<models::TimerWaitStateDetails>),
+    #[serde(rename = "SIGNAL")]
+    Signal(Box<models::SignalWaitStateDetails>),
+    #[serde(rename = "CONDITION")]
+    Condition(Box<models::ConditionWaitStateDetails>),
 }
 
 impl Default for WaitStateDetails {

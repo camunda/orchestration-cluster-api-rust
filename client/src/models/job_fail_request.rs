@@ -25,6 +25,14 @@ pub struct JobFailRequest {
     /// JSON object that will instantiate the variables at the local scope of the job's associated task.
     #[serde(rename = "variables", skip_serializing_if = "Option::is_none")]
     pub variables: Option<std::collections::HashMap<String, serde_json::Value>>,
+    /// The token identifying a leased job's activation, obtained from `ActivatedJobResult.leaseToken`. For a leased job, the matching token must be supplied to prove the command comes from the worker that holds the current lease; a command with no token is rejected. A command carrying a stale token is likewise rejected, fencing the job against a superseded activation (for example, after the job timed out or failed and was re-activated by another worker). A job that was activated without a lease requires no token.
+    #[serde(
+        rename = "leaseToken",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub lease_token: Option<Option<String>>,
 }
 
 impl JobFailRequest {
@@ -34,6 +42,7 @@ impl JobFailRequest {
             error_message: None,
             retry_back_off: None,
             variables: None,
+            lease_token: None,
         }
     }
 }

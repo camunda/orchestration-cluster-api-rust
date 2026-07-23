@@ -10,7 +10,9 @@
 | ErrorThrown | ERROR_THROWN |
 | Failed | FAILED |
 | Migrated | MIGRATED |
+| PriorityUpdated | PRIORITY_UPDATED |
 | RetriesUpdated | RETRIES_UPDATED |
+| TimeoutUpdated | TIMEOUT_UPDATED |
 | TimedOut | TIMED_OUT |
 
 

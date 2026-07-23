@@ -71,6 +71,9 @@ pub struct DecisionInstanceFilter {
     /// The key of the process instance.
     #[serde(rename = "processInstanceKey", skip_serializing_if = "Option::is_none")]
     pub process_instance_key: Option<Box<models::ProcessInstanceKey>>,
+    /// The business ID of the owning process instance the decision instance belongs to. This only works for decision instances created with 8.10 and onwards. Decision instances from prior versions and standalone evaluations don't contain this data and cannot be found.
+    #[serde(rename = "businessId", skip_serializing_if = "Option::is_none")]
+    pub business_id: Option<Box<models::StringFilterProperty>>,
     /// The key of the decision.
     #[serde(
         rename = "decisionDefinitionKey",
@@ -110,6 +113,7 @@ impl DecisionInstanceFilter {
             decision_evaluation_key: None,
             process_definition_key: None,
             process_instance_key: None,
+            business_id: None,
             decision_definition_key: None,
             element_instance_key: None,
             root_decision_definition_key: None,

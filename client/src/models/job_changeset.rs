@@ -30,6 +30,14 @@ pub struct JobChangeset {
         skip_serializing_if = "Option::is_none"
     )]
     pub timeout: Option<Option<i64>>,
+    /// The new priority for the job. Higher values indicate higher priority.
+    #[serde(
+        rename = "priority",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub priority: Option<Option<i32>>,
 }
 
 impl JobChangeset {
@@ -38,6 +46,7 @@ impl JobChangeset {
         JobChangeset {
             retries: None,
             timeout: None,
+            priority: None,
         }
     }
 }
