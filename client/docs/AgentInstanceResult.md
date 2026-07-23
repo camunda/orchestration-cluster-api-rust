@@ -7,7 +7,7 @@ Name | Type | Description | Notes
 **agent_instance_key** | **models::AgentInstanceKey** | The unique key for this agent instance. | 
 **status** | [**models::AgentInstanceStatusEnum**](AgentInstanceStatusEnum.md) |  | 
 **definition** | [**models::AgentInstanceDefinition**](AgentInstanceDefinition.md) | The static definition of the agent, including model, provider, and system prompt. | 
-**metrics** | [**models::AgentInstanceMetrics**](AgentInstanceMetrics.md) | Aggregated metrics across all iterations of this agent instance. | 
+**metrics** | [**models::AgentInstanceMetrics**](AgentInstanceMetrics.md) | Aggregated metrics across all loopIterations of this agent instance. | 
 **limits** | [**models::AgentInstanceLimits**](AgentInstanceLimits.md) | The configured limits for this agent instance, set once at creation. | 
 **tools** | [**Vec<models::AgentTool>**](AgentTool.md) | The tools available to the agent. | 
 **element_id** | **String** | The BPMN element ID of the ad-hoc sub-process or AI agent task that owns this agent instance. | 

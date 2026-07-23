@@ -27,8 +27,12 @@ pub enum JobStateEnum {
     Failed,
     #[serde(rename = "MIGRATED")]
     Migrated,
+    #[serde(rename = "PRIORITY_UPDATED")]
+    PriorityUpdated,
     #[serde(rename = "RETRIES_UPDATED")]
     RetriesUpdated,
+    #[serde(rename = "TIMEOUT_UPDATED")]
+    TimeoutUpdated,
     #[serde(rename = "TIMED_OUT")]
     TimedOut,
 }
@@ -42,7 +46,9 @@ impl std::fmt::Display for JobStateEnum {
             Self::ErrorThrown => write!(f, "ERROR_THROWN"),
             Self::Failed => write!(f, "FAILED"),
             Self::Migrated => write!(f, "MIGRATED"),
+            Self::PriorityUpdated => write!(f, "PRIORITY_UPDATED"),
             Self::RetriesUpdated => write!(f, "RETRIES_UPDATED"),
+            Self::TimeoutUpdated => write!(f, "TIMEOUT_UPDATED"),
             Self::TimedOut => write!(f, "TIMED_OUT"),
         }
     }

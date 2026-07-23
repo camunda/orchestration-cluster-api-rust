@@ -19,6 +19,8 @@ pub enum ResourceTypeEnum {
     AuditLog,
     #[serde(rename = "AUTHORIZATION")]
     Authorization,
+    #[serde(rename = "BACKUP")]
+    Backup,
     #[serde(rename = "BATCH")]
     Batch,
     #[serde(rename = "CLUSTER_VARIABLE")]
@@ -31,6 +33,8 @@ pub enum ResourceTypeEnum {
     DecisionRequirementsDefinition,
     #[serde(rename = "DOCUMENT")]
     Document,
+    #[serde(rename = "EXPORTER")]
+    Exporter,
     #[serde(rename = "EXPRESSION")]
     Expression,
     #[serde(rename = "GLOBAL_LISTENER")]
@@ -47,6 +51,8 @@ pub enum ResourceTypeEnum {
     Resource,
     #[serde(rename = "ROLE")]
     Role,
+    #[serde(rename = "SECRET")]
+    Secret,
     #[serde(rename = "SYSTEM")]
     System,
     #[serde(rename = "TENANT")]
@@ -62,12 +68,14 @@ impl std::fmt::Display for ResourceTypeEnum {
         match self {
             Self::AuditLog => write!(f, "AUDIT_LOG"),
             Self::Authorization => write!(f, "AUTHORIZATION"),
+            Self::Backup => write!(f, "BACKUP"),
             Self::Batch => write!(f, "BATCH"),
             Self::ClusterVariable => write!(f, "CLUSTER_VARIABLE"),
             Self::Component => write!(f, "COMPONENT"),
             Self::DecisionDefinition => write!(f, "DECISION_DEFINITION"),
             Self::DecisionRequirementsDefinition => write!(f, "DECISION_REQUIREMENTS_DEFINITION"),
             Self::Document => write!(f, "DOCUMENT"),
+            Self::Exporter => write!(f, "EXPORTER"),
             Self::Expression => write!(f, "EXPRESSION"),
             Self::GlobalListener => write!(f, "GLOBAL_LISTENER"),
             Self::Group => write!(f, "GROUP"),
@@ -76,6 +84,7 @@ impl std::fmt::Display for ResourceTypeEnum {
             Self::ProcessDefinition => write!(f, "PROCESS_DEFINITION"),
             Self::Resource => write!(f, "RESOURCE"),
             Self::Role => write!(f, "ROLE"),
+            Self::Secret => write!(f, "SECRET"),
             Self::System => write!(f, "SYSTEM"),
             Self::Tenant => write!(f, "TENANT"),
             Self::User => write!(f, "USER"),

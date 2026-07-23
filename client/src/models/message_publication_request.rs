@@ -31,6 +31,9 @@ pub struct MessagePublicationRequest {
     /// The tenant of the message sender.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
     pub tenant_id: Option<models::TenantId>,
+    /// An optional business id used to enforce uniqueness of the process instance that a message start event would create. If provided and uniqueness enforcement is enabled, the engine rejects starting a new process instance when another root process instance with the same business id is already active for the same process definition. It has no effect when the message correlates to a catch, boundary, or intermediate event.
+    #[serde(rename = "businessId", skip_serializing_if = "Option::is_none")]
+    pub business_id: Option<models::BusinessId>,
 }
 
 impl MessagePublicationRequest {
@@ -42,6 +45,7 @@ impl MessagePublicationRequest {
             message_id: None,
             variables: None,
             tenant_id: None,
+            business_id: None,
         }
     }
 }

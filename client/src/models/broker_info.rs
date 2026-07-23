@@ -14,9 +14,12 @@ use serde::{Deserialize, Serialize};
 /// BrokerInfo : Provides information on a broker node.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BrokerInfo {
-    /// The unique (within a cluster) node ID for the broker.
+    /// The node ID for the broker. The uniqueness of this identifier depends if the cluster is zone-aware or not. - non zone-aware: (default) nodeId is unique across the cluster - zone-aware:  (opt-in) nodeId is unique only within its zone. If you are migrating to a zone aware cluster, you must use `brokerId` instead. This property is deprecated, as it's been replaced by `brokerId`.
     #[serde(rename = "nodeId")]
     pub node_id: i32,
+    /// The unique (within a cluster) broker identifier. When the cluster is not zoned, then it's a string that represents the nodeId (an integer). When the cluster is zoned, instead, it's of the form \"$zoneName_$nodeId\", providing uniqueness even across zones.
+    #[serde(rename = "brokerId")]
+    pub broker_id: String,
     /// The hostname for reaching the broker.
     #[serde(rename = "host")]
     pub host: String,
@@ -35,6 +38,7 @@ impl BrokerInfo {
     /// Provides information on a broker node.
     pub fn new(
         node_id: i32,
+        broker_id: String,
         host: String,
         port: i32,
         partitions: Vec<models::Partition>,
@@ -42,6 +46,7 @@ impl BrokerInfo {
     ) -> BrokerInfo {
         BrokerInfo {
             node_id,
+            broker_id,
             host,
             port,
             partitions,

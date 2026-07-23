@@ -48,6 +48,8 @@ pub enum Field {
     StartDate,
     #[serde(rename = "endDate")]
     EndDate,
+    #[serde(rename = "suspendedDate")]
+    SuspendedDate,
     #[serde(rename = "state")]
     State,
     #[serde(rename = "hasIncident")]

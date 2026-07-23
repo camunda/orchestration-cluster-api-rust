@@ -84,6 +84,9 @@ pub struct UserTaskResult {
         deserialize_with = "Option::deserialize"
     )]
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
+    /// The business ID of the owning process instance, inherited when the user task was created. This is `null` for user tasks created before version 8.10, and for user tasks whose owning process instance has no business ID.
+    #[serde(rename = "businessId", deserialize_with = "Option::deserialize")]
+    pub business_id: Option<models::BusinessId>,
     /// The key of the form.
     #[serde(rename = "formKey", deserialize_with = "Option::deserialize")]
     pub form_key: Option<Box<models::FormKey>>,
@@ -116,6 +119,7 @@ impl UserTaskResult {
         process_definition_key: models::ProcessDefinitionKey,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
+        business_id: Option<models::BusinessId>,
         form_key: Option<models::FormKey>,
         tags: Vec<String>,
     ) -> UserTaskResult {
@@ -146,6 +150,7 @@ impl UserTaskResult {
             } else {
                 None
             },
+            business_id,
             form_key: if let Some(x) = form_key {
                 Some(Box::new(x))
             } else {

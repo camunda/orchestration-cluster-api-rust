@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DecisionInstanceGetQueryResult {
+    /// The business ID of the owning process instance, inherited when the decision instance was evaluated. This is `null` for decision instances created before version 8.10, for standalone decision evaluations, and for decision instances whose owning process instance has no business ID.
+    #[serde(rename = "businessId", deserialize_with = "Option::deserialize")]
+    pub business_id: Option<models::BusinessId>,
     /// The ID of the DMN decision.
     #[serde(rename = "decisionDefinitionId")]
     pub decision_definition_id: models::DecisionDefinitionId,
@@ -84,6 +87,7 @@ pub struct DecisionInstanceGetQueryResult {
 
 impl DecisionInstanceGetQueryResult {
     pub fn new(
+        business_id: Option<models::BusinessId>,
         decision_definition_id: models::DecisionDefinitionId,
         decision_definition_key: models::DecisionDefinitionKey,
         decision_definition_name: String,
@@ -105,6 +109,7 @@ impl DecisionInstanceGetQueryResult {
         matched_rules: Vec<models::MatchedDecisionRuleItem>,
     ) -> DecisionInstanceGetQueryResult {
         DecisionInstanceGetQueryResult {
+            business_id,
             decision_definition_id,
             decision_definition_key: Box::new(decision_definition_key),
             decision_definition_name,

@@ -59,8 +59,8 @@ pub struct SearchUserTaskEffectiveVariablesParams {
     pub user_task_key: String,
     /// When true (default), long variable values in the response are truncated. When false, full variable values are returned.
     pub truncate_values: Option<bool>,
-    pub search_user_task_effective_variables_request:
-        Option<models::SearchUserTaskEffectiveVariablesRequest>,
+    pub user_task_effective_variable_search_query_request:
+        Option<models::UserTaskEffectiveVariableSearchQueryRequest>,
 }
 
 /// struct for passing parameters to the method [`search_user_task_variables`]
@@ -476,7 +476,7 @@ pub async fn search_user_task_effective_variables(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.search_user_task_effective_variables_request);
+    req_builder = req_builder.json(&params.user_task_effective_variable_search_query_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;

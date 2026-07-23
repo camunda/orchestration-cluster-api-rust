@@ -37,6 +37,9 @@ pub struct ProcessDefinitionResult {
     /// Indicates whether the start event of the process has an associated Form Key.
     #[serde(rename = "hasStartForm")]
     pub has_start_form: bool,
+    /// Whether this process definition has been deleted but is still retained in secondary storage.
+    #[serde(rename = "isDeleted")]
+    pub is_deleted: bool,
 }
 
 impl ProcessDefinitionResult {
@@ -49,6 +52,7 @@ impl ProcessDefinitionResult {
         tenant_id: models::TenantId,
         process_definition_key: models::ProcessDefinitionKey,
         has_start_form: bool,
+        is_deleted: bool,
     ) -> ProcessDefinitionResult {
         ProcessDefinitionResult {
             name,
@@ -59,6 +63,7 @@ impl ProcessDefinitionResult {
             tenant_id,
             process_definition_key: Box::new(process_definition_key),
             has_start_form,
+            is_deleted,
         }
     }
 }

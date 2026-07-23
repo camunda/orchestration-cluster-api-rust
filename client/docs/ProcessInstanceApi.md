@@ -4,6 +4,7 @@ All URIs are relative to *http://localhost:8080/v2*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
+[**assign_process_instance_business_id**](ProcessInstanceApi.md#assign_process_instance_business_id) | **POST** /process-instances/{processInstanceKey}/business-id-assignment | Assign business id to process instance
 [**cancel_process_instance**](ProcessInstanceApi.md#cancel_process_instance) | **POST** /process-instances/{processInstanceKey}/cancellation | Cancel process instance
 [**cancel_process_instances_batch_operation**](ProcessInstanceApi.md#cancel_process_instances_batch_operation) | **POST** /process-instances/cancellation | Cancel process instances (batch)
 [**create_process_instance**](ProcessInstanceApi.md#create_process_instance) | **POST** /process-instances | Create process instance
@@ -13,15 +14,51 @@ Method | HTTP request | Description
 [**get_process_instance_call_hierarchy**](ProcessInstanceApi.md#get_process_instance_call_hierarchy) | **GET** /process-instances/{processInstanceKey}/call-hierarchy | Get call hierarchy
 [**get_process_instance_sequence_flows**](ProcessInstanceApi.md#get_process_instance_sequence_flows) | **GET** /process-instances/{processInstanceKey}/sequence-flows | Get sequence flows
 [**get_process_instance_statistics**](ProcessInstanceApi.md#get_process_instance_statistics) | **GET** /process-instances/{processInstanceKey}/statistics/element-instances | Get element instance statistics
+[**get_process_instance_wait_state_statistics**](ProcessInstanceApi.md#get_process_instance_wait_state_statistics) | **GET** /process-instances/{processInstanceKey}/statistics/wait-states | Get wait state statistics
 [**migrate_process_instance**](ProcessInstanceApi.md#migrate_process_instance) | **POST** /process-instances/{processInstanceKey}/migration | Migrate process instance
 [**migrate_process_instances_batch_operation**](ProcessInstanceApi.md#migrate_process_instances_batch_operation) | **POST** /process-instances/migration | Migrate process instances (batch)
 [**modify_process_instance**](ProcessInstanceApi.md#modify_process_instance) | **POST** /process-instances/{processInstanceKey}/modification | Modify process instance
 [**modify_process_instances_batch_operation**](ProcessInstanceApi.md#modify_process_instances_batch_operation) | **POST** /process-instances/modification | Modify process instances (batch)
 [**resolve_incidents_batch_operation**](ProcessInstanceApi.md#resolve_incidents_batch_operation) | **POST** /process-instances/incident-resolution | Resolve related incidents (batch)
 [**resolve_process_instance_incidents**](ProcessInstanceApi.md#resolve_process_instance_incidents) | **POST** /process-instances/{processInstanceKey}/incident-resolution | Resolve related incidents
+[**resume_process_instance**](ProcessInstanceApi.md#resume_process_instance) | **POST** /process-instances/{processInstanceKey}/resumption | Resume process instance
+[**resume_process_instances_batch_operation**](ProcessInstanceApi.md#resume_process_instances_batch_operation) | **POST** /process-instances/resumption | Resume process instances (batch)
 [**search_process_instance_incidents**](ProcessInstanceApi.md#search_process_instance_incidents) | **POST** /process-instances/{processInstanceKey}/incidents/search | Search related incidents
 [**search_process_instances**](ProcessInstanceApi.md#search_process_instances) | **POST** /process-instances/search | Search process instances
+[**suspend_process_instance**](ProcessInstanceApi.md#suspend_process_instance) | **POST** /process-instances/{processInstanceKey}/suspension | Suspend process instance
+[**suspend_process_instances_batch_operation**](ProcessInstanceApi.md#suspend_process_instances_batch_operation) | **POST** /process-instances/suspension | Suspend process instances (batch)
 
+
+
+## assign_process_instance_business_id
+
+> assign_process_instance_business_id(process_instance_key, process_instance_business_id_assignment_instruction)
+Assign business id to process instance
+
+Assigns a business id to an already-running process instance that currently has none.  The assignment is single and irreversible: only artifacts created after the assignment (for example future jobs, user tasks, decision instances, and message subscriptions) carry the business id, while existing artifacts are not retroactively enriched. Re-sending the same business id succeeds as a no-op. This endpoint is only useful while business id uniqueness enforcement is disabled; when it is enabled, the request is rejected with a 409 response. 
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**process_instance_key** | **ProcessInstanceKey** | The key of the process instance to assign the business id to. | [required] |
+**process_instance_business_id_assignment_instruction** | [**ProcessInstanceBusinessIdAssignmentInstruction**](ProcessInstanceBusinessIdAssignmentInstruction.md) |  | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/problem+json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## cancel_process_instance
@@ -296,6 +333,36 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## get_process_instance_wait_state_statistics
+
+> models::ProcessInstanceWaitStateStatisticsQueryResult get_process_instance_wait_state_statistics(process_instance_key)
+Get wait state statistics
+
+Get statistics about waiting element instances by the process instance key, grouped by element id.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**process_instance_key** | **ProcessInstanceKey** | The assigned key of the process instance, which acts as a unique identifier for this process instance. | [required] |
+
+### Return type
+
+[**models::ProcessInstanceWaitStateStatisticsQueryResult**](ProcessInstanceWaitStateStatisticsQueryResult.md)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## migrate_process_instance
 
 > migrate_process_instance(process_instance_key, process_instance_migration_instruction)
@@ -478,6 +545,67 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## resume_process_instance
+
+> resume_process_instance(process_instance_key, resume_process_instance_request)
+Resume process instance
+
+Resumes a suspended process instance, returning it to the ACTIVE state and continuing processing. Only process instances in the SUSPENDED state can be resumed. 
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**process_instance_key** | **ProcessInstanceKey** | The key of the process instance to resume. | [required] |
+**resume_process_instance_request** | Option<[**ResumeProcessInstanceRequest**](ResumeProcessInstanceRequest.md)> |  |  |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/problem+json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## resume_process_instances_batch_operation
+
+> models::BatchOperationCreatedResult resume_process_instances_batch_operation(process_instance_resumption_batch_operation_request)
+Resume process instances (batch)
+
+Resumes multiple suspended process instances. Since only SUSPENDED root instances can be resumed, any given filters for state and parentProcessInstanceKey are ignored and overridden during this batch operation. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}). 
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**process_instance_resumption_batch_operation_request** | [**ProcessInstanceResumptionBatchOperationRequest**](ProcessInstanceResumptionBatchOperationRequest.md) |  | [required] |
+
+### Return type
+
+[**models::BatchOperationCreatedResult**](BatchOperationCreatedResult.md)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json, application/problem+json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## search_process_instance_incidents
 
 > models::IncidentSearchQueryResult search_process_instance_incidents(process_instance_key, incident_search_query)
@@ -535,6 +663,67 @@ Name | Type | Description  | Required | Notes
 
 - **Content-Type**: application/json
 - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## suspend_process_instance
+
+> suspend_process_instance(process_instance_key, suspend_process_instance_request)
+Suspend process instance
+
+Suspends a running process instance, pausing further processing until it is resumed. Only process instances in the ACTIVE state can be suspended. 
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**process_instance_key** | **ProcessInstanceKey** | The key of the process instance to suspend. | [required] |
+**suspend_process_instance_request** | Option<[**SuspendProcessInstanceRequest**](SuspendProcessInstanceRequest.md)> |  |  |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/problem+json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## suspend_process_instances_batch_operation
+
+> models::BatchOperationCreatedResult suspend_process_instances_batch_operation(process_instance_suspension_batch_operation_request)
+Suspend process instances (batch)
+
+Suspends multiple running process instances. Since only ACTIVE root instances can be suspended, any given filters for state and parentProcessInstanceKey are ignored and overridden during this batch operation. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}). 
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**process_instance_suspension_batch_operation_request** | [**ProcessInstanceSuspensionBatchOperationRequest**](ProcessInstanceSuspensionBatchOperationRequest.md) |  | [required] |
+
+### Return type
+
+[**models::BatchOperationCreatedResult**](BatchOperationCreatedResult.md)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json, application/problem+json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

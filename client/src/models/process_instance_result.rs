@@ -40,6 +40,9 @@ pub struct ProcessInstanceResult {
     pub end_date: Option<chrono::DateTime<chrono::FixedOffset>>,
     #[serde(rename = "state")]
     pub state: models::ProcessInstanceStateEnum,
+    /// The time this process instance most recently entered the `SUSPENDED` state. This is `null` if the process instance is not currently suspended.
+    #[serde(rename = "suspendedDate", deserialize_with = "Option::deserialize")]
+    pub suspended_date: Option<chrono::DateTime<chrono::FixedOffset>>,
     /// Whether this process instance has a related incident or not.
     #[serde(rename = "hasIncident")]
     pub has_incident: bool,
@@ -88,6 +91,7 @@ impl ProcessInstanceResult {
         start_date: chrono::DateTime<chrono::FixedOffset>,
         end_date: Option<chrono::DateTime<chrono::FixedOffset>>,
         state: models::ProcessInstanceStateEnum,
+        suspended_date: Option<chrono::DateTime<chrono::FixedOffset>>,
         has_incident: bool,
         tenant_id: models::TenantId,
         process_instance_key: models::ProcessInstanceKey,
@@ -106,6 +110,7 @@ impl ProcessInstanceResult {
             start_date,
             end_date,
             state,
+            suspended_date,
             has_incident,
             tenant_id,
             process_instance_key: Box::new(process_instance_key),

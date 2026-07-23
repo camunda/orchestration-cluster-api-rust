@@ -13,6 +13,9 @@
 | MigrateProcessInstance | MIGRATE_PROCESS_INSTANCE |
 | ModifyProcessInstance | MODIFY_PROCESS_INSTANCE |
 | ResolveIncident | RESOLVE_INCIDENT |
+| ResumeProcessInstance | RESUME_PROCESS_INSTANCE |
+| SuspendProcessInstance | SUSPEND_PROCESS_INSTANCE |
+| UpdateJob | UPDATE_JOB |
 | UpdateVariable | UPDATE_VARIABLE |
 
 

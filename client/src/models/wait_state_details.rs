@@ -21,10 +21,31 @@ pub enum WaitStateDetails {
     Message(Box<models::MessageWaitStateDetails>),
     #[serde(rename = "USER_TASK")]
     UserTask(Box<models::UserTaskWaitStateDetails>),
+    #[serde(rename = "TIMER")]
+    Timer(Box<models::TimerWaitStateDetails>),
+    #[serde(rename = "SIGNAL")]
+    Signal(Box<models::SignalWaitStateDetails>),
+    #[serde(rename = "CONDITION")]
+    Condition(Box<models::ConditionWaitStateDetails>),
 }
 
 impl Default for WaitStateDetails {
     fn default() -> Self {
         Self::Job(Default::default())
+    }
+}
+
+/// The variable events that trigger condition re-evaluation. Empty means all events.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub enum Events {
+    #[serde(rename = "create")]
+    Create,
+    #[serde(rename = "update")]
+    Update,
+}
+
+impl Default for Events {
+    fn default() -> Events {
+        Self::Create
     }
 }

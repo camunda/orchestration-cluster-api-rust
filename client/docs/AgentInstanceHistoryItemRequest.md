@@ -7,7 +7,7 @@ Name | Type | Description | Notes
 **element_instance_key** | **models::ElementInstanceKey** | The key of the currently-active element instance.  | 
 **job_key** | **models::JobKey** | The key of the current job activation during which this history item was produced. | 
 **job_lease** | **String** | Opaque lease token received from the job activation response. | 
-**iteration** | Option<**i32**> | Sequential iteration number this item belongs to. Omit if not grouping items into iterations. | [optional]
+**loop_iteration** | Option<**i32**> | The loopIteration this item belongs to. A loopIteration is one pass through the agent feedback loop: one LLM call, its tool dispatches, and their results. Omit if not grouping items by loopIteration.  | [optional]
 **role** | [**models::AgentInstanceHistoryRoleEnum**](AgentInstanceHistoryRoleEnum.md) | The role of this history item in the conversation. | 
 **content** | [**Vec<models::AgentInstanceMessageContent>**](AgentInstanceMessageContent.md) | The content blocks of this history item. | 
 **tool_calls** | Option<[**Vec<models::AgentInstanceToolCall>**](AgentInstanceToolCall.md)> | Tool calls associated with this history item. For ASSISTANT items: tool calls dispatched by this LLM response, with arguments populated. For TOOL_RESULT items: single-entry array referencing the originating tool call, with arguments null. Omit for USER items.  | [optional]

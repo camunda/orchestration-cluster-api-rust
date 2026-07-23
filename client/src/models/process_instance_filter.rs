@@ -26,6 +26,9 @@ pub struct ProcessInstanceFilter {
     /// Whether this process instance has a related incident or not.
     #[serde(rename = "hasIncident", skip_serializing_if = "Option::is_none")]
     pub has_incident: Option<bool>,
+    /// The time this process instance most recently entered the SUSPENDED state. This is cleared (null) again once the process instance is resumed.
+    #[serde(rename = "suspendedDate", skip_serializing_if = "Option::is_none")]
+    pub suspended_date: Option<Box<models::DateTimeFilterProperty>>,
     /// The tenant id.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
     pub tenant_id: Option<Box<models::StringFilterProperty>>,
@@ -129,6 +132,7 @@ impl ProcessInstanceFilter {
             end_date: None,
             state: None,
             has_incident: None,
+            suspended_date: None,
             tenant_id: None,
             variables: None,
             process_instance_key: None,

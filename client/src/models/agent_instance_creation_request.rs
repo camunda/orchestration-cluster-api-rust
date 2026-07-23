@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// AgentInstanceCreationRequest : Request to create a new agent instance.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AgentInstanceCreationRequest {
-    /// The key of the AHSP or AI Agent Task element instance. The engine uses this key to infer processInstanceKey, elementId, processDefinitionKey, and tenantId.
+    /// The key of the AI Agent Sub-process or AI Agent Task element instance. The engine uses this key to infer processInstanceKey, elementId, processDefinitionKey, and tenantId.
     #[serde(rename = "elementInstanceKey")]
     pub element_instance_key: Box<models::ElementInstanceKey>,
     /// Static definition set once at creation.

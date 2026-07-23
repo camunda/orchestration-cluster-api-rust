@@ -45,6 +45,10 @@ pub enum PermissionTypeEnum {
     CreateBatchOperationModifyProcessInstance,
     #[serde(rename = "CREATE_BATCH_OPERATION_RESOLVE_INCIDENT")]
     CreateBatchOperationResolveIncident,
+    #[serde(rename = "CREATE_BATCH_OPERATION_SUSPEND_PROCESS_INSTANCE")]
+    CreateBatchOperationSuspendProcessInstance,
+    #[serde(rename = "CREATE_BATCH_OPERATION_UPDATE_JOB")]
+    CreateBatchOperationUpdateJob,
     #[serde(rename = "CREATE_DECISION_INSTANCE")]
     CreateDecisionInstance,
     #[serde(rename = "CREATE_PROCESS_INSTANCE")]
@@ -71,6 +75,8 @@ pub enum PermissionTypeEnum {
     Evaluate,
     #[serde(rename = "MODIFY_PROCESS_INSTANCE")]
     ModifyProcessInstance,
+    #[serde(rename = "PAUSE")]
+    Pause,
     #[serde(rename = "READ")]
     Read,
     #[serde(rename = "READ_DECISION_DEFINITION")]
@@ -89,6 +95,12 @@ pub enum PermissionTypeEnum {
     ReadUserTask,
     #[serde(rename = "READ_TASK_LISTENER")]
     ReadTaskListener,
+    #[serde(rename = "RESTORE")]
+    Restore,
+    #[serde(rename = "REVEAL")]
+    Reveal,
+    #[serde(rename = "SUSPEND_PROCESS_INSTANCE")]
+    SuspendProcessInstance,
     #[serde(rename = "UPDATE")]
     Update,
     #[serde(rename = "UPDATE_PROCESS_INSTANCE")]
@@ -133,6 +145,10 @@ impl std::fmt::Display for PermissionTypeEnum {
             Self::CreateBatchOperationResolveIncident => {
                 write!(f, "CREATE_BATCH_OPERATION_RESOLVE_INCIDENT")
             }
+            Self::CreateBatchOperationSuspendProcessInstance => {
+                write!(f, "CREATE_BATCH_OPERATION_SUSPEND_PROCESS_INSTANCE")
+            }
+            Self::CreateBatchOperationUpdateJob => write!(f, "CREATE_BATCH_OPERATION_UPDATE_JOB"),
             Self::CreateDecisionInstance => write!(f, "CREATE_DECISION_INSTANCE"),
             Self::CreateProcessInstance => write!(f, "CREATE_PROCESS_INSTANCE"),
             Self::CreateTaskListener => write!(f, "CREATE_TASK_LISTENER"),
@@ -146,6 +162,7 @@ impl std::fmt::Display for PermissionTypeEnum {
             Self::DeleteTaskListener => write!(f, "DELETE_TASK_LISTENER"),
             Self::Evaluate => write!(f, "EVALUATE"),
             Self::ModifyProcessInstance => write!(f, "MODIFY_PROCESS_INSTANCE"),
+            Self::Pause => write!(f, "PAUSE"),
             Self::Read => write!(f, "READ"),
             Self::ReadDecisionDefinition => write!(f, "READ_DECISION_DEFINITION"),
             Self::ReadDecisionInstance => write!(f, "READ_DECISION_INSTANCE"),
@@ -155,6 +172,9 @@ impl std::fmt::Display for PermissionTypeEnum {
             Self::ReadUsageMetric => write!(f, "READ_USAGE_METRIC"),
             Self::ReadUserTask => write!(f, "READ_USER_TASK"),
             Self::ReadTaskListener => write!(f, "READ_TASK_LISTENER"),
+            Self::Restore => write!(f, "RESTORE"),
+            Self::Reveal => write!(f, "REVEAL"),
+            Self::SuspendProcessInstance => write!(f, "SUSPEND_PROCESS_INSTANCE"),
             Self::Update => write!(f, "UPDATE"),
             Self::UpdateProcessInstance => write!(f, "UPDATE_PROCESS_INSTANCE"),
             Self::UpdateUserTask => write!(f, "UPDATE_USER_TASK"),

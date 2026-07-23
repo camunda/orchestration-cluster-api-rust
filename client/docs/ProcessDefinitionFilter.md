@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **tenant_id** | Option<**String**> | Tenant ID of this process definition. | [optional]
 **process_definition_key** | Option<**models::ProcessDefinitionKey**> | The key for this process definition. | [optional]
 **has_start_form** | Option<**bool**> | Indicates whether the start event of the process has an associated Form Key. | [optional]
+**is_deleted** | Option<**bool**> | Filter by whether the process definition has been deleted. When not set, both deleted and non-deleted process definitions are returned. Set to `false` to exclude deleted definitions (recommended for most use cases). Set to `true` to return only deleted definitions that are still retained in secondary storage.  | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

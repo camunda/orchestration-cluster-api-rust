@@ -65,6 +65,9 @@ pub struct JobSearchResult {
         deserialize_with = "Option::deserialize"
     )]
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
+    /// The business ID of the owning process instance, inherited when the job was created. This is `null` for jobs created before version 8.10 and for jobs whose owning process instance has no business ID.
+    #[serde(rename = "businessId", deserialize_with = "Option::deserialize")]
+    pub business_id: Option<models::BusinessId>,
     /// The amount of retries left to this job.
     #[serde(rename = "retries")]
     pub retries: i32,
@@ -109,6 +112,7 @@ impl JobSearchResult {
         process_definition_key: models::ProcessDefinitionKey,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
+        business_id: Option<models::BusinessId>,
         retries: i32,
         state: models::JobStateEnum,
         tenant_id: models::TenantId,
@@ -140,6 +144,7 @@ impl JobSearchResult {
             } else {
                 None
             },
+            business_id,
             retries,
             state,
             tenant_id,

@@ -11,6 +11,7 @@ Name | Type | Description | Notes
 **start_date** | **chrono::DateTime<chrono::FixedOffset>** | The start time of the process instance. | 
 **end_date** | Option<**chrono::DateTime<chrono::FixedOffset>**> | The completion or termination time of the process instance. | 
 **state** | [**models::ProcessInstanceStateEnum**](ProcessInstanceStateEnum.md) |  | 
+**suspended_date** | Option<**chrono::DateTime<chrono::FixedOffset>**> | The time this process instance most recently entered the `SUSPENDED` state. This is `null` if the process instance is not currently suspended.  | 
 **has_incident** | **bool** | Whether this process instance has a related incident or not. | 
 **tenant_id** | **String** | The unique identifier of the tenant. | 
 **process_instance_key** | **models::ProcessInstanceKey** | The key of this process instance. | 

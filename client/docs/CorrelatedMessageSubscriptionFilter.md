@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**business_id** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | Filter by the business id stored on the correlated message subscription — for message start event correlations the correlating message's business id, and for catch, boundary, or intermediate event correlations the subscribing process instance's business id. Supports advanced string filtering, including `$like` with `*`/`?` wildcards.  | [optional]
 **correlation_key** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The correlation key of the message. | [optional]
 **correlation_time** | Option<[**models::DateTimeFilterProperty**](DateTimeFilterProperty.md)> | The time when the message was correlated. | [optional]
 **element_id** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The element ID that received the message. | [optional]

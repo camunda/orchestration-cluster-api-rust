@@ -20,6 +20,9 @@ pub struct UserTaskFilter {
     /// The assignee of the user task.
     #[serde(rename = "assignee", skip_serializing_if = "Option::is_none")]
     pub assignee: Option<Box<models::StringFilterProperty>>,
+    /// The business ID of the owning process instance the user task belongs to. This only works for user tasks created with 8.10 and onwards. Tasks from prior versions don't contain this data and cannot be found.
+    #[serde(rename = "businessId", skip_serializing_if = "Option::is_none")]
+    pub business_id: Option<Box<models::StringFilterProperty>>,
     /// The priority of the user task.
     #[serde(rename = "priority", skip_serializing_if = "Option::is_none")]
     pub priority: Option<Box<models::IntegerFilterProperty>>,
@@ -91,6 +94,7 @@ impl UserTaskFilter {
         UserTaskFilter {
             state: None,
             assignee: None,
+            business_id: None,
             priority: None,
             element_id: None,
             name: None,

@@ -33,6 +33,12 @@ pub enum BatchOperationTypeEnum {
     ModifyProcessInstance,
     #[serde(rename = "RESOLVE_INCIDENT")]
     ResolveIncident,
+    #[serde(rename = "RESUME_PROCESS_INSTANCE")]
+    ResumeProcessInstance,
+    #[serde(rename = "SUSPEND_PROCESS_INSTANCE")]
+    SuspendProcessInstance,
+    #[serde(rename = "UPDATE_JOB")]
+    UpdateJob,
     #[serde(rename = "UPDATE_VARIABLE")]
     UpdateVariable,
 }
@@ -49,6 +55,9 @@ impl std::fmt::Display for BatchOperationTypeEnum {
             Self::MigrateProcessInstance => write!(f, "MIGRATE_PROCESS_INSTANCE"),
             Self::ModifyProcessInstance => write!(f, "MODIFY_PROCESS_INSTANCE"),
             Self::ResolveIncident => write!(f, "RESOLVE_INCIDENT"),
+            Self::ResumeProcessInstance => write!(f, "RESUME_PROCESS_INSTANCE"),
+            Self::SuspendProcessInstance => write!(f, "SUSPEND_PROCESS_INSTANCE"),
+            Self::UpdateJob => write!(f, "UPDATE_JOB"),
             Self::UpdateVariable => write!(f, "UPDATE_VARIABLE"),
         }
     }

@@ -12,6 +12,7 @@ Name | Type | Description | Notes
 **tenant_id** | **String** | Tenant ID of this process definition. | 
 **process_definition_key** | **models::ProcessDefinitionKey** | The key for this process definition. | 
 **has_start_form** | **bool** | Indicates whether the start event of the process has an associated Form Key. | 
+**is_deleted** | **bool** | Whether this process definition has been deleted but is still retained in secondary storage. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

@@ -19,6 +19,8 @@
 | CreateBatchOperationMigrateProcessInstance | CREATE_BATCH_OPERATION_MIGRATE_PROCESS_INSTANCE |
 | CreateBatchOperationModifyProcessInstance | CREATE_BATCH_OPERATION_MODIFY_PROCESS_INSTANCE |
 | CreateBatchOperationResolveIncident | CREATE_BATCH_OPERATION_RESOLVE_INCIDENT |
+| CreateBatchOperationSuspendProcessInstance | CREATE_BATCH_OPERATION_SUSPEND_PROCESS_INSTANCE |
+| CreateBatchOperationUpdateJob | CREATE_BATCH_OPERATION_UPDATE_JOB |
 | CreateDecisionInstance | CREATE_DECISION_INSTANCE |
 | CreateProcessInstance | CREATE_PROCESS_INSTANCE |
 | CreateTaskListener | CREATE_TASK_LISTENER |
@@ -32,6 +34,7 @@
 | DeleteTaskListener | DELETE_TASK_LISTENER |
 | Evaluate | EVALUATE |
 | ModifyProcessInstance | MODIFY_PROCESS_INSTANCE |
+| Pause | PAUSE |
 | Read | READ |
 | ReadDecisionDefinition | READ_DECISION_DEFINITION |
 | ReadDecisionInstance | READ_DECISION_INSTANCE |
@@ -41,6 +44,9 @@
 | ReadUsageMetric | READ_USAGE_METRIC |
 | ReadUserTask | READ_USER_TASK |
 | ReadTaskListener | READ_TASK_LISTENER |
+| Restore | RESTORE |
+| Reveal | REVEAL |
+| SuspendProcessInstance | SUSPEND_PROCESS_INSTANCE |
 | Update | UPDATE |
 | UpdateProcessInstance | UPDATE_PROCESS_INSTANCE |
 | UpdateUserTask | UPDATE_USER_TASK |
