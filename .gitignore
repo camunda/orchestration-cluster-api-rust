@@ -5,6 +5,9 @@
 # Transient upstream spec clone (never commit — see camunda-schema-bundler)
 external-spec/upstream/
 
+# Generated Docusaurus markdown (regenerate with `make docs-md`; consumed by camunda-docs)
+docs-md/
+
 # Node (used only for spec bundling / openapi-generator-cli)
 node_modules/
 package-lock.json

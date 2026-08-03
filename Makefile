@@ -1,6 +1,13 @@
-.PHONY: help bundle generate build test lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check publish-dry-run
+.PHONY: help bundle generate build test lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check publish-dry-run docs-json docs-md print-docs-toolchain
 
 SPEC_REF ?= main
+
+# Toolchain used ONLY for rustdoc JSON output, which is nightly-gated. This is
+# deliberately separate from rust-toolchain.toml (which pins the stable channel
+# used for build/test/lint). rustdoc JSON is an unstable format: its
+# `format_version` must stay in the SUPPORTED_FORMAT_VERSIONS set declared in
+# scripts/generate-docusaurus-md.py, so pin an exact nightly here.
+DOCS_TOOLCHAIN ?= nightly-2026-08-03
 
 help:
 	@echo "Camunda Orchestration Cluster API — Rust SDK"
@@ -17,6 +24,8 @@ help:
 	@echo "  make fmt-check   Check formatting"
 	@echo "  make sync-readme        Inject example snippets into README.md"
 	@echo "  make sync-readme-check  Verify README snippets are in sync (CI mode)"
+	@echo "  make docs-json   Emit rustdoc JSON for both crates (nightly: $(DOCS_TOOLCHAIN))"
+	@echo "  make docs-md     Generate the Docusaurus markdown under docs-md/"
 	@echo "  make check       Run the full CI gate (build, test, examples, lint, fmt, README sync)"
 	@echo "  make publish-dry-run  Package + verify both crates for crates.io without uploading"
 	@echo "  make clean       Remove build artifacts"
@@ -62,6 +71,24 @@ sync-readme:
 # rust code block in the README is not backed by a compilable example.
 sync-readme-check:
 	python3 scripts/sync-readme-snippets.py --check
+
+# Emit the pinned rustdoc nightly so CI can install it without duplicating the value.
+print-docs-toolchain:
+	@echo $(DOCS_TOOLCHAIN)
+
+# Emit rustdoc JSON for both workspace crates. Requires the pinned nightly:
+#   rustup toolchain install $(DOCS_TOOLCHAIN)
+docs-json:
+	cargo +$(DOCS_TOOLCHAIN) rustdoc -p camunda-orchestration-sdk --lib -- \
+		-Z unstable-options --output-format json
+	cargo +$(DOCS_TOOLCHAIN) rustdoc -p camunda-orchestration-api-client --lib -- \
+		-Z unstable-options --output-format json
+
+# Generate the Docusaurus markdown consumed by camunda-docs. The output is gitignored:
+# the sync-rust-sdk-docs workflow in camunda/camunda-docs regenerates it and opens a PR
+# against the docs site.
+docs-md: docs-json
+	python3 scripts/generate-docusaurus-md.py --validate-links
 
 # Full local CI gate.
 check: build test examples lint fmt-check sync-readme-check
