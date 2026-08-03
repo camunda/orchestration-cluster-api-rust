@@ -94,6 +94,14 @@ jobs:
       - name: Generate Docusaurus Markdown
         run: make docs-md
 
+      - name: Check example coverage
+        uses: camunda/sdk-infra/actions/check-example-coverage@v1
+        with:
+          spec: external-spec/bundled/rest-api.bundle.json
+          operation-map: examples/operation-map.json
+          examples-dir: examples
+          key-style: camelCase
+
   # Non-blocking: regenerate the client from upstream and report any drift, mirroring the
   # sibling SDKs. Does not fail the build — drift is surfaced for a follow-up regen PR.
   generation-drift:

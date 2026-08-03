@@ -584,7 +584,19 @@ def _collect_methods(crate: Crate, impl_ids: list) -> list[Method]:
 _REGION_RE_TEMPLATE = r"^[ \t]*//\s*region\s+{name}\s*$(.*?)^[ \t]*//\s*endregion\s+{name}\s*$"
 
 
+# Rust method name → operationId, for the handful of ids whose casing does not
+# round-trip through snake_case (initialisms, and curated method renames).
+_METHOD_OPERATION_ID = {
+    "topology": "getTopology",
+    "get_process_definition_xml": "getProcessDefinitionXML",
+    "get_decision_definition_xml": "getDecisionDefinitionXML",
+    "get_decision_requirements_xml": "getDecisionRequirementsXML",
+}
+
+
 def _snake_to_camel(name: str) -> str:
+    if name in _METHOD_OPERATION_ID:
+        return _METHOD_OPERATION_ID[name]
     head, *tail = name.split("_")
     return head + "".join(p.title() for p in tail)
 
@@ -601,7 +613,7 @@ def load_examples() -> dict[str, str]:
         if not entries:
             continue
         entry = entries[0]
-        src = REPO_ROOT / entry["file"]
+        src = EXAMPLES_DIR / entry["file"]
         if src not in cache:
             if not src.is_file():
                 print(f"  WARNING: operation-map references missing file {entry['file']}")
@@ -709,7 +721,7 @@ def _render_methods_detail(
             out += body + "\n\n"
         example = examples.get(_snake_to_camel(m.name))
         if example:
-            out += f"```rust\n{example}\n```\n\n"
+            out += f"**Example**\n\n```rust\n{example}\n```\n\n"
     return out
 
 

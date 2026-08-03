@@ -380,7 +380,7 @@ impl JobWorker {
         self.run_boxed(handler).await
     }
 
-    /// Spawn the worker loop on the Tokio runtime, returning a [`JoinHandle`].
+    /// Spawn the worker loop on the Tokio runtime, returning a [`tokio::task::JoinHandle`].
     pub fn start<F, Fut>(self, handler: F) -> tokio::task::JoinHandle<Result<()>>
     where
         F: Fn(Job) -> Fut + Send + Sync + 'static,
