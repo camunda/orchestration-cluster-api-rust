@@ -65,6 +65,46 @@ jobs:
       - name: Check README snippets are in sync
         run: make sync-readme-check
 
+  # Verifies the camunda-docs Markdown can still be generated. rustdoc JSON is nightly-only
+  # and its `format_version` is unstable, so the toolchain is pinned here and in the Makefile
+  # (DOCS_TOOLCHAIN). A failure here means the docs sync workflow in camunda/camunda-docs
+  # would also fail — fix it before merging.
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-docs-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-docs-
+
+      - name: Test the docs generator
+        run: make test-docs
+
+      - name: Install rustdoc JSON toolchain
+        run: |
+          toolchain="$(make --no-print-directory print-docs-toolchain)"
+          echo "Installing $toolchain"
+          rustup toolchain install "$toolchain" --profile minimal
+
+      - name: Generate Docusaurus Markdown
+        run: make docs-md
+
+      - name: Check example coverage
+        uses: camunda/sdk-infra/actions/check-example-coverage@v1
+        with:
+          spec: external-spec/bundled/rest-api.bundle.json
+          operation-map: examples/operation-map.json
+          examples-dir: examples
+          key-style: camelCase
+
   # Non-blocking: regenerate the client from upstream and report any drift, mirroring the
   # sibling SDKs. Does not fail the build — drift is surfaced for a follow-up regen PR.
   generation-drift:

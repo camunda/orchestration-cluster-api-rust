@@ -4,10 +4,6 @@
 [![docs.rs](https://img.shields.io/docsrs/camunda-orchestration-sdk)](https://docs.rs/camunda-orchestration-sdk)
 [![license](https://img.shields.io/crates/l/camunda-orchestration-sdk.svg)](LICENSE)
 
-## Status: Technical Preview
-
-This is a technical preview of the Rust SDK for the Camunda 8 Orchestration Cluster API, provided for evaluation and feedback. We do not intend to make breaking changes to the application integration surface, but do not guarantee that we will not. It will become fully supported with an SLA in a future release.  
-
 Ergonomic Rust SDK for the [Camunda 8 Orchestration Cluster REST API](https://docs.camunda.io/docs/apis-tools/orchestration-cluster-api-rest/orchestration-cluster-api-rest-overview/).
 
 This SDK follows the same architecture as the official
@@ -27,13 +23,20 @@ Target API version: **8.10** (`main`).
 
 ## Support status
 
-This is a **Technical Preview** of the Rust client. It gives you a stable foundation to
-build on now, with a clear path to full support. We don't anticipate major changes — and
+This is a **Technical Preview** of the Rust client for the Camunda 8 Orchestration Cluster
+API, provided for evaluation and feedback. It gives you a stable foundation to build on
+now, with a clear path to full support: we do not intend to make breaking changes to the
+application integration surface, but we do not guarantee that we will not. The SDK will
+become fully supported with an SLA in a future release.
+
+We don't anticipate major changes — and
 [your feedback](https://github.com/camunda/orchestration-cluster-api-rust/issues) is what
 helps close that gap.
 
 > As a Technical Preview, the API surface may still evolve before it is declared fully
 > supported. Pin a specific version if you need stability.
+
+<!-- docs:cut:start -->
 
 ## Workspace layout
 
@@ -55,6 +58,8 @@ helps close that gap.
 ├── examples/
 └── Makefile
 ```
+
+<!-- docs:cut:end -->
 
 ## Installation
 
@@ -327,6 +332,8 @@ let cfg = client.configuration().await?; // base URL + auth applied
 let me = authentication_api::get_authentication(&cfg).await?;
 ```
 
+<!-- docs:cut:start -->
+
 ## Regenerating the client
 
 Requirements: Rust toolchain, Java 17+ (for openapi-generator), Node.js (for
@@ -424,6 +431,8 @@ publish needs a bootstrap token:
 
 Merging to `main` never publishes anything — only pushing a `v*` tag (or a manual
 dispatch) triggers a release — so you can merge and set up crates.io in either order.
+
+<!-- docs:cut:end -->
 
 ## License
 
