@@ -449,6 +449,18 @@ def _strip_intra_doc_links(docs: str) -> str:
     return docs.strip()
 
 
+def _is_public(item: dict) -> bool:
+    """True only for items rustdoc explicitly marks `pub`.
+
+    rustdoc records `"default"` for items written without a visibility keyword,
+    which for structs, enums, type aliases and inherent-impl methods means
+    *private*. Those only reach `crate.index` when rustdoc is invoked with
+    `--document-private-items`, so this guard keeps that flag (or a future
+    rustdoc default change) from leaking internals into the published reference.
+    """
+    return item.get("visibility") == "public"
+
+
 def collect_types(crate: Crate) -> dict[str, TypeItem]:
     """Extract every public struct / enum / type alias declared in this crate."""
     types: dict[str, TypeItem] = {}
@@ -458,6 +470,8 @@ def collect_types(crate: Crate) -> dict[str, TypeItem]:
             continue
         kind = next(iter(inner), "")
         if kind not in ("struct", "enum", "type_alias"):
+            continue
+        if not _is_public(item):
             continue
         name = item.get("name")
         if not name:
@@ -560,6 +574,8 @@ def _collect_methods(crate: Crate, impl_ids: list) -> list[Method]:
                 continue
             fn = m.get("inner", {}).get("function")
             if not fn:
+                continue
+            if not _is_public(m):
                 continue
             name = m.get("name", "")
             if not name or name.startswith("_") or name in seen:
@@ -676,21 +692,51 @@ def _md_variants_table(variants: list[Member]) -> str:
     )
 
 
-def _normalize_docs(docs: str, depth: int) -> str:
-    """Prepare rustdoc prose for Docusaurus markdown."""
+_MD_HEADING_RE = re.compile(r"^(#{1,6}) (.+)$")
+# rustdoc fences default to Rust and often carry doctest attributes
+# (```no_run, ```rust,ignore, ```should_panic, ...).
+_RUST_FENCE_INFO_RE = re.compile(r"^```(?:rust)?[,\w]*$")
+
+
+def _normalize_docs(docs: str, depth: int, heading_base: int = 0) -> str:
+    """Prepare rustdoc prose for Docusaurus markdown.
+
+    A leading `#` only means "hide this line from the rendered doctest" *inside*
+    a code fence. Outside one it is an ordinary Markdown heading and must be
+    kept -- shifted down by ``heading_base`` so it nests under the section that
+    hosts the prose rather than colliding with it.
+    """
     if not docs:
         return ""
     docs = _rewrite_docs_links(docs, depth)
-    # rustdoc code fences default to Rust and often carry doctest attributes.
-    docs = re.sub(r"^```(?:rust)?[,\w]*$", "```rust", docs, flags=re.MULTILINE)
-    docs = re.sub(r"^# .*$", "", docs, flags=re.MULTILINE)  # hidden doctest lines
-    return docs.strip()
+    out: list[str] = []
+    in_fence = False
+    for line in docs.split("\n"):
+        if line.startswith("```"):
+            # Only the opening fence carries an info string; a closing fence
+            # with one is not a valid closer and swallows the rest of the page.
+            if not in_fence:
+                line = _RUST_FENCE_INFO_RE.sub("```rust", line)
+            in_fence = not in_fence
+            out.append(line)
+            continue
+        if in_fence:
+            if line == "#" or line.startswith("# "):
+                continue  # hidden doctest line
+            out.append(line)
+            continue
+        heading = _MD_HEADING_RE.match(line)
+        if heading and heading_base:
+            level = min(len(heading.group(1)) + heading_base, 6)
+            line = f"{'#' * level} {heading.group(2)}"
+        out.append(line)
+    return "\n".join(out).strip()
 
 
 def _render_type_section(t: TypeItem, level: int, examples: dict[str, str]) -> str:
     h = "#" * level
     out = f"\n{h} {t.name}\n\n"
-    body = _normalize_docs(t.docs, _API_REFERENCE_DEPTH)
+    body = _normalize_docs(t.docs, _API_REFERENCE_DEPTH, level)
     if body:
         out += body + "\n\n"
     if t.kind == "type_alias":
@@ -716,7 +762,7 @@ def _render_methods_detail(
     for m in methods:
         out += f"\n{h} {m.name}\n\n"
         out += _md_signature(m.signature)
-        body = _normalize_docs(m.docs, _API_REFERENCE_DEPTH)
+        body = _normalize_docs(m.docs, _API_REFERENCE_DEPTH, level)
         if body:
             out += body + "\n\n"
         example = examples.get(_snake_to_camel(m.name))
@@ -801,7 +847,7 @@ def generate_camunda_client(types: list[TypeItem], examples: dict[str, str]) -> 
     out = frontmatter("CamundaClient", "CamundaClient")
     out += "\n# CamundaClient\n\n"
     if client:
-        body = _normalize_docs(client.docs, _API_REFERENCE_DEPTH)
+        body = _normalize_docs(client.docs, _API_REFERENCE_DEPTH, 1)
         if body:
             out += body + "\n\n"
         out += (
