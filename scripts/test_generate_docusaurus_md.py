@@ -35,7 +35,10 @@ from pathlib import Path
 # `@dataclass` resolves annotations through `sys.modules[cls.__module__]`.
 _SCRIPT_PATH = Path(__file__).resolve().parent / "generate-docusaurus-md.py"
 _spec = importlib.util.spec_from_file_location("generate_docusaurus_md", _SCRIPT_PATH)
-assert _spec is not None and _spec.loader is not None
+# Not an `assert`: that would be stripped under `python -O`, turning a missing
+# module under test into an opaque AttributeError further down.
+if _spec is None or _spec.loader is None:
+    raise ImportError(f"cannot load the module under test from {_SCRIPT_PATH}")
 gen = importlib.util.module_from_spec(_spec)
 sys.modules[_spec.name] = gen
 _spec.loader.exec_module(gen)

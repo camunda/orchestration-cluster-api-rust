@@ -17,6 +17,7 @@ use camunda_orchestration_sdk::models::AgentInstanceHistoryRoleEnum;
 use camunda_orchestration_sdk::models::AgentInstanceHistorySearchQuery;
 use camunda_orchestration_sdk::models::AgentInstanceMessageContent;
 use camunda_orchestration_sdk::models::AgentInstanceSearchQuery;
+use camunda_orchestration_sdk::models::AgentInstanceTextContent;
 use camunda_orchestration_sdk::models::AgentInstanceUpdateRequest;
 use camunda_orchestration_sdk::models::ElementInstanceKey;
 use camunda_orchestration_sdk::models::JobKey;
@@ -63,7 +64,12 @@ async fn create_agent_instance_history_item(
                 job_key: Box::new(JobKey::assume_exists("my-job")),
                 job_lease: "my-job-lease".to_string(),
                 role: AgentInstanceHistoryRoleEnum::User,
-                content: vec![AgentInstanceMessageContent::Text(Box::default())],
+                content: vec![AgentInstanceMessageContent::Text(Box::new(
+                    AgentInstanceTextContent {
+                        content_type: "TEXT".to_string(),
+                        text: "What is the status of my order?".to_string(),
+                    },
+                ))],
                 produced_at: Default::default(),
                 ..Default::default()
             },
