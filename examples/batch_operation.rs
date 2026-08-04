@@ -1,4 +1,4 @@
-//! Compilable usage examples for batch operation operations.
+//! Compilable usage examples for batch operations.
 //!
 //! Region-tagged snippets are surfaced in the Camunda REST API documentation via
 //! `examples/operation-map.json`, and are type-checked by `cargo build --examples`.

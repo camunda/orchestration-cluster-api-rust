@@ -504,7 +504,7 @@ def _collect_fields(crate: Crate, struct_body: dict) -> list[Member]:
     out: list[Member] = []
     for fid in kind["plain"].get("fields", []):
         f = crate.get(fid)
-        if not f or f.get("visibility") not in ("public", "default"):
+        if not f or not _is_public(f):
             continue
         inner = f.get("inner", {})
         out.append(
