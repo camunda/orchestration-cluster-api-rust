@@ -334,6 +334,14 @@ class ReadmePipelineTest(unittest.TestCase):
         self.assertEqual(gen._slugify("The Camunda Domain Type System"), "the-camunda-domain-type-system")
         self.assertEqual(gen._slugify("Reliability & Convenience"), "reliability-convenience")
 
+    def test_slugify_preserves_underscores_like_github_slugger(self):
+        # Docusaurus derives anchors with github-slugger, which keeps underscores.
+        self.assertEqual(gen._slugify("activate_jobs"), "activate_jobs")
+        self.assertEqual(
+            gen._slugify("activate_ad_hoc_sub_process_activities"),
+            "activate_ad_hoc_sub_process_activities",
+        )
+
     def test_tech_preview_banner_lands_after_the_first_h1(self):
         out = gen.inject_tech_preview_banner("# Title\n\nprose\n")
         self.assertLess(out.index("# Title"), out.index("Technical Preview"))

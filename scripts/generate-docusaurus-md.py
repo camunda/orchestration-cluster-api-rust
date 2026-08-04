@@ -987,8 +987,12 @@ def _clean_empty_lines(content: str) -> str:
 
 
 def _slugify(title: str) -> str:
+    # Underscores are preserved to stay compatible with github-slugger, which
+    # Docusaurus uses to derive heading anchors. Stripping them would make
+    # links to snake_case method headings (e.g. `activate_jobs`) resolve to a
+    # non-existent anchor.
     slug = title.lower()
-    slug = re.sub(r"[^a-z0-9\s-]", "", slug)
+    slug = re.sub(r"[^a-z0-9\s_-]", "", slug)
     slug = re.sub(r"\s+", "-", slug.strip())
     slug = re.sub(r"-+", "-", slug)
     return slug
