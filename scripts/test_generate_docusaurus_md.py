@@ -180,6 +180,130 @@ class NormalizeDocsTest(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Rendered signatures have to be compilable Rust
+# ---------------------------------------------------------------------------
+
+
+def _alias_item(name: str, alias_type: dict, params: list | None = None) -> dict:
+    return {
+        "name": name,
+        "visibility": "public",
+        "docs": f"Docs for {name}.",
+        "inner": {
+            "type_alias": {
+                "type": alias_type,
+                "generics": {"params": params or [], "where_predicates": []},
+            }
+        },
+    }
+
+
+def _type_param(name: str) -> dict:
+    return {"name": name, "kind": {"type": {"bounds": [], "default": None}}}
+
+
+class SignatureFidelityTest(unittest.TestCase):
+    """A rendered signature is a snippet readers copy, so it has to compile.
+
+    rustdoc JSON carries strictly more information than the rendered form: the
+    parameter list of a generic item, the full path of a resolved type, and the
+    right-hand side of an associated-item constraint. Dropping any of them
+    yields a signature that still *looks* plausible -- `pub type Result =
+    Result<T, CamundaError>`, `Future<Output>` -- but does not compile.
+    """
+
+    def test_generic_alias_declares_its_parameters(self):
+        crate = _crate({"1": _alias_item("Result", {"primitive": "u8"}, [_type_param("T")])})
+        self.assertEqual(gen.collect_types(crate)["Result"].generics, "<T>")
+
+    def test_alias_target_keeps_the_path_that_disambiguates_it(self):
+        """`type Result<T> = Result<T, E>` is self-referential, and rejected."""
+        target = {
+            "resolved_path": {
+                "path": "std::result::Result",
+                "args": {
+                    "angle_bracketed": {
+                        "args": [
+                            {"type": {"generic": "T"}},
+                            {"type": {"resolved_path": {"path": "CamundaError", "args": None}}},
+                        ],
+                        "constraints": [],
+                    }
+                },
+            }
+        }
+        crate = _crate({"1": _alias_item("Result", target, [_type_param("T")])})
+        alias = gen.collect_types(crate)["Result"]
+        self.assertEqual(alias.alias_target, "std::result::Result<T, CamundaError>")
+        self.assertIn(
+            "pub type Result<T> = std::result::Result<T, CamundaError>;",
+            gen._render_type_section(alias, 2, {}),
+        )
+
+    def test_a_non_colliding_alias_target_stays_short(self):
+        target = {"resolved_path": {"path": "std::sync::Arc", "args": None}}
+        crate = _crate({"1": _alias_item("Handler", target)})
+        self.assertEqual(gen.collect_types(crate)["Handler"].alias_target, "Arc")
+
+    def test_associated_type_constraints_keep_their_binding(self):
+        rendered = gen.render_type(
+            {
+                "resolved_path": {
+                    "path": "Future",
+                    "args": {
+                        "angle_bracketed": {
+                            "args": [],
+                            "constraints": [
+                                {
+                                    "name": "Output",
+                                    "args": None,
+                                    "binding": {
+                                        "equality": {
+                                            "type": {
+                                                "resolved_path": {
+                                                    "path": "JobAction",
+                                                    "args": None,
+                                                }
+                                            }
+                                        }
+                                    },
+                                }
+                            ],
+                        }
+                    },
+                }
+            }
+        )
+        self.assertEqual(rendered, "Future<Output = JobAction>")
+
+    def test_associated_type_bounds_keep_their_bounds(self):
+        rendered = gen.render_type(
+            {
+                "resolved_path": {
+                    "path": "Iterator",
+                    "args": {
+                        "angle_bracketed": {
+                            "args": [],
+                            "constraints": [
+                                {
+                                    "name": "Item",
+                                    "args": None,
+                                    "binding": {
+                                        "constraint": [
+                                            {"trait_bound": {"trait": {"path": "Copy"}}}
+                                        ]
+                                    },
+                                }
+                            ],
+                        }
+                    },
+                }
+            }
+        )
+        self.assertEqual(rendered, "Iterator<Item: Copy>")
+
+
+# ---------------------------------------------------------------------------
 # Visibility guards
 # ---------------------------------------------------------------------------
 
