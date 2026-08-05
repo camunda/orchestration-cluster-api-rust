@@ -480,5 +480,66 @@ class SnakeToCamelTest(unittest.TestCase):
                 self.assertIn(operation_id, op_map)
 
 
+# ---------------------------------------------------------------------------
+# Unresolved intra-doc links
+# ---------------------------------------------------------------------------
+
+
+class UnresolvedIntraDocLinkTest(unittest.TestCase):
+    """`[`Foo::bar`]` is idiomatic rustdoc but plain broken Markdown.
+
+    rustdoc resolves intra-doc links against the crate graph. Markdown has no
+    such graph, so the brackets survive to the published page as literal text.
+    The guard has to reject the shape wherever it appears -- README prose today,
+    a `///` comment tomorrow -- without tripping over the many legitimate uses
+    of square brackets.
+    """
+
+    def _check(self, content: str) -> list[str]:
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "page.md").write_text(content, encoding="utf-8")
+        return gen.validate_generated_links(tmp)
+
+    def test_code_span_intra_doc_link_is_flagged(self):
+        errors = self._check("Live state via [`CamundaClient::backpressure_state`].\n")
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("CamundaClient::backpressure_state", errors[0])
+
+    def test_bare_path_intra_doc_link_is_flagged(self):
+        self.assertEqual(len(self._check("See [JobWorker::spawn] for details.\n")), 1)
+
+    def test_every_flagged_line_is_reported(self):
+        errors = self._check("[`A::b`] and [`C::d`]\nthen [`E::f`]\n")
+        self.assertEqual(len(errors), 3, errors)
+
+    def test_inline_links_are_left_alone(self):
+        content = "[text](https://example.com) [other](../a.md) [anchor](#x)\n"
+        self.assertEqual(self._check(content), [])
+
+    def test_reference_style_links_are_left_alone(self):
+        content = "[text][ref] and [ref]: https://example.com\n"
+        self.assertEqual(self._check(content), [])
+
+    def test_brackets_in_fenced_code_are_left_alone(self):
+        content = '```toml\n[dependencies]\ncamunda = { features = ["full"] }\n```\n'
+        self.assertEqual(self._check(content), [])
+
+    def test_brackets_in_inline_code_are_left_alone(self):
+        self.assertEqual(self._check("Use `let xs = [1, 2, 3];` here.\n"), [])
+
+    def test_task_list_markers_are_left_alone(self):
+        self.assertEqual(self._check("- [ ] todo\n- [x] done\n"), [])
+
+    def test_footnote_style_references_are_left_alone(self):
+        self.assertEqual(self._check("As shown in [1] and [2].\n"), [])
+
+    def test_the_shipped_readme_has_no_intra_doc_links(self):
+        """The defect this guard was written for, pinned against the real file."""
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "readme.md").write_text(gen.README_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+        errors = [e for e in gen.validate_generated_links(tmp) if "intra-doc" in e]
+        self.assertEqual(errors, [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -148,14 +148,14 @@ before expiry.
 | `CAMUNDA_SDK_BACKPRESSURE_PROFILE` | Adaptive backpressure profile: `BALANCED` (default, adaptive gating) or `LEGACY` (observe-only, no gating). |
 | `CAMUNDA_OAUTH_CACHE_DIR` | Directory for the cross-process OAuth token cache. Unset disables disk caching (in-memory only). |
 | `CAMUNDA_SDK_LOG_LEVEL` | SDK log level for [`CamundaClient::init_logging`]: `OFF` \| `ERROR` \| `WARN` \| `INFO` (default) \| `DEBUG` \| `TRACE`. |
-| `CAMUNDA_SDK_EVENTUAL_POLL_DEFAULT_MS` | Default timeout for [`CamundaClient::eventual`] consistency polling (default `10000`). |
+| `CAMUNDA_SDK_EVENTUAL_POLL_DEFAULT_MS` | Default timeout for `CamundaClient::eventual` consistency polling (default `10000`). |
 | `CAMUNDA_SDK_HTTP_RETRY_MAX_ATTEMPTS` | Max attempts for transient-error retry of initiating operations (default `4`; `1` disables retry). |
 | `CAMUNDA_SDK_HTTP_RETRY_BASE_DELAY_MS` / `CAMUNDA_SDK_HTTP_RETRY_MAX_DELAY_MS` | Full-jitter backoff bounds for HTTP retry (defaults `250` / `5000`). |
 | `CAMUNDA_MTLS_CERT` / `CAMUNDA_MTLS_CERT_PATH` | Client certificate (inline PEM or file path) for mutual TLS. |
 | `CAMUNDA_MTLS_KEY` / `CAMUNDA_MTLS_KEY_PATH` | Client private key (inline PEM or file path) for mutual TLS. |
 | `CAMUNDA_MTLS_CA` / `CAMUNDA_MTLS_CA_PATH` | Additional CA root (inline PEM or file path) to trust. |
 | `CAMUNDA_MTLS_KEY_PASSPHRASE` | Passphrase for an encrypted client key (not supported by the default `native-tls` backend; errors clearly if set). |
-| `CAMUNDA_WORKER_NAME` | Default worker name for [`CamundaClient::worker_config`]. |
+| `CAMUNDA_WORKER_NAME` | Default worker name for `CamundaClient::worker_config`. |
 | `CAMUNDA_WORKER_MAX_CONCURRENT_JOBS` | Default max concurrent jobs per worker. |
 | `CAMUNDA_WORKER_TIMEOUT` / `CAMUNDA_WORKER_REQUEST_TIMEOUT` | Default job-activation and long-poll timeouts (ms). |
 | `CAMUNDA_WORKER_STARTUP_JITTER_MAX_SECONDS` | Max random startup delay before a worker's first poll, to spread activation stampedes. |
@@ -176,7 +176,7 @@ signals (HTTP `429` / `503` / `RESOURCE_EXHAUSTED`):
   in-flight work always drains, even while new load is being shed.
 
 Set `CAMUNDA_SDK_BACKPRESSURE_PROFILE=LEGACY` to observe signals without gating. Inspect the
-live state via [`CamundaClient::backpressure_state`].
+live state via `CamundaClient::backpressure_state`.
 
 ## Reliability & convenience features
 
@@ -200,8 +200,8 @@ The runtime mirrors the JS/Python/C# SDKs:
   `search_variables` / `search_variables_as::<T>()`.
 - **Worker lifecycle** — `client.spawn_worker(..)` registers managed workers;
   `running_workers()` lists them and `stop_all_workers().await` drains and stops them all
-  gracefully. Per-worker control via the [`JobWorkerHandle`] returned from
-  [`JobWorker::spawn`].
+  gracefully. Per-worker control via the `JobWorkerHandle` returned from
+  `JobWorker::spawn`.
 
 ## Job workers
 
@@ -294,7 +294,7 @@ the semantic-key schemas correctly (it emits broken empty structs or drops them)
 The ergonomic facade is **flat and complete**: every REST operation has a method directly
 on `CamundaClient` (mirroring the JavaScript, Python, and C# SDKs). Each method builds an
 authenticated request, runs under the adaptive backpressure gate and transient-retry
-policy, and maps failures to a typed [`CamundaError`]. Parameter types are re-exported
+policy, and maps failures to a typed `CamundaError`. Parameter types are re-exported
 under `camunda_orchestration_sdk::apis::<area>_api`, so everything imports from one crate:
 
 <!-- snippet-source: examples/readme.rs | regions: FullSurface -->
