@@ -1136,8 +1136,11 @@ def generate_readme_pages(readme_path: Path, output_dir: Path) -> None:
 
 _RELATIVE_LINK_RE = re.compile(r"\[([^\]]*)\]\((?!https?://|#|mailto:)([^)]+)\)")
 
-# A bracket pair that no Markdown construct follows: not `](`, not `][`, not `]:`.
-_BARE_BRACKET_RE = re.compile(r"\[([^\[\]]*)\](?![(\[:])")
+# A bracket pair that no Markdown construct follows: not `](`, not `][`.
+_BARE_BRACKET_RE = re.compile(r"\[([^\[\]]*)\](?![(\[])")
+# `]:` opens a reference definition only at the start of a line (Markdown allows
+# up to three spaces of indent); anywhere else the colon is prose punctuation.
+_REF_DEF_RE = re.compile(r"^ {0,3}(\[)[^\[\]]*\]:")
 _INLINE_CODE_RE = re.compile(r"`+[^`]*`+")
 _TASK_LIST_RE = re.compile(r"^\s*[-*+]\s+\[[ xX]\]")
 # Conservative: a bare (non-code-span) candidate must look like a Rust path.
@@ -1159,8 +1162,12 @@ def _find_intra_doc_links(line: str) -> list[str]:
     if _TASK_LIST_RE.match(line):
         return []
     masked = _mask_inline_code(line)
+    ref_def = _REF_DEF_RE.match(masked)
+    definition_start = ref_def.start(1) if ref_def else -1
     found: list[str] = []
     for m in _BARE_BRACKET_RE.finditer(masked):
+        if m.start() == definition_start:
+            continue
         inner_masked = m.group(1)
         inner = line[m.start(1) : m.end(1)]
         was_code_span = bool(inner_masked) and set(inner_masked) == {_MASK}
