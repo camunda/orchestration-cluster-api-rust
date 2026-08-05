@@ -310,7 +310,7 @@ def _render_generic_args(args: Any) -> str:
             elif "const" in a:
                 rendered.append(str(a["const"].get("expr", "")))
         for c in ab.get("constraints", []):
-            rendered.append(c.get("name", ""))
+            rendered.append(_render_constraint(c))
         return f"<{', '.join(x for x in rendered if x)}>" if rendered else ""
     if "parenthesized" in args:
         p = args["parenthesized"]
@@ -319,6 +319,36 @@ def _render_generic_args(args: Any) -> str:
         ret = f" -> {render_type(out)}" if out else ""
         return f"({inputs}){ret}"
     return ""
+
+
+def _render_constraint(c: Any) -> str:
+    """Render an associated-item constraint (`Output = JobAction`, `Item: Copy`).
+
+    Emitting the bare name loses the half that carries the meaning, and
+    `Future<Output>` does not compile.
+    """
+    if not isinstance(c, dict):
+        return ""
+    name = c.get("name") or ""
+    if not name:
+        return ""
+    name += _render_generic_args(c.get("args"))
+    binding = c.get("binding")
+    if not isinstance(binding, dict):
+        return name
+    if "equality" in binding:
+        term = binding["equality"]
+        if isinstance(term, dict):
+            if "type" in term:
+                return f"{name} = {render_type(term['type'])}"
+            if "constant" in term:
+                const = term["constant"]
+                expr = const.get("expr", "") if isinstance(const, dict) else ""
+                if expr:
+                    return f"{name} = {expr}"
+    elif "constraint" in binding:
+        return f"{name}: {_render_bounds(binding['constraint'])}"
+    return name
 
 
 def _render_bounds(bounds: list) -> str:
@@ -413,6 +443,7 @@ class TypeItem:
     variants: list[Member] = field(default_factory=list)
     methods: list[Method] = field(default_factory=list)
     alias_target: str = ""
+    generics: str = ""
 
     @property
     def summary(self) -> str:
@@ -492,9 +523,24 @@ def collect_types(crate: Crate) -> dict[str, TypeItem]:
             ti.variants = _collect_variants(crate, body.get("variants", []))
             ti.methods = _collect_methods(crate, body.get("impls", []))
         elif kind == "type_alias":
-            ti.alias_target = render_type(body.get("type"))
+            ti.generics = _render_generics(body.get("generics"))
+            ti.alias_target = _render_alias_target(body.get("type"), name)
         types[name] = ti
     return types
+
+
+def _render_alias_target(t: Any, alias_name: str) -> str:
+    """Render an alias target, keeping enough path to not shadow the alias.
+
+    `_short_path` would turn `type Result<T> = std::result::Result<T, E>` into
+    `type Result = Result<T, E>`, which reads as an infinitely recursive alias.
+    """
+    if isinstance(t, dict) and "resolved_path" in t:
+        rp = t["resolved_path"]
+        path = rp.get("path") or ""
+        if path != alias_name and _short_path(path) == alias_name:
+            return path + _render_generic_args(rp.get("args"))
+    return render_type(t)
 
 
 def _collect_fields(crate: Crate, struct_body: dict) -> list[Member]:
@@ -740,7 +786,7 @@ def _render_type_section(t: TypeItem, level: int, examples: dict[str, str]) -> s
     if body:
         out += body + "\n\n"
     if t.kind == "type_alias":
-        out += _md_signature(f"pub type {t.name} = {t.alias_target};")
+        out += _md_signature(f"pub type {t.name}{t.generics} = {t.alias_target};")
     if t.fields:
         out += f"{h}# Fields\n\n" + _md_fields_table(t.fields)
     if t.variants:
