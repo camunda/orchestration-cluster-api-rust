@@ -223,7 +223,10 @@ class SignatureFidelityTest(unittest.TestCase):
                 "path": "std::result::Result",
                 "args": {
                     "angle_bracketed": {
-                        "args": [{"type": {"generic": "T"}}],
+                        "args": [
+                            {"type": {"generic": "T"}},
+                            {"type": {"resolved_path": {"path": "CamundaError", "args": None}}},
+                        ],
                         "constraints": [],
                     }
                 },
@@ -231,9 +234,9 @@ class SignatureFidelityTest(unittest.TestCase):
         }
         crate = _crate({"1": _alias_item("Result", target, [_type_param("T")])})
         alias = gen.collect_types(crate)["Result"]
-        self.assertEqual(alias.alias_target, "std::result::Result<T>")
+        self.assertEqual(alias.alias_target, "std::result::Result<T, CamundaError>")
         self.assertIn(
-            "pub type Result<T> = std::result::Result<T>;",
+            "pub type Result<T> = std::result::Result<T, CamundaError>;",
             gen._render_type_section(alias, 2, {}),
         )
 
