@@ -1182,9 +1182,48 @@ def generate_readme_pages(readme_path: Path, output_dir: Path) -> None:
 
 _RELATIVE_LINK_RE = re.compile(r"\[([^\]]*)\]\((?!https?://|#|mailto:)([^)]+)\)")
 
+# A bracket pair that no Markdown construct follows: not `](`, not `][`.
+_BARE_BRACKET_RE = re.compile(r"\[([^\[\]]*)\](?![(\[])")
+# `]:` opens a reference definition only at the start of a line (Markdown allows
+# up to three spaces of indent); anywhere else the colon is prose punctuation.
+_REF_DEF_RE = re.compile(r"^ {0,3}(\[)[^\[\]]*\]:")
+_INLINE_CODE_RE = re.compile(r"`+[^`]*`+")
+_TASK_LIST_RE = re.compile(r"^\s*[-*+]\s+\[[ xX]\]")
+# Conservative: a bare (non-code-span) candidate must look like a Rust path.
+_RUST_PATH_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+(?:\(\))?")
+_MASK = "\x00"
+
+
+def _mask_inline_code(line: str) -> str:
+    """Blank out inline code spans, preserving offsets so slices still line up."""
+    return _INLINE_CODE_RE.sub(lambda m: _MASK * len(m.group(0)), line)
+
+
+def _find_intra_doc_links(line: str) -> list[str]:
+    """Find rustdoc intra-doc links, which Markdown renders as literal brackets.
+
+    rustdoc resolves `[`Foo::bar`]` against the crate graph. Markdown has no such
+    graph, so the brackets reach the reader verbatim.
+    """
+    if _TASK_LIST_RE.match(line):
+        return []
+    masked = _mask_inline_code(line)
+    ref_def = _REF_DEF_RE.match(masked)
+    definition_start = ref_def.start(1) if ref_def else -1
+    found: list[str] = []
+    for m in _BARE_BRACKET_RE.finditer(masked):
+        if m.start() == definition_start:
+            continue
+        inner_masked = m.group(1)
+        inner = line[m.start(1) : m.end(1)]
+        was_code_span = bool(inner_masked) and set(inner_masked) == {_MASK}
+        if was_code_span or _RUST_PATH_RE.fullmatch(inner_masked):
+            found.append(f"[{inner}]")
+    return found
+
 
 def validate_generated_links(output_dir: Path) -> list[str]:
-    """Flag relative links that will not resolve once copied into camunda-docs."""
+    """Flag links that will not resolve once copied into camunda-docs."""
     errors: list[str] = []
     for md_file in sorted(output_dir.rglob("*.md")):
         content = md_file.read_text(encoding="utf-8")
@@ -1195,14 +1234,16 @@ def validate_generated_links(output_dir: Path) -> list[str]:
                 continue
             if in_fence:
                 continue
+            rel = md_file.relative_to(output_dir)
             for m in _RELATIVE_LINK_RE.finditer(line):
                 target = m.group(2).split("#")[0]
                 if not target or target.startswith("../") or "/" not in target:
                     continue
-                rel = md_file.relative_to(output_dir)
                 errors.append(
                     f"  {rel}:{line_no}: repo-relative link [{m.group(1)}]({m.group(2)})"
                 )
+            for link in _find_intra_doc_links(line):
+                errors.append(f"  {rel}:{line_no}: unresolved intra-doc link {link}")
     return errors
 
 
@@ -1295,7 +1336,7 @@ def main() -> None:
     parser.add_argument(
         "--validate-links",
         action="store_true",
-        help="After generation, validate that no repo-relative links survive.",
+        help="After generation, validate links in the generated markdown.",
     )
     parser.add_argument(
         "--readme-only",
@@ -1315,7 +1356,7 @@ def main() -> None:
         print("Validating generated links...")
         errors = validate_generated_links(DOCS_MD_DIR)
         if errors:
-            print("\nERROR: repo-relative links found in generated markdown:")
+            print("\nERROR: broken links found in generated markdown:")
             print("\n".join(errors))
             sys.exit(1)
         print("  All relative links OK.")
