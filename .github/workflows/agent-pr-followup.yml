@@ -1,0 +1,60 @@
+# Reacts to feedback on an agent-authored pull request: a `/agent fix` comment,
+# a failing CI run, or a review from another bot.
+#
+# The mechanics live in camunda/sdk-infra so all five SDKs share one implementation;
+# this file supplies only what is genuinely repo-specific: the name of the CI
+# workflow to watch, the toolchain to install, and the verification commands.
+
+name: Agent — PR follow-up
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  workflow_run:
+    # Named here rather than in the shared workflow because each SDK repo calls
+    # its CI workflow something different.
+    workflows: ['CI']
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  followup:
+    permissions:
+      contents: read
+      id-token: write          # mint GitHub OIDC token for Vault JWT auth
+      copilot-requests: write  # Copilot CLI auth via GITHUB_TOKEN (billed to the org)
+      pull-requests: write     # attempt labels and the outcome comment
+      issues: write            # PR comments go through the Issues API
+      actions: read            # read the failing run's log
+    uses: camunda/sdk-infra/.github/workflows/sdk-agent-pr-followup.yml@v1
+    # Explicit rather than `inherit`: the shared workflow needs only Vault auth,
+    # and this job hands the repo to an LLM agent.
+    secrets:
+      VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+      VAULT_JWT_PATH: ${{ secrets.VAULT_JWT_PATH }}
+      VAULT_JWT_ROLE: ${{ secrets.VAULT_JWT_ROLE }}
+      VAULT_JWT_AUDIENCE: ${{ secrets.VAULT_JWT_AUDIENCE }}
+    with:
+      language: rust
+      # This repo has no in-tree coverage script, so the gate runs the shared
+      # one from the sdk-infra checkout the reusable workflow exposes as
+      # $SDK_INFRA.
+      verify-commands: |
+        python3 "$SDK_INFRA/scripts/check-example-coverage.py" \
+          --spec external-spec/bundled/rest-api.bundle.json \
+          --map examples/operation-map.json \
+          --examples-dir examples \
+          --key-style camelCase
+        make check
+      # `cargo build`/`cargo test` re-resolve the lockfile when a new example
+      # pulls in a dependency.
+      verify-artifacts: |
+        Cargo.lock
+      extra-instructions: |
+        `examples/readme.rs` is the source of truth for the code blocks in `README.md`;
+        edit the region there and run `make sync-readme` rather than editing `README.md`.
+        Run `cargo fmt` before `make sync-readme`, otherwise rustfmt reflows the snippet
+        source afterwards and the README goes out of sync.
