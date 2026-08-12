@@ -18,6 +18,7 @@ Hooks (in order):
   08 version-skew-tolerance      tolerate unknown enum variants / added fields from newer servers
   09 crate-metadata              set client/Cargo.toml license (Apache-2.0) + repository/homepage/docs
   10 dedupe-hoisted-enums        drop hoisted dead top-level enums from tagged-union model files
+  11 guard-optional-json-body    only attach optional request bodies when `Some`, never send JSON `null`
 
 Usage:
     python3 scripts/postprocess.py --client-dir client \\

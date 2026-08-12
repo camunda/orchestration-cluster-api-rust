@@ -16,7 +16,7 @@ async fn resolve_secrets() -> Result<(), Box<dyn std::error::Error>> {
     let result = client
         .resolve_secrets(ResolveSecretsParams {
             secret_resolve_request: SecretResolveRequest {
-                references: vec!["my-references".to_string()],
+                references: vec!["camunda.secrets.my-secret".to_string()],
             },
         })
         .await?;
