@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// SecretErrorCode : The typed reason a reference could not be resolved.  - `NOT_FOUND`: no secret exists for the reference. - `ACCESS_DENIED`: the caller lacks `SECRET:REVEAL` on the reference. - `INVALID_REFERENCE`: the reference is malformed.
-/// The typed reason a reference could not be resolved.  - `NOT_FOUND`: no secret exists for the reference. - `ACCESS_DENIED`: the caller lacks `SECRET:REVEAL` on the reference. - `INVALID_REFERENCE`: the reference is malformed.
+/// SecretErrorCode : The typed reason a reference could not be resolved.  - `NOT_FOUND`: no secret exists for the reference. - `ACCESS_DENIED`: the caller lacks `SECRET:REVEAL` on the reference. - `INVALID_REFERENCE`: the reference is malformed, or the configured store rejected it as   an invalid secret identifier. - `UNREADABLE`: the configured store could not return a value for the reference, for   example because it rejected the cluster's own store credentials or the stored value could   not be read. Whether the secret exists is not implied.
+/// The typed reason a reference could not be resolved.  - `NOT_FOUND`: no secret exists for the reference. - `ACCESS_DENIED`: the caller lacks `SECRET:REVEAL` on the reference. - `INVALID_REFERENCE`: the reference is malformed, or the configured store rejected it as   an invalid secret identifier. - `UNREADABLE`: the configured store could not return a value for the reference, for   example because it rejected the cluster's own store credentials or the stored value could   not be read. Whether the secret exists is not implied.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum SecretErrorCode {
     #[serde(rename = "NOT_FOUND")]
@@ -21,6 +21,8 @@ pub enum SecretErrorCode {
     AccessDenied,
     #[serde(rename = "INVALID_REFERENCE")]
     InvalidReference,
+    #[serde(rename = "UNREADABLE")]
+    Unreadable,
 }
 
 impl std::fmt::Display for SecretErrorCode {
@@ -29,6 +31,7 @@ impl std::fmt::Display for SecretErrorCode {
             Self::NotFound => write!(f, "NOT_FOUND"),
             Self::AccessDenied => write!(f, "ACCESS_DENIED"),
             Self::InvalidReference => write!(f, "INVALID_REFERENCE"),
+            Self::Unreadable => write!(f, "UNREADABLE"),
         }
     }
 }

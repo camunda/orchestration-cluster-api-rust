@@ -21,6 +21,8 @@ pub enum AgentInstanceHistoryRoleEnum {
     Assistant,
     #[serde(rename = "TOOL_RESULT")]
     ToolResult,
+    #[serde(rename = "CONFIGURATION")]
+    Configuration,
 }
 
 impl std::fmt::Display for AgentInstanceHistoryRoleEnum {
@@ -29,6 +31,7 @@ impl std::fmt::Display for AgentInstanceHistoryRoleEnum {
             Self::User => write!(f, "USER"),
             Self::Assistant => write!(f, "ASSISTANT"),
             Self::ToolResult => write!(f, "TOOL_RESULT"),
+            Self::Configuration => write!(f, "CONFIGURATION"),
         }
     }
 }

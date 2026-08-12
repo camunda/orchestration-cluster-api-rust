@@ -44,6 +44,8 @@ All URIs are relative to *http://localhost:8080/v2*
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
 *AdHocSubProcessApi* | [**activate_ad_hoc_sub_process_activities**](docs/AdHocSubProcessApi.md#activate_ad_hoc_sub_process_activities) | **POST** /element-instances/ad-hoc-activities/{adHocSubProcessInstanceKey}/activation | Activate activities within an ad-hoc sub-process
+*AgentDefinitionApi* | [**get_agent_definition**](docs/AgentDefinitionApi.md#get_agent_definition) | **GET** /agent-definitions/{agentDefinitionKey} | Get agent definition
+*AgentDefinitionApi* | [**search_agent_definitions**](docs/AgentDefinitionApi.md#search_agent_definitions) | **POST** /agent-definitions/search | Search agent definitions
 *AgentInstanceApi* | [**create_agent_instance**](docs/AgentInstanceApi.md#create_agent_instance) | **POST** /agent-instances | Create agent instance
 *AgentInstanceApi* | [**create_agent_instance_history_item**](docs/AgentInstanceApi.md#create_agent_instance_history_item) | **POST** /agent-instances/{agentInstanceKey}/history | Create agent instance history item
 *AgentInstanceApi* | [**get_agent_instance**](docs/AgentInstanceApi.md#get_agent_instance) | **GET** /agent-instances/{agentInstanceKey} | Get agent instance
@@ -53,11 +55,19 @@ Class | Method | HTTP request | Description
 *AuditLogApi* | [**get_audit_log**](docs/AuditLogApi.md#get_audit_log) | **GET** /audit-logs/{auditLogKey} | Get audit log
 *AuditLogApi* | [**search_audit_logs**](docs/AuditLogApi.md#search_audit_logs) | **POST** /audit-logs/search | Search audit logs
 *AuthenticationApi* | [**get_authentication**](docs/AuthenticationApi.md#get_authentication) | **GET** /authentication/me | Get current user
+*AuthenticationApi* | [**search_own_authorizations**](docs/AuthenticationApi.md#search_own_authorizations) | **POST** /authentication/me/authorizations/search | Search own authorizations
 *AuthorizationApi* | [**create_authorization**](docs/AuthorizationApi.md#create_authorization) | **POST** /authorizations | Create authorization
 *AuthorizationApi* | [**delete_authorization**](docs/AuthorizationApi.md#delete_authorization) | **DELETE** /authorizations/{authorizationKey} | Delete authorization
 *AuthorizationApi* | [**get_authorization**](docs/AuthorizationApi.md#get_authorization) | **GET** /authorizations/{authorizationKey} | Get authorization
 *AuthorizationApi* | [**search_authorizations**](docs/AuthorizationApi.md#search_authorizations) | **POST** /authorizations/search | Search authorizations
 *AuthorizationApi* | [**update_authorization**](docs/AuthorizationApi.md#update_authorization) | **PUT** /authorizations/{authorizationKey} | Update authorization
+*BackupApi* | [**delete_runtime_backup**](docs/BackupApi.md#delete_runtime_backup) | **DELETE** /backups/runtime/{backupId} | Delete runtime backup
+*BackupApi* | [**delete_runtime_backup_state**](docs/BackupApi.md#delete_runtime_backup_state) | **DELETE** /backups/runtime/state | Delete runtime backup state
+*BackupApi* | [**get_runtime_backup**](docs/BackupApi.md#get_runtime_backup) | **GET** /backups/runtime/{backupId} | Get runtime backup
+*BackupApi* | [**get_runtime_backup_state**](docs/BackupApi.md#get_runtime_backup_state) | **GET** /backups/runtime/state | Get runtime backup state
+*BackupApi* | [**list_runtime_backups**](docs/BackupApi.md#list_runtime_backups) | **GET** /backups/runtime | List runtime backups
+*BackupApi* | [**sync_runtime_backup_state**](docs/BackupApi.md#sync_runtime_backup_state) | **POST** /backups/runtime/state/sync | Force-write runtime backup state
+*BackupApi* | [**take_runtime_backup**](docs/BackupApi.md#take_runtime_backup) | **POST** /backups/runtime | Take a runtime backup
 *BatchOperationApi* | [**cancel_batch_operation**](docs/BatchOperationApi.md#cancel_batch_operation) | **POST** /batch-operations/{batchOperationKey}/cancellation | Cancel Batch operation
 *BatchOperationApi* | [**get_batch_operation**](docs/BatchOperationApi.md#get_batch_operation) | **GET** /batch-operations/{batchOperationKey} | Get batch operation
 *BatchOperationApi* | [**resume_batch_operation**](docs/BatchOperationApi.md#resume_batch_operation) | **POST** /batch-operations/{batchOperationKey}/resumption | Resume Batch operation
@@ -66,7 +76,8 @@ Class | Method | HTTP request | Description
 *BatchOperationApi* | [**suspend_batch_operation**](docs/BatchOperationApi.md#suspend_batch_operation) | **POST** /batch-operations/{batchOperationKey}/suspension | Suspend Batch operation
 *ClockApi* | [**pin_clock**](docs/ClockApi.md#pin_clock) | **PUT** /clock | Pin internal clock (alpha)
 *ClockApi* | [**reset_clock**](docs/ClockApi.md#reset_clock) | **POST** /clock/reset | Reset internal clock (alpha)
-*ClusterApi* | [**get_status**](docs/ClusterApi.md#get_status) | **GET** /status | Get cluster status
+*ClusterApi* | [**get_cluster_status**](docs/ClusterApi.md#get_cluster_status) | **GET** /cluster/v2/status | Get the status of the whole cluster
+*ClusterApi* | [**get_status**](docs/ClusterApi.md#get_status) | **GET** /status | Get physical tenant status
 *ClusterApi* | [**get_topology**](docs/ClusterApi.md#get_topology) | **GET** /topology | Get cluster topology
 *ClusterVariableApi* | [**create_global_cluster_variable**](docs/ClusterVariableApi.md#create_global_cluster_variable) | **POST** /cluster-variables/global | Create a global-scoped cluster variable
 *ClusterVariableApi* | [**create_tenant_cluster_variable**](docs/ClusterVariableApi.md#create_tenant_cluster_variable) | **POST** /cluster-variables/tenants/{tenantId} | Create a tenant-scoped cluster variable
@@ -99,6 +110,9 @@ Class | Method | HTTP request | Description
 *ElementInstanceApi* | [**search_element_instance_incidents**](docs/ElementInstanceApi.md#search_element_instance_incidents) | **POST** /element-instances/{elementInstanceKey}/incidents/search | Search for incidents of a specific element instance
 *ElementInstanceApi* | [**search_element_instance_wait_states**](docs/ElementInstanceApi.md#search_element_instance_wait_states) | **POST** /element-instances/wait-states/search | Search element instance wait states
 *ElementInstanceApi* | [**search_element_instances**](docs/ElementInstanceApi.md#search_element_instances) | **POST** /element-instances/search | Search element instances
+*ExportingApi* | [**get_exporting_status**](docs/ExportingApi.md#get_exporting_status) | **GET** /exporting | Get exporting status
+*ExportingApi* | [**pause_exporting**](docs/ExportingApi.md#pause_exporting) | **POST** /exporting/pause | Pause exporting
+*ExportingApi* | [**resume_exporting**](docs/ExportingApi.md#resume_exporting) | **POST** /exporting/resume | Resume exporting
 *ExpressionApi* | [**evaluate_expression**](docs/ExpressionApi.md#evaluate_expression) | **POST** /expression/evaluation | Evaluate an expression
 *FormApi* | [**get_form_by_key**](docs/FormApi.md#get_form_by_key) | **GET** /forms/{formKey} | Get form by key
 *GlobalListenerApi* | [**create_global_task_listener**](docs/GlobalListenerApi.md#create_global_task_listener) | **POST** /global-task-listeners | Create global user task listener
@@ -181,6 +195,7 @@ Class | Method | HTTP request | Description
 *ProcessInstanceApi* | [**suspend_process_instance**](docs/ProcessInstanceApi.md#suspend_process_instance) | **POST** /process-instances/{processInstanceKey}/suspension | Suspend process instance
 *ProcessInstanceApi* | [**suspend_process_instances_batch_operation**](docs/ProcessInstanceApi.md#suspend_process_instances_batch_operation) | **POST** /process-instances/suspension | Suspend process instances (batch)
 *RecoveryApi* | [**change_cluster_mode**](docs/RecoveryApi.md#change_cluster_mode) | **PATCH** /mode | Change cluster mode
+*RecoveryApi* | [**get_restore_status**](docs/RecoveryApi.md#get_restore_status) | **GET** /restore | Get the status of the restore that is currently in progress
 *RecoveryApi* | [**restore**](docs/RecoveryApi.md#restore) | **POST** /restore | Restore from a backup
 *ResourceApi* | [**create_deployment**](docs/ResourceApi.md#create_deployment) | **POST** /deployments | Deploy resources
 *ResourceApi* | [**delete_resource**](docs/ResourceApi.md#delete_resource) | **POST** /resources/{resourceKey}/deletion | Delete resource
@@ -205,6 +220,7 @@ Class | Method | HTTP request | Description
 *RoleApi* | [**unassign_role_from_mapping_rule**](docs/RoleApi.md#unassign_role_from_mapping_rule) | **DELETE** /roles/{roleId}/mapping-rules/{mappingRuleId} | Unassign a role from a mapping rule
 *RoleApi* | [**unassign_role_from_user**](docs/RoleApi.md#unassign_role_from_user) | **DELETE** /roles/{roleId}/users/{username} | Unassign a role from a user
 *RoleApi* | [**update_role**](docs/RoleApi.md#update_role) | **PUT** /roles/{roleId} | Update role
+*SecretApi* | [**list_secrets**](docs/SecretApi.md#list_secrets) | **POST** /secrets/list | List secrets (alpha)
 *SecretApi* | [**resolve_secrets**](docs/SecretApi.md#resolve_secrets) | **POST** /secrets/resolve | Resolve secrets (alpha)
 *SetupApi* | [**create_admin_user**](docs/SetupApi.md#create_admin_user) | **POST** /setup/user | Create admin user
 *SignalApi* | [**broadcast_signal**](docs/SignalApi.md#broadcast_signal) | **POST** /signals/broadcast | Broadcast signal
@@ -255,6 +271,8 @@ Class | Method | HTTP request | Description
  - [AdHocSubProcessActivateActivitiesInstruction](docs/AdHocSubProcessActivateActivitiesInstruction.md)
  - [AdHocSubProcessActivateActivityReference](docs/AdHocSubProcessActivateActivityReference.md)
  - [AdvancedActorTypeFilter](docs/AdvancedActorTypeFilter.md)
+ - [AdvancedAgentDefinitionKeyFilter](docs/AdvancedAgentDefinitionKeyFilter.md)
+ - [AdvancedAgentDefinitionTypeFilter](docs/AdvancedAgentDefinitionTypeFilter.md)
  - [AdvancedAgentHistoryItemKeyFilter](docs/AdvancedAgentHistoryItemKeyFilter.md)
  - [AdvancedAgentInstanceHistoryCommitStatusFilter](docs/AdvancedAgentInstanceHistoryCommitStatusFilter.md)
  - [AdvancedAgentInstanceHistoryRoleFilter](docs/AdvancedAgentInstanceHistoryRoleFilter.md)
@@ -306,8 +324,19 @@ Class | Method | HTTP request | Description
  - [AdvancedVariableKeyFilter](docs/AdvancedVariableKeyFilter.md)
  - [AdvancedWaitStateElementTypeFilter](docs/AdvancedWaitStateElementTypeFilter.md)
  - [AdvancedWaitStateTypeFilter](docs/AdvancedWaitStateTypeFilter.md)
+ - [AgentDefinitionFilter](docs/AgentDefinitionFilter.md)
+ - [AgentDefinitionKeyExactMatch](docs/AgentDefinitionKeyExactMatch.md)
+ - [AgentDefinitionKeyFilterProperty](docs/AgentDefinitionKeyFilterProperty.md)
+ - [AgentDefinitionResult](docs/AgentDefinitionResult.md)
+ - [AgentDefinitionSearchQuery](docs/AgentDefinitionSearchQuery.md)
+ - [AgentDefinitionSearchQueryResult](docs/AgentDefinitionSearchQueryResult.md)
+ - [AgentDefinitionSearchQuerySortRequest](docs/AgentDefinitionSearchQuerySortRequest.md)
+ - [AgentDefinitionTypeEnum](docs/AgentDefinitionTypeEnum.md)
+ - [AgentDefinitionTypeExactMatch](docs/AgentDefinitionTypeExactMatch.md)
+ - [AgentDefinitionTypeFilterProperty](docs/AgentDefinitionTypeFilterProperty.md)
  - [AgentHistoryItemKeyExactMatch](docs/AgentHistoryItemKeyExactMatch.md)
  - [AgentHistoryItemKeyFilterProperty](docs/AgentHistoryItemKeyFilterProperty.md)
+ - [AgentInstanceCreatedHistoryItem](docs/AgentInstanceCreatedHistoryItem.md)
  - [AgentInstanceCreationRequest](docs/AgentInstanceCreationRequest.md)
  - [AgentInstanceCreationResult](docs/AgentInstanceCreationResult.md)
  - [AgentInstanceDefinition](docs/AgentInstanceDefinition.md)
@@ -317,6 +346,7 @@ Class | Method | HTTP request | Description
  - [AgentInstanceHistoryCommitStatusExactMatch](docs/AgentInstanceHistoryCommitStatusExactMatch.md)
  - [AgentInstanceHistoryCommitStatusFilterProperty](docs/AgentInstanceHistoryCommitStatusFilterProperty.md)
  - [AgentInstanceHistoryFilter](docs/AgentInstanceHistoryFilter.md)
+ - [AgentInstanceHistoryItem](docs/AgentInstanceHistoryItem.md)
  - [AgentInstanceHistoryItemCreationResult](docs/AgentInstanceHistoryItemCreationResult.md)
  - [AgentInstanceHistoryItemMetrics](docs/AgentInstanceHistoryItemMetrics.md)
  - [AgentInstanceHistoryItemRequest](docs/AgentInstanceHistoryItemRequest.md)
@@ -345,6 +375,7 @@ Class | Method | HTTP request | Description
  - [AgentInstanceTextContent](docs/AgentInstanceTextContent.md)
  - [AgentInstanceToolCall](docs/AgentInstanceToolCall.md)
  - [AgentInstanceUpdateRequest](docs/AgentInstanceUpdateRequest.md)
+ - [AgentInstanceUpdateResult](docs/AgentInstanceUpdateResult.md)
  - [AgentInstanceUpdateStatusEnum](docs/AgentInstanceUpdateStatusEnum.md)
  - [AgentTool](docs/AgentTool.md)
  - [AncestorScopeInstruction](docs/AncestorScopeInstruction.md)
@@ -375,6 +406,8 @@ Class | Method | HTTP request | Description
  - [AuthorizationSearchQuery](docs/AuthorizationSearchQuery.md)
  - [AuthorizationSearchQuerySortRequest](docs/AuthorizationSearchQuerySortRequest.md)
  - [AuthorizationSearchResult](docs/AuthorizationSearchResult.md)
+ - [BackupInfo](docs/BackupInfo.md)
+ - [BackupType](docs/BackupType.md)
  - [BaseProcessInstanceFilterFields](docs/BaseProcessInstanceFilterFields.md)
  - [BaseWaitStateDetails](docs/BaseWaitStateDetails.md)
  - [BasicStringFilter](docs/BasicStringFilter.md)
@@ -406,11 +439,13 @@ Class | Method | HTTP request | Description
  - [CategoryExactMatch](docs/CategoryExactMatch.md)
  - [CategoryFilterProperty](docs/CategoryFilterProperty.md)
  - [Changeset](docs/Changeset.md)
+ - [CheckpointType](docs/CheckpointType.md)
  - [ClockPinRequest](docs/ClockPinRequest.md)
  - [CloudConfigurationResponse](docs/CloudConfigurationResponse.md)
  - [CloudStage](docs/CloudStage.md)
  - [ClusterModeChangeOperation](docs/ClusterModeChangeOperation.md)
  - [ClusterModeChangeResponse](docs/ClusterModeChangeResponse.md)
+ - [ClusterStatusResponse](docs/ClusterStatusResponse.md)
  - [ClusterVariableKindEnum](docs/ClusterVariableKindEnum.md)
  - [ClusterVariableKindExactMatch](docs/ClusterVariableKindExactMatch.md)
  - [ClusterVariableKindFilterProperty](docs/ClusterVariableKindFilterProperty.md)
@@ -516,6 +551,8 @@ Class | Method | HTTP request | Description
  - [EvaluatedDecisionInputItem](docs/EvaluatedDecisionInputItem.md)
  - [EvaluatedDecisionOutputItem](docs/EvaluatedDecisionOutputItem.md)
  - [EvaluatedDecisionResult](docs/EvaluatedDecisionResult.md)
+ - [ExportingStatusCode](docs/ExportingStatusCode.md)
+ - [ExportingStatusResponse](docs/ExportingStatusResponse.md)
  - [ExpressionEvaluationRequest](docs/ExpressionEvaluationRequest.md)
  - [ExpressionEvaluationResult](docs/ExpressionEvaluationResult.md)
  - [ExpressionEvaluationWarningItem](docs/ExpressionEvaluationWarningItem.md)
@@ -658,12 +695,17 @@ Class | Method | HTTP request | Description
  - [MessageSubscriptionTypeFilterProperty](docs/MessageSubscriptionTypeFilterProperty.md)
  - [MessageWaitStateDetails](docs/MessageWaitStateDetails.md)
  - [MigrateProcessInstanceMappingInstruction](docs/MigrateProcessInstanceMappingInstruction.md)
+ - [Mode](docs/Mode.md)
  - [ModifyProcessInstanceVariableInstruction](docs/ModifyProcessInstanceVariableInstruction.md)
  - [OffsetPagination](docs/OffsetPagination.md)
  - [OperationTypeExactMatch](docs/OperationTypeExactMatch.md)
  - [OperationTypeFilterProperty](docs/OperationTypeFilterProperty.md)
  - [OwnerTypeEnum](docs/OwnerTypeEnum.md)
  - [Partition](docs/Partition.md)
+ - [PartitionBackupInfo](docs/PartitionBackupInfo.md)
+ - [PartitionBackupRange](docs/PartitionBackupRange.md)
+ - [PartitionBackupState](docs/PartitionBackupState.md)
+ - [PartitionCheckpointState](docs/PartitionCheckpointState.md)
  - [PermissionTypeEnum](docs/PermissionTypeEnum.md)
  - [ProblemDetail](docs/ProblemDetail.md)
  - [ProcessDefinitionElementStatisticsQuery](docs/ProcessDefinitionElementStatisticsQuery.md)
@@ -744,7 +786,10 @@ Class | Method | HTTP request | Description
  - [ResourceSearchQueryResult](docs/ResourceSearchQueryResult.md)
  - [ResourceSearchQuerySortRequest](docs/ResourceSearchQuerySortRequest.md)
  - [ResourceTypeEnum](docs/ResourceTypeEnum.md)
+ - [RestoreBrokerStatus](docs/RestoreBrokerStatus.md)
+ - [RestorePartitionStatus](docs/RestorePartitionStatus.md)
  - [RestoreRequest](docs/RestoreRequest.md)
+ - [RestoreStatusResponse](docs/RestoreStatusResponse.md)
  - [ResumeProcessInstanceRequest](docs/ResumeProcessInstanceRequest.md)
  - [RoleClientResult](docs/RoleClientResult.md)
  - [RoleClientSearchQueryRequest](docs/RoleClientSearchQueryRequest.md)
@@ -768,6 +813,7 @@ Class | Method | HTTP request | Description
  - [RoleUserSearchQueryRequest](docs/RoleUserSearchQueryRequest.md)
  - [RoleUserSearchQuerySortRequest](docs/RoleUserSearchQuerySortRequest.md)
  - [RoleUserSearchResult](docs/RoleUserSearchResult.md)
+ - [RuntimeBackupState](docs/RuntimeBackupState.md)
  - [ScopeKey](docs/ScopeKey.md)
  - [ScopeKeyExactMatch](docs/ScopeKeyExactMatch.md)
  - [ScopeKeyFilterProperty](docs/ScopeKeyFilterProperty.md)
@@ -776,6 +822,7 @@ Class | Method | HTTP request | Description
  - [SearchQueryRequest](docs/SearchQueryRequest.md)
  - [SearchQueryResponse](docs/SearchQueryResponse.md)
  - [SecretErrorCode](docs/SecretErrorCode.md)
+ - [SecretListResult](docs/SecretListResult.md)
  - [SecretResolutionError](docs/SecretResolutionError.md)
  - [SecretResolveRequest](docs/SecretResolveRequest.md)
  - [SecretResolveResult](docs/SecretResolveResult.md)
@@ -787,10 +834,13 @@ Class | Method | HTTP request | Description
  - [SourceElementIdInstruction](docs/SourceElementIdInstruction.md)
  - [SourceElementInstanceKeyInstruction](docs/SourceElementInstanceKeyInstruction.md)
  - [SourceElementInstruction](docs/SourceElementInstruction.md)
+ - [StateCode](docs/StateCode.md)
  - [StatusMetric](docs/StatusMetric.md)
  - [StringFilterProperty](docs/StringFilterProperty.md)
  - [SuspendProcessInstanceRequest](docs/SuspendProcessInstanceRequest.md)
  - [SystemConfigurationResponse](docs/SystemConfigurationResponse.md)
+ - [TakeRuntimeBackupRequest](docs/TakeRuntimeBackupRequest.md)
+ - [TakeRuntimeBackupResponse](docs/TakeRuntimeBackupResponse.md)
  - [TenantClientResult](docs/TenantClientResult.md)
  - [TenantClientSearchQueryRequest](docs/TenantClientSearchQueryRequest.md)
  - [TenantClientSearchQuerySortRequest](docs/TenantClientSearchQuerySortRequest.md)

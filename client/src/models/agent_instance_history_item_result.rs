@@ -17,6 +17,9 @@ pub struct AgentInstanceHistoryItemResult {
     /// The unique key for this history item. Stable and sortable by creation order.
     #[serde(rename = "historyItemKey")]
     pub history_item_key: Box<models::AgentHistoryItemKey>,
+    /// The client-supplied identifier this item was created with. Empty for items that don't carry one.
+    #[serde(rename = "historyItemId")]
+    pub history_item_id: String,
     /// The key of the agent instance this item belongs to.
     #[serde(rename = "agentInstanceKey")]
     pub agent_instance_key: Box<models::AgentInstanceKey>,
@@ -29,16 +32,16 @@ pub struct AgentInstanceHistoryItemResult {
     /// The lease token of the activation that produced this item.
     #[serde(rename = "jobLease")]
     pub job_lease: String,
-    /// The loopIteration this item belongs to. A loopIteration is one pass through the agent feedback loop: one LLM call, its tool dispatches, and their results. Null if not provided by the connector.
-    #[serde(rename = "loopIteration", deserialize_with = "Option::deserialize")]
-    pub loop_iteration: Option<i32>,
+    /// The loop iteration this item belongs to.
+    #[serde(rename = "loopIteration")]
+    pub loop_iteration: i32,
     /// The role of this history item in the conversation.
     #[serde(rename = "role")]
     pub role: models::AgentInstanceHistoryRoleEnum,
     /// The content blocks of this history item.
     #[serde(rename = "content")]
     pub content: Vec<models::AgentInstanceMessageContent>,
-    /// Tool calls for this item. Empty for USER items and ASSISTANT items with no tool dispatches. ASSISTANT items: dispatched tool calls with arguments populated. TOOL_RESULT items: single-entry array referencing the originating tool call (arguments null).
+    /// Tool calls for this item. Empty for USER items and ASSISTANT items with no tool dispatches. ASSISTANT items: dispatched tool calls. TOOL_RESULT items: single-entry array referencing the originating tool call.
     #[serde(rename = "toolCalls")]
     pub tool_calls: Vec<models::AgentInstanceToolCall>,
     /// Per-call token and latency metrics. Null when metrics were not provided at creation time.
@@ -47,29 +50,51 @@ pub struct AgentInstanceHistoryItemResult {
     /// The commit status of this history item.
     #[serde(rename = "commitStatus")]
     pub commit_status: models::AgentInstanceHistoryCommitStatusEnum,
-    /// The connector-side timestamp of when this message was produced.
+    /// The agent-side timestamp of when this message was produced.
     #[serde(rename = "producedAt")]
     pub produced_at: chrono::DateTime<chrono::FixedOffset>,
+    /// The complete list of tools available to the agent as of this entry. CONFIGURATION items only; empty for other roles.
+    #[serde(rename = "tools")]
+    pub tools: Vec<models::AgentTool>,
+    /// The LLM model identifier as of this entry. CONFIGURATION items only; null for other roles.
+    #[serde(rename = "model", deserialize_with = "Option::deserialize")]
+    pub model: Option<String>,
+    /// The LLM provider as of this entry. CONFIGURATION items only; null for other roles.
+    #[serde(rename = "provider", deserialize_with = "Option::deserialize")]
+    pub provider: Option<String>,
+    /// The operational limits as of this entry. CONFIGURATION items only; -1 on any field means \"no limit configured\" for other roles.
+    #[serde(rename = "limits")]
+    pub limits: Box<models::AgentInstanceLimits>,
+    /// The system prompt, as content blocks, as of this entry. CONFIGURATION items only; empty for other roles.
+    #[serde(rename = "systemPrompt")]
+    pub system_prompt: Vec<models::AgentInstanceMessageContent>,
 }
 
 impl AgentInstanceHistoryItemResult {
     /// A single conversation history item belonging to an agent instance.
     pub fn new(
         history_item_key: models::AgentHistoryItemKey,
+        history_item_id: String,
         agent_instance_key: models::AgentInstanceKey,
         element_instance_key: models::ElementInstanceKey,
         job_key: models::JobKey,
         job_lease: String,
-        loop_iteration: Option<i32>,
+        loop_iteration: i32,
         role: models::AgentInstanceHistoryRoleEnum,
         content: Vec<models::AgentInstanceMessageContent>,
         tool_calls: Vec<models::AgentInstanceToolCall>,
         metrics: Option<models::AgentInstanceHistoryItemMetrics>,
         commit_status: models::AgentInstanceHistoryCommitStatusEnum,
         produced_at: chrono::DateTime<chrono::FixedOffset>,
+        tools: Vec<models::AgentTool>,
+        model: Option<String>,
+        provider: Option<String>,
+        limits: models::AgentInstanceLimits,
+        system_prompt: Vec<models::AgentInstanceMessageContent>,
     ) -> AgentInstanceHistoryItemResult {
         AgentInstanceHistoryItemResult {
             history_item_key: Box::new(history_item_key),
+            history_item_id,
             agent_instance_key: Box::new(agent_instance_key),
             element_instance_key: Box::new(element_instance_key),
             job_key: Box::new(job_key),
@@ -85,6 +110,11 @@ impl AgentInstanceHistoryItemResult {
             },
             commit_status,
             produced_at,
+            tools,
+            model,
+            provider,
+            limits: Box::new(limits),
+            system_prompt,
         }
     }
 }

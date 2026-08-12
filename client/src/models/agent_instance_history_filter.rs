@@ -26,7 +26,7 @@ pub struct AgentInstanceHistoryFilter {
     /// The key of the job activation that produced the history item.
     #[serde(rename = "jobKey", skip_serializing_if = "Option::is_none")]
     pub job_key: Option<Box<models::JobKeyFilterProperty>>,
-    /// Filter by loopIteration number. A loopIteration is one pass through the agent feedback loop (one LLM call, its tool dispatches, and their results).
+    /// Filter by loop iteration number.
     #[serde(rename = "loopIteration", skip_serializing_if = "Option::is_none")]
     pub loop_iteration: Option<Box<models::IntegerFilterProperty>>,
     /// The commit status of the history item. Defaults to COMMITTED only. Include PENDING or DISCARDED explicitly to debug in-flight or failed activations.

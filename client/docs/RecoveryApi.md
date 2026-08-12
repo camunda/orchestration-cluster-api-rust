@@ -5,6 +5,7 @@ All URIs are relative to *http://localhost:8080/v2*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**change_cluster_mode**](RecoveryApi.md#change_cluster_mode) | **PATCH** /mode | Change cluster mode
+[**get_restore_status**](RecoveryApi.md#get_restore_status) | **GET** /restore | Get the status of the restore that is currently in progress
 [**restore**](RecoveryApi.md#restore) | **POST** /restore | Restore from a backup
 
 
@@ -21,7 +22,7 @@ Transitions the cluster between processing and recovery mode. This is a non-bloc
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**mode** | **String** | The target cluster mode. | [required] |
+**mode** | [**Mode**](Mode.md) | The target cluster mode. | [required] |
 **dry_run** | Option<**bool**> | If true, the requested change is only validated and the resulting plan is returned, without applying it to the cluster. |  |[default to false]
 
 ### Return type
@@ -36,6 +37,33 @@ Name | Type | Description  | Required | Notes
 
 - **Content-Type**: Not defined
 - **Accept**: application/json, application/problem+json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_restore_status
+
+> models::RestoreStatusResponse get_restore_status()
+Get the status of the restore that is currently in progress
+
+Returns the status of the restore that is currently in progress, reported per broker and per partition. There is at most one restore in flight at any time. Once the restore has finished this endpoint returns 404; the per-partition detail is not retained after completion.
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**models::RestoreStatusResponse**](RestoreStatusResponse.md)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

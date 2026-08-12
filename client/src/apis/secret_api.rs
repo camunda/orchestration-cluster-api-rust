@@ -13,10 +13,27 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`list_secrets`]
+#[derive(Clone, Debug)]
+pub struct ListSecretsParams {
+    pub body: Option<serde_json::Value>,
+}
+
 /// struct for passing parameters to the method [`resolve_secrets`]
 #[derive(Clone, Debug)]
 pub struct ResolveSecretsParams {
     pub secret_resolve_request: models::SecretResolveRequest,
+}
+
+/// struct for typed errors of method [`list_secrets`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListSecretsError {
+    Status400(),
+    Status401(),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
 }
 
 /// struct for typed errors of method [`resolve_secrets`]
@@ -30,7 +47,59 @@ pub enum ResolveSecretsError {
     UnknownValue(serde_json::Value),
 }
 
-/// Resolve a deduplicated batch of `camunda.secrets.*` references for the caller's physical tenant in a single round-trip.  Each reference is authorized and resolved independently. For valid requests, the endpoint always responds with HTTP 200: successfully resolved references are returned in `resolved`, while references that could not be resolved (for example not found, malformed or over-long, or the caller lacks `SECRET:REVEAL` on that reference) are returned in `errors`. A failure of one reference never fails the others. Only structurally invalid requests are rejected with HTTP 400: a missing or non-array `references` field, more than 20 references, or a null entry.  This endpoint is an alpha feature and may be subject to change in future releases.  Phase 1: the secret backend is mocked. Only a fixed allow-list of references resolves; every other authorized, valid reference returns `NOT_FOUND`.
+/// List the `camunda.secrets.*` references known for the caller's physical tenant.  Only references the caller holds `SECRET:READ` on are returned. This endpoint never returns secret values, only the reference names.  The references are read from the secret stores configured for the caller's physical tenant. Secret names that cannot form a valid `camunda.secrets.<name>` reference (for example names containing a dot or a dash) are omitted, since they could neither be resolved nor be used in a BPMN expression.  This endpoint is an alpha feature and may be subject to change in future releases.
+pub async fn list_secrets(
+    configuration: &configuration::Configuration,
+    params: ListSecretsParams,
+) -> Result<models::SecretListResult, Error<ListSecretsError>> {
+    let uri_str = format!("{}/secrets/list", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    if let Some(ref body) = params.body {
+        req_builder = req_builder.json(body);
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::SecretListResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::SecretListResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListSecretsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Resolve a deduplicated batch of `camunda.secrets.*` references for the caller's physical tenant in a single round-trip.  Each reference is authorized and resolved independently. For valid requests, the endpoint always responds with HTTP 200: successfully resolved references are returned in `resolved`, while references that could not be resolved (for example not found, malformed or over-long, or the caller lacks `SECRET:REVEAL` on that reference) are returned in `errors`. A failure of one reference never fails the others. Only structurally invalid requests are rejected with HTTP 400: a missing or non-array `references` field, more than 20 references, or a null entry.  References are resolved against the secret stores configured for the caller's physical tenant, served from the gateway's secret cache when the value is already cached and read from the store otherwise.  This endpoint is an alpha feature and may be subject to change in future releases.
 pub async fn resolve_secrets(
     configuration: &configuration::Configuration,
     params: ResolveSecretsParams,

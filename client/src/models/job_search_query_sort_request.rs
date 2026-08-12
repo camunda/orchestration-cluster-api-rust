@@ -28,6 +28,8 @@ impl JobSearchQuerySortRequest {
 /// The field to sort by.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Field {
+    #[serde(rename = "creationTime")]
+    CreationTime,
     #[serde(rename = "deadline")]
     Deadline,
     #[serde(rename = "deniedReason")]
@@ -74,6 +76,6 @@ pub enum Field {
 
 impl Default for Field {
     fn default() -> Field {
-        Self::Deadline
+        Self::CreationTime
     }
 }

@@ -764,7 +764,9 @@ pub async fn search_clients_for_tenant(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.tenant_client_search_query_request);
+    if let Some(ref body) = params.tenant_client_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -818,7 +820,9 @@ pub async fn search_group_ids_for_tenant(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.tenant_group_search_query_request);
+    if let Some(ref body) = params.tenant_group_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -872,7 +876,9 @@ pub async fn search_mapping_rules_for_tenant(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.mapping_rule_search_query_request);
+    if let Some(ref body) = params.mapping_rule_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -926,7 +932,9 @@ pub async fn search_roles_for_tenant(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.role_search_query_request);
+    if let Some(ref body) = params.role_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -976,7 +984,9 @@ pub async fn search_tenants(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.tenant_search_query_request);
+    if let Some(ref body) = params.tenant_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -1030,7 +1040,9 @@ pub async fn search_users_for_tenant(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.tenant_user_search_query_request);
+    if let Some(ref body) = params.tenant_user_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;

@@ -13,12 +13,28 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`search_own_authorizations`]
+#[derive(Clone, Debug)]
+pub struct SearchOwnAuthorizationsParams {
+    pub authorization_search_query: Option<models::AuthorizationSearchQuery>,
+}
+
 /// struct for typed errors of method [`get_authentication`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetAuthenticationError {
     Status401(),
     Status403(),
+    Status500(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`search_own_authorizations`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SearchOwnAuthorizationsError {
+    Status400(),
+    Status401(),
     Status500(),
     UnknownValue(serde_json::Value),
 }
@@ -58,6 +74,58 @@ pub async fn get_authentication(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetAuthenticationError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Search for the current authenticated principal's own authorization records — including authorizations granted directly to the user or client, as well as those granted via a group, role, or mapping rule the principal belongs to.
+pub async fn search_own_authorizations(
+    configuration: &configuration::Configuration,
+    params: SearchOwnAuthorizationsParams,
+) -> Result<models::AuthorizationSearchResult, Error<SearchOwnAuthorizationsError>> {
+    let uri_str = format!(
+        "{}/authentication/me/authorizations/search",
+        configuration.base_path
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    if let Some(ref body) = params.authorization_search_query {
+        req_builder = req_builder.json(body);
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AuthorizationSearchResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AuthorizationSearchResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<SearchOwnAuthorizationsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

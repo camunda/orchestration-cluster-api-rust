@@ -114,10 +114,12 @@ impl From<&str> for ContentType {
 }
 
 pub mod ad_hoc_sub_process_api;
+pub mod agent_definition_api;
 pub mod agent_instance_api;
 pub mod audit_log_api;
 pub mod authentication_api;
 pub mod authorization_api;
+pub mod backup_api;
 pub mod batch_operation_api;
 pub mod clock_api;
 pub mod cluster_api;
@@ -128,6 +130,7 @@ pub mod decision_instance_api;
 pub mod decision_requirements_api;
 pub mod document_api;
 pub mod element_instance_api;
+pub mod exporting_api;
 pub mod expression_api;
 pub mod form_api;
 pub mod global_listener_api;

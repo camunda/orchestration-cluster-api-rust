@@ -167,10 +167,10 @@ Name | Type | Description  | Required | Notes
 
 ## update_agent_instance
 
-> update_agent_instance(agent_instance_key, agent_instance_update_request)
+> models::AgentInstanceUpdateResult update_agent_instance(agent_instance_key, agent_instance_update_request)
 Update agent instance
 
-Updates the mutable fields of an agent instance: status, metric counters, and tools. Metric values are treated as deltas and applied immediately to the aggregate counters. Tool updates replace the existing tool list. 
+Updates the mutable fields of an agent instance (status, metric counters, and tools) and appends a batch of history items to its conversation history. Metric values are treated as deltas and applied immediately to the aggregate counters. Tool updates replace the existing tool list. Each history item created for this request is echoed back in the response. 
 
 ### Parameters
 
@@ -182,7 +182,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
- (empty response body)
+[**models::AgentInstanceUpdateResult**](AgentInstanceUpdateResult.md)
 
 ### Authorization
 
@@ -191,7 +191,7 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
-- **Accept**: application/problem+json
+- **Accept**: application/json, application/problem+json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

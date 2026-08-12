@@ -122,7 +122,9 @@ pub async fn create_mapping_rule(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.mapping_rule_create_request);
+    if let Some(ref body) = params.mapping_rule_create_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -265,7 +267,9 @@ pub async fn search_mapping_rule(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.mapping_rule_search_query_request);
+    if let Some(ref body) = params.mapping_rule_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -317,7 +321,9 @@ pub async fn update_mapping_rule(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.mapping_rule_update_request);
+    if let Some(ref body) = params.mapping_rule_update_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;

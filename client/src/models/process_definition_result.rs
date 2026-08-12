@@ -37,9 +37,9 @@ pub struct ProcessDefinitionResult {
     /// Indicates whether the start event of the process has an associated Form Key.
     #[serde(rename = "hasStartForm")]
     pub has_start_form: bool,
-    /// Whether this process definition has been deleted but is still retained in secondary storage.
-    #[serde(rename = "isDeleted")]
-    pub is_deleted: bool,
+    /// The state of this process definition. `DRAINING` indicates the definition is being deleted but still has active process instances draining before it is removed.
+    #[serde(rename = "state")]
+    pub state: State,
 }
 
 impl ProcessDefinitionResult {
@@ -52,7 +52,7 @@ impl ProcessDefinitionResult {
         tenant_id: models::TenantId,
         process_definition_key: models::ProcessDefinitionKey,
         has_start_form: bool,
-        is_deleted: bool,
+        state: State,
     ) -> ProcessDefinitionResult {
         ProcessDefinitionResult {
             name,
@@ -63,7 +63,23 @@ impl ProcessDefinitionResult {
             tenant_id,
             process_definition_key: Box::new(process_definition_key),
             has_start_form,
-            is_deleted,
+            state,
         }
+    }
+}
+/// The state of this process definition. `DRAINING` indicates the definition is being deleted but still has active process instances draining before it is removed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub enum State {
+    #[serde(rename = "ACTIVE")]
+    Active,
+    #[serde(rename = "DRAINING")]
+    Draining,
+    #[serde(rename = "DELETED")]
+    Deleted,
+}
+
+impl Default for State {
+    fn default() -> State {
+        Self::Active
     }
 }

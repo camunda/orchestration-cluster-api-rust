@@ -39,6 +39,8 @@ pub enum IncidentErrorTypeEnum {
     MessageSizeExceeded,
     #[serde(rename = "RESOURCE_NOT_FOUND")]
     ResourceNotFound,
+    #[serde(rename = "SECRET_RESOLUTION_ERROR")]
+    SecretResolutionError,
     #[serde(rename = "TASK_LISTENER_NO_RETRIES")]
     TaskListenerNoRetries,
     #[serde(rename = "UNHANDLED_ERROR_EVENT")]
@@ -64,6 +66,7 @@ impl std::fmt::Display for IncidentErrorTypeEnum {
             Self::JobNoRetries => write!(f, "JOB_NO_RETRIES"),
             Self::MessageSizeExceeded => write!(f, "MESSAGE_SIZE_EXCEEDED"),
             Self::ResourceNotFound => write!(f, "RESOURCE_NOT_FOUND"),
+            Self::SecretResolutionError => write!(f, "SECRET_RESOLUTION_ERROR"),
             Self::TaskListenerNoRetries => write!(f, "TASK_LISTENER_NO_RETRIES"),
             Self::UnhandledErrorEvent => write!(f, "UNHANDLED_ERROR_EVENT"),
             Self::Unknown => write!(f, "UNKNOWN"),
