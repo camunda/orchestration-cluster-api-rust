@@ -15,8 +15,9 @@ body when the option is `Some`, leaving the request bodyless otherwise:
         req_builder = req_builder.json(body);
     }
 
-It is idempotent: files already guarded (containing `if let Some(ref body) = params.` on
-the preceding line) are skipped.
+It is idempotent: once a call is rewritten, the unconditional
+``req_builder.json(&params.<field>)`` pattern this hook matches on no longer exists in the
+file, so a second run finds nothing left to guard.
 """
 
 from __future__ import annotations
@@ -47,10 +48,14 @@ def run(ctx: Context) -> None:
         if not struct_optional_fields:
             continue
 
+        guarded_here = 0
+
         def replace(m: re.Match) -> str:
+            nonlocal guarded_here
             field = m.group("field")
             if field not in struct_optional_fields:
                 return m.group(0)
+            guarded_here += 1
             indent = m.group("indent")
             return (
                 f"{indent}if let Some(ref body) = params.{field} {{\n"
@@ -58,10 +63,10 @@ def run(ctx: Context) -> None:
                 f"{indent}}}\n"
             )
 
-        new_content, n = CALL_RE.subn(replace, content)
-        if n and new_content != content:
+        new_content = CALL_RE.sub(replace, content)
+        if guarded_here and new_content != content:
             rs.write_text(new_content, newline="\n")
             fixed_files += 1
-            fixed_calls += n
+            fixed_calls += guarded_here
     if fixed_calls:
         ctx.log(NAME, f"guarded {fixed_calls} optional JSON body call(s) in {fixed_files} file(s)")
