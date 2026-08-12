@@ -47,9 +47,9 @@ pub struct ProcessDefinitionFilter {
     /// Indicates whether the start event of the process has an associated Form Key.
     #[serde(rename = "hasStartForm", skip_serializing_if = "Option::is_none")]
     pub has_start_form: Option<bool>,
-    /// Filter by whether the process definition has been deleted. When not set, both deleted and non-deleted process definitions are returned. Set to `false` to exclude deleted definitions (recommended for most use cases). Set to `true` to return only deleted definitions that are still retained in secondary storage.
-    #[serde(rename = "isDeleted", skip_serializing_if = "Option::is_none")]
-    pub is_deleted: Option<bool>,
+    /// Filter by the process definition's state. When not set, process definitions in any state are returned. Set to `ACTIVE` to exclude draining and deleted definitions (recommended for most use cases). Set to `DRAINING` to return only definitions that are being deleted but still have active process instances draining. Set to `DELETED` to return only definitions that have been deleted but are still retained in secondary storage.
+    #[serde(rename = "state", skip_serializing_if = "Option::is_none")]
+    pub state: Option<State>,
 }
 
 impl ProcessDefinitionFilter {
@@ -65,7 +65,23 @@ impl ProcessDefinitionFilter {
             tenant_id: None,
             process_definition_key: None,
             has_start_form: None,
-            is_deleted: None,
+            state: None,
         }
+    }
+}
+/// Filter by the process definition's state. When not set, process definitions in any state are returned. Set to `ACTIVE` to exclude draining and deleted definitions (recommended for most use cases). Set to `DRAINING` to return only definitions that are being deleted but still have active process instances draining. Set to `DELETED` to return only definitions that have been deleted but are still retained in secondary storage.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+pub enum State {
+    #[serde(rename = "ACTIVE")]
+    Active,
+    #[serde(rename = "DRAINING")]
+    Draining,
+    #[serde(rename = "DELETED")]
+    Deleted,
+}
+
+impl Default for State {
+    fn default() -> State {
+        Self::Active
     }
 }

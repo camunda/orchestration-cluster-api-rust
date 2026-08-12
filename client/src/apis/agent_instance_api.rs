@@ -394,11 +394,11 @@ pub async fn search_agent_instances(
     }
 }
 
-/// Updates the mutable fields of an agent instance: status, metric counters, and tools. Metric values are treated as deltas and applied immediately to the aggregate counters. Tool updates replace the existing tool list.
+/// Updates the mutable fields of an agent instance (status, metric counters, and tools) and appends a batch of history items to its conversation history. Metric values are treated as deltas and applied immediately to the aggregate counters. Tool updates replace the existing tool list. Each history item created for this request is echoed back in the response.
 pub async fn update_agent_instance(
     configuration: &configuration::Configuration,
     params: UpdateAgentInstanceParams,
-) -> Result<(), Error<UpdateAgentInstanceError>> {
+) -> Result<models::AgentInstanceUpdateResult, Error<UpdateAgentInstanceError>> {
     let uri_str = format!(
         "{}/agent-instances/{agentInstanceKey}",
         configuration.base_path,
@@ -423,9 +423,20 @@ pub async fn update_agent_instance(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AgentInstanceUpdateResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AgentInstanceUpdateResult`")))),
+        }
     } else {
         let content = resp.text().await?;
         let entity: Option<UpdateAgentInstanceError> = serde_json::from_str(&content).ok();

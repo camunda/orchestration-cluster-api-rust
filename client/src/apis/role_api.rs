@@ -209,7 +209,7 @@ pub enum AssignRoleToUserError {
 pub enum CreateRoleError {
     Status400(),
     Status401(),
-    Status403(models::ProblemDetail),
+    Status403(),
     Status409(models::ProblemDetail),
     Status500(),
     Status503(),

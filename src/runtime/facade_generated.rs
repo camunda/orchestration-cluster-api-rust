@@ -30,6 +30,36 @@ impl CamundaClient {
         .await
     }
 
+    /// Get agent definition (`GET /agent-definitions/{agentDefinitionKey}`).
+    pub async fn get_agent_definition(
+        &self,
+        params: camunda_orchestration_api_client::apis::agent_definition_api::GetAgentDefinitionParams,
+    ) -> Result<models::AgentDefinitionResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::agent_definition_api::get_agent_definition(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
+    /// Search agent definitions (`POST /agent-definitions/search`).
+    pub async fn search_agent_definitions(
+        &self,
+        params: camunda_orchestration_api_client::apis::agent_definition_api::SearchAgentDefinitionsParams,
+    ) -> Result<models::AgentDefinitionSearchQueryResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::agent_definition_api::search_agent_definitions(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     /// Create agent instance (`POST /agent-instances`).
     pub async fn create_agent_instance(
         &self,
@@ -114,7 +144,7 @@ impl CamundaClient {
     pub async fn update_agent_instance(
         &self,
         params: camunda_orchestration_api_client::apis::agent_instance_api::UpdateAgentInstanceParams,
-    ) -> Result<()> {
+    ) -> Result<models::AgentInstanceUpdateResult> {
         self.guarded(|| {
             let params = params.clone();
             async move {
@@ -175,6 +205,21 @@ impl CamundaClient {
                 )
                 .await?,
             )
+        })
+        .await
+    }
+
+    /// Search own authorizations (`POST /authentication/me/authorizations/search`).
+    pub async fn search_own_authorizations(
+        &self,
+        params: camunda_orchestration_api_client::apis::authentication_api::SearchOwnAuthorizationsParams,
+    ) -> Result<models::AuthorizationSearchResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::authentication_api::search_own_authorizations(&cfg, params).await?)
+            }
         })
         .await
     }
@@ -254,6 +299,124 @@ impl CamundaClient {
             async move {
                 let cfg = self.configuration().await?;
                 Ok(camunda_orchestration_api_client::apis::authorization_api::update_authorization(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
+    /// Delete runtime backup (`DELETE /backups/runtime/{backupId}`).
+    pub async fn delete_runtime_backup(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::DeleteRuntimeBackupParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::backup_api::delete_runtime_backup(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
+
+    /// Delete runtime backup state (`DELETE /backups/runtime/state`).
+    pub async fn delete_runtime_backup_state(&self) -> Result<()> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::backup_api::delete_runtime_backup_state(
+                    &cfg,
+                )
+                .await?,
+            )
+        })
+        .await
+    }
+
+    /// Get runtime backup (`GET /backups/runtime/{backupId}`).
+    pub async fn get_runtime_backup(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::GetRuntimeBackupParams,
+    ) -> Result<models::BackupInfo> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::backup_api::get_runtime_backup(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
+
+    /// Get runtime backup state (`GET /backups/runtime/state`).
+    pub async fn get_runtime_backup_state(&self) -> Result<models::RuntimeBackupState> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::backup_api::get_runtime_backup_state(&cfg)
+                    .await?,
+            )
+        })
+        .await
+    }
+
+    /// List runtime backups (`GET /backups/runtime`).
+    pub async fn list_runtime_backups(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::ListRuntimeBackupsParams,
+    ) -> Result<Vec<models::BackupInfo>> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::backup_api::list_runtime_backups(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
+
+    /// Force-write runtime backup state (`POST /backups/runtime/state/sync`).
+    pub async fn sync_runtime_backup_state(&self) -> Result<models::RuntimeBackupState> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::backup_api::sync_runtime_backup_state(&cfg)
+                    .await?,
+            )
+        })
+        .await
+    }
+
+    /// Take a runtime backup (`POST /backups/runtime`).
+    pub async fn take_runtime_backup(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::TakeRuntimeBackupParams,
+    ) -> Result<models::TakeRuntimeBackupResponse> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::backup_api::take_runtime_backup(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
             }
         })
         .await
@@ -376,7 +539,19 @@ impl CamundaClient {
         .await
     }
 
-    /// Get cluster status (`GET /status`).
+    /// Get the status of the whole cluster (`GET /cluster/v2/status`).
+    pub async fn get_cluster_status(&self) -> Result<models::ClusterStatusResponse> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::cluster_api::get_cluster_status(&cfg)
+                    .await?,
+            )
+        })
+        .await
+    }
+
+    /// Get physical tenant status (`GET /status`).
     pub async fn get_status(&self) -> Result<()> {
         self.guarded(|| async {
             let cfg = self.configuration().await?;
@@ -861,6 +1036,50 @@ impl CamundaClient {
                 let cfg = self.configuration().await?;
                 Ok(camunda_orchestration_api_client::apis::element_instance_api::search_element_instances(&cfg, params).await?)
             }
+        })
+        .await
+    }
+
+    /// Get exporting status (`GET /exporting`).
+    pub async fn get_exporting_status(&self) -> Result<models::ExportingStatusResponse> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::exporting_api::get_exporting_status(&cfg)
+                    .await?,
+            )
+        })
+        .await
+    }
+
+    /// Pause exporting (`POST /exporting/pause`).
+    pub async fn pause_exporting(
+        &self,
+        params: camunda_orchestration_api_client::apis::exporting_api::PauseExportingParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::exporting_api::pause_exporting(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
+
+    /// Resume exporting (`POST /exporting/resume`).
+    pub async fn resume_exporting(&self) -> Result<()> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::exporting_api::resume_exporting(&cfg)
+                    .await?,
+            )
         })
         .await
     }
@@ -2088,6 +2307,18 @@ impl CamundaClient {
         .await
     }
 
+    /// Get the status of the restore that is currently in progress (`GET /restore`).
+    pub async fn get_restore_status(&self) -> Result<models::RestoreStatusResponse> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::recovery_api::get_restore_status(&cfg)
+                    .await?,
+            )
+        })
+        .await
+    }
+
     /// Restore from a backup (`POST /restore`).
     pub async fn restore(
         &self,
@@ -2534,6 +2765,24 @@ impl CamundaClient {
                 let cfg = self.configuration().await?;
                 Ok(
                     camunda_orchestration_api_client::apis::role_api::update_role(&cfg, params)
+                        .await?,
+                )
+            }
+        })
+        .await
+    }
+
+    /// List secrets (alpha) (`POST /secrets/list`).
+    pub async fn list_secrets(
+        &self,
+        params: camunda_orchestration_api_client::apis::secret_api::ListSecretsParams,
+    ) -> Result<models::SecretListResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::secret_api::list_secrets(&cfg, params)
                         .await?,
                 )
             }

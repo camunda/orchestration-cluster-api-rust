@@ -16,6 +16,7 @@
 | JobNoRetries | JOB_NO_RETRIES |
 | MessageSizeExceeded | MESSAGE_SIZE_EXCEEDED |
 | ResourceNotFound | RESOURCE_NOT_FOUND |
+| SecretResolutionError | SECRET_RESOLUTION_ERROR |
 | TaskListenerNoRetries | TASK_LISTENER_NO_RETRIES |
 | UnhandledErrorEvent | UNHANDLED_ERROR_EVENT |
 | Unknown | UNKNOWN |

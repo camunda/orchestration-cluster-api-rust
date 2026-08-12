@@ -23,7 +23,7 @@ pub struct AgentInstanceHistoryItemRequest {
     /// Opaque lease token received from the job activation response.
     #[serde(rename = "jobLease")]
     pub job_lease: String,
-    /// The loopIteration this item belongs to. A loopIteration is one pass through the agent feedback loop: one LLM call, its tool dispatches, and their results. Omit if not grouping items by loopIteration.
+    /// The loop iteration this item belongs to. Omit if not grouping items by loopIteration.
     #[serde(
         rename = "loopIteration",
         default,
@@ -37,7 +37,7 @@ pub struct AgentInstanceHistoryItemRequest {
     /// The content blocks of this history item.
     #[serde(rename = "content")]
     pub content: Vec<models::AgentInstanceMessageContent>,
-    /// Tool calls associated with this history item. For ASSISTANT items: tool calls dispatched by this LLM response, with arguments populated. For TOOL_RESULT items: single-entry array referencing the originating tool call, with arguments null. Omit for USER items.
+    /// Tool calls associated with this history item. For ASSISTANT items: tool calls dispatched by this LLM response. For TOOL_RESULT items: single-entry array referencing the originating tool call. Omit for USER items.
     #[serde(
         rename = "toolCalls",
         default,
@@ -53,7 +53,7 @@ pub struct AgentInstanceHistoryItemRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub metrics: Option<Option<Box<models::AgentInstanceHistoryItemMetrics>>>,
-    /// The connector-side timestamp of when this message was produced.
+    /// The agent-side timestamp of when this message was produced.
     #[serde(rename = "producedAt")]
     pub produced_at: chrono::DateTime<chrono::FixedOffset>,
 }

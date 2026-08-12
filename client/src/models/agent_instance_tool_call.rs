@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// AgentInstanceToolCall : A tool call associated with a history item. Used in both ASSISTANT and TOOL_RESULT items. ASSISTANT items carry arguments; TOOL_RESULT items carry arguments as null.
+/// AgentInstanceToolCall : A tool call associated with a history item. Used in both ASSISTANT and TOOL_RESULT items.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AgentInstanceToolCall {
     /// The LLM-assigned tool call ID. Correlates ASSISTANT items to their matching TOOL_RESULT items.
@@ -23,13 +23,13 @@ pub struct AgentInstanceToolCall {
     /// The BPMN element ID handling this tool.
     #[serde(rename = "elementId", deserialize_with = "Option::deserialize")]
     pub element_id: Option<String>,
-    /// The tool call arguments as provided by the LLM. Null on TOOL_RESULT items.
+    /// The tool call arguments as provided by the LLM. May be null or populated on any item, including TOOL_RESULT.
     #[serde(rename = "arguments", deserialize_with = "Option::deserialize")]
     pub arguments: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 impl AgentInstanceToolCall {
-    /// A tool call associated with a history item. Used in both ASSISTANT and TOOL_RESULT items. ASSISTANT items carry arguments; TOOL_RESULT items carry arguments as null.
+    /// A tool call associated with a history item. Used in both ASSISTANT and TOOL_RESULT items.
     pub fn new(
         tool_call_id: String,
         tool_name: String,

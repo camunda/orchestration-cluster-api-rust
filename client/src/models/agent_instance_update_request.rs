@@ -31,6 +31,30 @@ pub struct AgentInstanceUpdateRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub tools: Option<Option<Vec<models::AgentTool>>>,
+    /// The key of the job activation during which this update is being made. Required whenever history is provided.
+    #[serde(
+        rename = "jobKey",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub job_key: Option<Option<Box<models::JobKey>>>,
+    /// Opaque lease token received from the job activation response. Disambiguates this activation from any other activation of the same job: if the job is later retried, history items submitted under a superseded lease are discarded rather than committed.
+    #[serde(
+        rename = "jobLease",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub job_lease: Option<Option<String>>,
+    /// A batch of history items to append to the agent instance's conversation history, in request order. Each created item is echoed back in the response's createdHistory, positionally correlated.
+    #[serde(
+        rename = "history",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub history: Option<Option<Vec<models::AgentInstanceHistoryItem>>>,
 }
 
 impl AgentInstanceUpdateRequest {
@@ -41,6 +65,9 @@ impl AgentInstanceUpdateRequest {
             status: None,
             metrics: None,
             tools: None,
+            job_key: None,
+            job_lease: None,
+            history: None,
         }
     }
 }
