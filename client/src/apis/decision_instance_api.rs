@@ -110,7 +110,9 @@ pub async fn delete_decision_instance(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.delete_decision_instance_request);
+    if let Some(ref body) = params.delete_decision_instance_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -253,7 +255,9 @@ pub async fn search_decision_instances(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.decision_instance_search_query);
+    if let Some(ref body) = params.decision_instance_search_query {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;

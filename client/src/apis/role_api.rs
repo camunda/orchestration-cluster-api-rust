@@ -540,7 +540,9 @@ pub async fn create_role(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.role_create_request);
+    if let Some(ref body) = params.role_create_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -687,7 +689,9 @@ pub async fn search_clients_for_role(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.role_client_search_query_request);
+    if let Some(ref body) = params.role_client_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -741,7 +745,9 @@ pub async fn search_groups_for_role(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.role_group_search_query_request);
+    if let Some(ref body) = params.role_group_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -795,7 +801,9 @@ pub async fn search_mapping_rules_for_role(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.mapping_rule_search_query_request);
+    if let Some(ref body) = params.mapping_rule_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -845,7 +853,9 @@ pub async fn search_roles(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.role_search_query_request);
+    if let Some(ref body) = params.role_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -899,7 +909,9 @@ pub async fn search_users_for_role(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.role_user_search_query_request);
+    if let Some(ref body) = params.role_user_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;

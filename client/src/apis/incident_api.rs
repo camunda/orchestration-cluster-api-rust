@@ -294,7 +294,9 @@ pub async fn resolve_incident(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.incident_resolution_request);
+    if let Some(ref body) = params.incident_resolution_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -333,7 +335,9 @@ pub async fn search_incidents(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.incident_search_query);
+    if let Some(ref body) = params.incident_search_query {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
