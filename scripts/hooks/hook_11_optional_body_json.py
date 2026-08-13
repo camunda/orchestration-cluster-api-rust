@@ -38,10 +38,10 @@ def run(ctx: Context) -> None:
     fixed_files = 0
     fixed_calls = 0
     for rs in (ctx.client_dir / "src" / "apis").glob("*.rs"):
-        # Read/write with an explicit `\n` newline so this hook is a no-op on line
-        # endings — the generated tree is LF-only; letting Python translate `\n` to
-        # the platform newline (CRLF on Windows) would otherwise rewrite every line.
-        content = rs.read_text(newline="\n")
+        # LF-only generated tree: read and write untranslated so this hook never
+        # rewrites line endings. `Path.open` because `read_text(newline=…)` is 3.13+.
+        with rs.open("r", encoding="utf-8", newline="") as fh:
+            content = fh.read()
         struct_optional_fields = set(
             m.group(1) for m in re.finditer(r"pub (\w+): Option<", content)
         )
@@ -65,7 +65,8 @@ def run(ctx: Context) -> None:
 
         new_content = CALL_RE.sub(replace, content)
         if guarded_here and new_content != content:
-            rs.write_text(new_content, newline="\n")
+            with rs.open("w", encoding="utf-8", newline="") as fh:
+                fh.write(new_content)
             fixed_files += 1
             fixed_calls += guarded_here
     if fixed_calls:
