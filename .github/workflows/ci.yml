@@ -136,6 +136,10 @@ jobs:
       - name: Detect generation drift
         id: drift
         run: |
+          # Stage new files as intent-to-add so `git diff` sees them. Without this a
+          # regeneration that only adds files reports no drift, and the patch we upload
+          # silently omits every new file — the common case when upstream adds operations.
+          git add -A -N
           if ! git diff --quiet; then
             echo 'drift=true' >> "$GITHUB_OUTPUT"
             echo '::warning::Regeneration produced changes (reporting only). Run `make bundle` and commit.'
