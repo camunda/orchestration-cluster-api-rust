@@ -1,4 +1,4 @@
-.PHONY: help bundle generate build test lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check publish-dry-run docs-json docs-md test-docs print-docs-toolchain
+.PHONY: help bundle bundle-spec generate build test lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check publish-dry-run docs-json docs-md test-docs print-docs-toolchain
 
 SPEC_REF ?= main
 
@@ -14,6 +14,7 @@ help:
 	@echo ""
 	@echo "Targets:"
 	@echo "  make bundle      Re-bundle the upstream OpenAPI spec (ref: $(SPEC_REF)) via camunda-schema-bundler"
+	@echo "  make bundle-spec Re-bundle the spec only, skipping codegen (no JDK required)"
 	@echo "  make generate    Regenerate the client crate from the bundled spec + run domain-type post-processing"
 	@echo "  make vendor DEST=<dir>  Export a self-contained SDK copy for vendoring into a downstream repo"
 	@echo "  make build       Build the whole workspace"
@@ -34,6 +35,12 @@ help:
 # Re-bundle the upstream spec AND regenerate.
 bundle:
 	./scripts/generate.sh --bundle
+
+# Refresh the bundled spec without regenerating. openapi-generator needs a JDK;
+# this target is what environments without one (the agent workflows) use to make
+# the coverage check read an up-to-date spec.
+bundle-spec:
+	./scripts/generate.sh --bundle-only
 
 # Regenerate from the already-bundled spec (no network fetch).
 generate:
