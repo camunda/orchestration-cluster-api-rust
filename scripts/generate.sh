@@ -10,8 +10,9 @@
 #                                  the flat full-surface ergonomic facade
 #
 # Usage:
-#   ./scripts/generate.sh            # generate from the existing bundled spec
-#   ./scripts/generate.sh --bundle   # re-bundle the upstream spec first (ref: $SPEC_REF, default main)
+#   ./scripts/generate.sh              # generate from the existing bundled spec
+#   ./scripts/generate.sh --bundle     # re-bundle the upstream spec first (ref: $SPEC_REF, default main)
+#   ./scripts/generate.sh --bundle-only # re-bundle and stop, for callers without Java
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,11 +23,18 @@ SPEC_REF="${SPEC_REF:-$SPEC_REF_DEFAULT}"
 BUNDLED_SPEC="external-spec/bundled/rest-api.bundle.json"
 BUNDLED_META="external-spec/bundled/spec-metadata.json"
 
-if [[ "${1:-}" == "--bundle" ]]; then
+if [[ "${1:-}" == "--bundle" || "${1:-}" == "--bundle-only" ]]; then
   echo "==> Bundling upstream spec (ref: ${SPEC_REF}) via camunda-schema-bundler..."
   npx --yes camunda-schema-bundler@^2.4.3 --ref "$SPEC_REF" \
     --output-spec "$BUNDLED_SPEC" \
     --output-metadata "$BUNDLED_META"
+fi
+
+# openapi-generator is a Java tool; --bundle-only exists so environments without a
+# JDK (the agent workflows) can still refresh the spec a coverage check reads.
+if [[ "${1:-}" == "--bundle-only" ]]; then
+  echo "==> Bundled spec written to $BUNDLED_SPEC (stopping before codegen)."
+  exit 0
 fi
 
 echo "==> Generating Rust client crate with openapi-generator..."
