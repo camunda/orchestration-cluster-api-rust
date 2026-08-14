@@ -17,16 +17,16 @@ pub struct ClusterModeChangeResponse {
     /// The ID of the cluster change that was triggered by the request.
     #[serde(rename = "changeId")]
     pub change_id: String,
-    /// The ordered list of operations that will be applied to complete the change.
+    /// The operations that will be applied to complete the change, grouped by the physical tenant they belong to. Groups are transitioned in parallel; the operations within a group are applied in the given order.
     #[serde(rename = "plannedChanges")]
-    pub planned_changes: Vec<models::ClusterModeChangeOperation>,
+    pub planned_changes: Vec<models::ClusterModeChangePlannedChange>,
 }
 
 impl ClusterModeChangeResponse {
     /// The planned changes resulting from a cluster mode transition request.
     pub fn new(
         change_id: String,
-        planned_changes: Vec<models::ClusterModeChangeOperation>,
+        planned_changes: Vec<models::ClusterModeChangePlannedChange>,
     ) -> ClusterModeChangeResponse {
         ClusterModeChangeResponse {
             change_id,

@@ -271,7 +271,9 @@ pub async fn search_global_task_listeners(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.global_task_listener_search_query_request);
+    if let Some(ref body) = params.global_task_listener_search_query_request {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;

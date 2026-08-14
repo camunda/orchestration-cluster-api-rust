@@ -304,6 +304,26 @@ impl CamundaClient {
         .await
     }
 
+    /// Delete history backup (`DELETE /backups/history/{backupId}`).
+    pub async fn delete_history_backup(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::DeleteHistoryBackupParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::backup_api::delete_history_backup(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
+
     /// Delete runtime backup (`DELETE /backups/runtime/{backupId}`).
     pub async fn delete_runtime_backup(
         &self,
@@ -334,6 +354,26 @@ impl CamundaClient {
                 )
                 .await?,
             )
+        })
+        .await
+    }
+
+    /// Get history backup (`GET /backups/history/{backupId}`).
+    pub async fn get_history_backup(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::GetHistoryBackupParams,
+    ) -> Result<models::HistoryBackupInfo> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::backup_api::get_history_backup(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
         })
         .await
     }
@@ -370,6 +410,26 @@ impl CamundaClient {
         .await
     }
 
+    /// List history backups (`GET /backups/history`).
+    pub async fn list_history_backups(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::ListHistoryBackupsParams,
+    ) -> Result<Vec<models::HistoryBackupInfo>> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::backup_api::list_history_backups(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
+
     /// List runtime backups (`GET /backups/runtime`).
     pub async fn list_runtime_backups(
         &self,
@@ -398,6 +458,26 @@ impl CamundaClient {
                 camunda_orchestration_api_client::apis::backup_api::sync_runtime_backup_state(&cfg)
                     .await?,
             )
+        })
+        .await
+    }
+
+    /// Take a history backup (`POST /backups/history`).
+    pub async fn take_history_backup(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::TakeHistoryBackupParams,
+    ) -> Result<models::TakeHistoryBackupResponse> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::backup_api::take_history_backup(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
         })
         .await
     }
@@ -2302,6 +2382,21 @@ impl CamundaClient {
                     )
                     .await?,
                 )
+            }
+        })
+        .await
+    }
+
+    /// Change the cluster mode of one or every physical tenant (`PATCH /cluster/v2/mode`).
+    pub async fn change_cluster_mode_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::recovery_api::ChangeClusterModeAsClusterAdminParams,
+    ) -> Result<models::ClusterModeChangeResponse> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::recovery_api::change_cluster_mode_as_cluster_admin(&cfg, params).await?)
             }
         })
         .await

@@ -61,12 +61,16 @@ Class | Method | HTTP request | Description
 *AuthorizationApi* | [**get_authorization**](docs/AuthorizationApi.md#get_authorization) | **GET** /authorizations/{authorizationKey} | Get authorization
 *AuthorizationApi* | [**search_authorizations**](docs/AuthorizationApi.md#search_authorizations) | **POST** /authorizations/search | Search authorizations
 *AuthorizationApi* | [**update_authorization**](docs/AuthorizationApi.md#update_authorization) | **PUT** /authorizations/{authorizationKey} | Update authorization
+*BackupApi* | [**delete_history_backup**](docs/BackupApi.md#delete_history_backup) | **DELETE** /backups/history/{backupId} | Delete history backup
 *BackupApi* | [**delete_runtime_backup**](docs/BackupApi.md#delete_runtime_backup) | **DELETE** /backups/runtime/{backupId} | Delete runtime backup
 *BackupApi* | [**delete_runtime_backup_state**](docs/BackupApi.md#delete_runtime_backup_state) | **DELETE** /backups/runtime/state | Delete runtime backup state
+*BackupApi* | [**get_history_backup**](docs/BackupApi.md#get_history_backup) | **GET** /backups/history/{backupId} | Get history backup
 *BackupApi* | [**get_runtime_backup**](docs/BackupApi.md#get_runtime_backup) | **GET** /backups/runtime/{backupId} | Get runtime backup
 *BackupApi* | [**get_runtime_backup_state**](docs/BackupApi.md#get_runtime_backup_state) | **GET** /backups/runtime/state | Get runtime backup state
+*BackupApi* | [**list_history_backups**](docs/BackupApi.md#list_history_backups) | **GET** /backups/history | List history backups
 *BackupApi* | [**list_runtime_backups**](docs/BackupApi.md#list_runtime_backups) | **GET** /backups/runtime | List runtime backups
 *BackupApi* | [**sync_runtime_backup_state**](docs/BackupApi.md#sync_runtime_backup_state) | **POST** /backups/runtime/state/sync | Force-write runtime backup state
+*BackupApi* | [**take_history_backup**](docs/BackupApi.md#take_history_backup) | **POST** /backups/history | Take a history backup
 *BackupApi* | [**take_runtime_backup**](docs/BackupApi.md#take_runtime_backup) | **POST** /backups/runtime | Take a runtime backup
 *BatchOperationApi* | [**cancel_batch_operation**](docs/BatchOperationApi.md#cancel_batch_operation) | **POST** /batch-operations/{batchOperationKey}/cancellation | Cancel Batch operation
 *BatchOperationApi* | [**get_batch_operation**](docs/BatchOperationApi.md#get_batch_operation) | **GET** /batch-operations/{batchOperationKey} | Get batch operation
@@ -195,6 +199,7 @@ Class | Method | HTTP request | Description
 *ProcessInstanceApi* | [**suspend_process_instance**](docs/ProcessInstanceApi.md#suspend_process_instance) | **POST** /process-instances/{processInstanceKey}/suspension | Suspend process instance
 *ProcessInstanceApi* | [**suspend_process_instances_batch_operation**](docs/ProcessInstanceApi.md#suspend_process_instances_batch_operation) | **POST** /process-instances/suspension | Suspend process instances (batch)
 *RecoveryApi* | [**change_cluster_mode**](docs/RecoveryApi.md#change_cluster_mode) | **PATCH** /mode | Change cluster mode
+*RecoveryApi* | [**change_cluster_mode_as_cluster_admin**](docs/RecoveryApi.md#change_cluster_mode_as_cluster_admin) | **PATCH** /cluster/v2/mode | Change the cluster mode of one or every physical tenant
 *RecoveryApi* | [**get_restore_status**](docs/RecoveryApi.md#get_restore_status) | **GET** /restore | Get the status of the restore that is currently in progress
 *RecoveryApi* | [**restore**](docs/RecoveryApi.md#restore) | **POST** /restore | Restore from a backup
 *ResourceApi* | [**create_deployment**](docs/ResourceApi.md#create_deployment) | **POST** /deployments | Deploy resources
@@ -444,6 +449,7 @@ Class | Method | HTTP request | Description
  - [CloudConfigurationResponse](docs/CloudConfigurationResponse.md)
  - [CloudStage](docs/CloudStage.md)
  - [ClusterModeChangeOperation](docs/ClusterModeChangeOperation.md)
+ - [ClusterModeChangePlannedChange](docs/ClusterModeChangePlannedChange.md)
  - [ClusterModeChangeResponse](docs/ClusterModeChangeResponse.md)
  - [ClusterStatusResponse](docs/ClusterStatusResponse.md)
  - [ClusterVariableKindEnum](docs/ClusterVariableKindEnum.md)
@@ -592,6 +598,9 @@ Class | Method | HTTP request | Description
  - [GroupUserSearchQueryRequest](docs/GroupUserSearchQueryRequest.md)
  - [GroupUserSearchQuerySortRequest](docs/GroupUserSearchQuerySortRequest.md)
  - [GroupUserSearchResult](docs/GroupUserSearchResult.md)
+ - [HistoryBackupInfo](docs/HistoryBackupInfo.md)
+ - [HistoryBackupSnapshotInfo](docs/HistoryBackupSnapshotInfo.md)
+ - [HistoryBackupStateCode](docs/HistoryBackupStateCode.md)
  - [IncidentErrorTypeEnum](docs/IncidentErrorTypeEnum.md)
  - [IncidentErrorTypeExactMatch](docs/IncidentErrorTypeExactMatch.md)
  - [IncidentErrorTypeFilterProperty](docs/IncidentErrorTypeFilterProperty.md)
@@ -839,6 +848,8 @@ Class | Method | HTTP request | Description
  - [StringFilterProperty](docs/StringFilterProperty.md)
  - [SuspendProcessInstanceRequest](docs/SuspendProcessInstanceRequest.md)
  - [SystemConfigurationResponse](docs/SystemConfigurationResponse.md)
+ - [TakeHistoryBackupRequest](docs/TakeHistoryBackupRequest.md)
+ - [TakeHistoryBackupResponse](docs/TakeHistoryBackupResponse.md)
  - [TakeRuntimeBackupRequest](docs/TakeRuntimeBackupRequest.md)
  - [TakeRuntimeBackupResponse](docs/TakeRuntimeBackupResponse.md)
  - [TenantClientResult](docs/TenantClientResult.md)
