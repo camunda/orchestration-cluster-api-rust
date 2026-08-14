@@ -51,9 +51,11 @@ jobs:
         make bundle-spec
         make check
         python3 "${SDK_INFRA}/scripts/check-example-coverage.py" --spec external-spec/bundled/rest-api.bundle.json --map examples/operation-map.json --examples-dir examples --key-style camelCase
-      # The refresh above rewrites the bundle.
+      # The refresh above rewrites the bundle; `make check` re-resolves the
+      # lockfile if a new example pulls in a dependency.
       verify-artifacts: |
         external-spec/bundled/**
+        Cargo.lock
       extra-instructions: |
         The spec bundle under external-spec/ is a snapshot, not the live upstream spec.
         Run `make bundle-spec` before you trust any coverage result.
@@ -62,3 +64,8 @@ jobs:
         here. If the refreshed spec exposes an operation that has no method on
         CamundaClient yet, stop and say so on the issue rather than hand-writing a
         facade method — src/runtime/facade_generated.rs and client/ are generated output.
+
+        `examples/readme.rs` is the source of truth for the code blocks in `README.md`;
+        edit the region there and run `make sync-readme` rather than editing `README.md`.
+        Run `cargo fmt` before `make sync-readme`, otherwise rustfmt reflows the snippet
+        source afterwards and the README goes out of sync.

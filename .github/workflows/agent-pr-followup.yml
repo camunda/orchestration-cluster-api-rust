@@ -45,10 +45,16 @@ jobs:
       verify-commands: |
         make check
         python3 "${SDK_INFRA}/scripts/check-example-coverage.py" --spec external-spec/bundled/rest-api.bundle.json --map examples/operation-map.json --examples-dir examples --key-style camelCase
+      # `make check` re-resolves the lockfile if a fix pulls in a dependency.
+      verify-artifacts: |
+        Cargo.lock
       extra-instructions: |
         This runner has Rust, Node and Python but no JDK, so `make generate` cannot run
         here. src/runtime/facade_generated.rs and client/ are generated output — do not
         hand-edit them; if a fix requires regeneration, say so instead.
+
+        `examples/readme.rs` is the source of truth for the code blocks in `README.md`;
+        edit the region there rather than editing `README.md`.
 
         Run `cargo fmt` before `make sync-readme`: rustfmt may reflow snippet source,
         which would otherwise leave the README and the sync check disagreeing.
