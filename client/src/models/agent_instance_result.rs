@@ -16,6 +16,9 @@ pub struct AgentInstanceResult {
     /// The unique key for this agent instance.
     #[serde(rename = "agentInstanceKey")]
     pub agent_instance_key: Box<models::AgentInstanceKey>,
+    /// The key of the agent definition this agent instance runs on.
+    #[serde(rename = "agentDefinitionKey")]
+    pub agent_definition_key: Box<models::AgentDefinitionKey>,
     #[serde(rename = "status")]
     pub status: models::AgentInstanceStatusEnum,
     /// The static definition of the agent, including model, provider, and system prompt.
@@ -74,6 +77,7 @@ pub struct AgentInstanceResult {
 impl AgentInstanceResult {
     pub fn new(
         agent_instance_key: models::AgentInstanceKey,
+        agent_definition_key: models::AgentDefinitionKey,
         status: models::AgentInstanceStatusEnum,
         definition: models::AgentInstanceDefinition,
         metrics: models::AgentInstanceMetrics,
@@ -94,6 +98,7 @@ impl AgentInstanceResult {
     ) -> AgentInstanceResult {
         AgentInstanceResult {
             agent_instance_key: Box::new(agent_instance_key),
+            agent_definition_key: Box::new(agent_definition_key),
             status,
             definition: Box::new(definition),
             metrics: Box::new(metrics),

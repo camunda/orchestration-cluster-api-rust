@@ -33,6 +33,7 @@ async fn restore() -> Result<(), Box<dyn std::error::Error>> {
     let result = client
         .restore(RestoreParams {
             restore_request: RestoreRequest::default(),
+            dry_run: None,
         })
         .await?;
     println!("{}", result.change_id);

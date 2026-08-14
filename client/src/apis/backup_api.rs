@@ -13,9 +13,23 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`delete_history_backup`]
+#[derive(Clone, Debug)]
+pub struct DeleteHistoryBackupParams {
+    /// The id of the backup.
+    pub backup_id: i64,
+}
+
 /// struct for passing parameters to the method [`delete_runtime_backup`]
 #[derive(Clone, Debug)]
 pub struct DeleteRuntimeBackupParams {
+    /// The id of the backup.
+    pub backup_id: i64,
+}
+
+/// struct for passing parameters to the method [`get_history_backup`]
+#[derive(Clone, Debug)]
+pub struct GetHistoryBackupParams {
     /// The id of the backup.
     pub backup_id: i64,
 }
@@ -27,6 +41,15 @@ pub struct GetRuntimeBackupParams {
     pub backup_id: i64,
 }
 
+/// struct for passing parameters to the method [`list_history_backups`]
+#[derive(Clone, Debug)]
+pub struct ListHistoryBackupsParams {
+    /// A prefix that backup ids must match, ending in a single '*'. If omitted, all backups are returned.
+    pub prefix: Option<String>,
+    /// Whether to ask the secondary storage for snapshot-level detail. Setting this to `false` makes the query cheaper, but the store then reports neither snapshot state nor start time, so both the per-snapshot `details` and the aggregated `state` are incomplete and the listing order is unspecified.
+    pub verbose: Option<bool>,
+}
+
 /// struct for passing parameters to the method [`list_runtime_backups`]
 #[derive(Clone, Debug)]
 pub struct ListRuntimeBackupsParams {
@@ -34,10 +57,28 @@ pub struct ListRuntimeBackupsParams {
     pub prefix: Option<String>,
 }
 
+/// struct for passing parameters to the method [`take_history_backup`]
+#[derive(Clone, Debug)]
+pub struct TakeHistoryBackupParams {
+    pub take_history_backup_request: models::TakeHistoryBackupRequest,
+}
+
 /// struct for passing parameters to the method [`take_runtime_backup`]
 #[derive(Clone, Debug)]
 pub struct TakeRuntimeBackupParams {
     pub take_runtime_backup_request: Option<models::TakeRuntimeBackupRequest>,
+}
+
+/// struct for typed errors of method [`delete_history_backup`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteHistoryBackupError {
+    Status401(),
+    Status403(),
+    Status404(models::ProblemDetail),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
 }
 
 /// struct for typed errors of method [`delete_runtime_backup`]
@@ -62,6 +103,18 @@ pub enum DeleteRuntimeBackupStateError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_history_backup`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetHistoryBackupError {
+    Status401(),
+    Status403(),
+    Status404(models::ProblemDetail),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_runtime_backup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -80,6 +133,18 @@ pub enum GetRuntimeBackupError {
 pub enum GetRuntimeBackupStateError {
     Status401(),
     Status403(),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_history_backups`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListHistoryBackupsError {
+    Status400(),
+    Status401(),
+    Status403(models::ProblemDetail),
     Status500(),
     Status503(),
     UnknownValue(serde_json::Value),
@@ -109,6 +174,19 @@ pub enum SyncRuntimeBackupStateError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`take_history_backup`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TakeHistoryBackupError {
+    Status400(),
+    Status401(),
+    Status403(),
+    Status409(models::ProblemDetail),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`take_runtime_backup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -121,6 +199,48 @@ pub enum TakeRuntimeBackupError {
     Status503(),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+/// Deletes the history backup with the given id, by deleting every snapshot that makes it up.  Only available on clusters whose secondary storage is Elasticsearch or OpenSearch.
+pub async fn delete_history_backup(
+    configuration: &configuration::Configuration,
+    params: DeleteHistoryBackupParams,
+) -> Result<(), Error<DeleteHistoryBackupError>> {
+    let uri_str = format!(
+        "{}/backups/history/{backupId}",
+        configuration.base_path,
+        backupId = params.backup_id
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteHistoryBackupError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 /// Deletes the runtime backup with the given id.
@@ -194,6 +314,57 @@ pub async fn delete_runtime_backup_state(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteRuntimeBackupStateError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Returns detailed status of the history backup with the given id.  Only available on clusters whose secondary storage is Elasticsearch or OpenSearch.
+pub async fn get_history_backup(
+    configuration: &configuration::Configuration,
+    params: GetHistoryBackupParams,
+) -> Result<models::HistoryBackupInfo, Error<GetHistoryBackupError>> {
+    let uri_str = format!(
+        "{}/backups/history/{backupId}",
+        configuration.base_path,
+        backupId = params.backup_id
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::HistoryBackupInfo`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::HistoryBackupInfo`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetHistoryBackupError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -299,6 +470,59 @@ pub async fn get_runtime_backup_state(
     }
 }
 
+/// Returns a list of all available history backups of the physical tenant, with their state and additional info, most recent first by snapshot start time.  Only available on clusters whose secondary storage is Elasticsearch or OpenSearch.
+pub async fn list_history_backups(
+    configuration: &configuration::Configuration,
+    params: ListHistoryBackupsParams,
+) -> Result<Vec<models::HistoryBackupInfo>, Error<ListHistoryBackupsError>> {
+    let uri_str = format!("{}/backups/history", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.prefix {
+        req_builder = req_builder.query(&[("prefix", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.verbose {
+        req_builder = req_builder.query(&[("verbose", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::HistoryBackupInfo&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::HistoryBackupInfo&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListHistoryBackupsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Returns a list of all available runtime backups of the physical tenant, with their state and additional info, sorted in descending order of backupId.
 pub async fn list_runtime_backups(
     configuration: &configuration::Configuration,
@@ -389,6 +613,56 @@ pub async fn sync_runtime_backup_state(
     } else {
         let content = resp.text().await?;
         let entity: Option<SyncRuntimeBackupStateError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Triggers a backup of the physical tenant's history, by scheduling a snapshot of every secondary storage index it owns.  Unlike runtime backups, history backups have no generated-id mode: `backupId` is always required.  Only available on clusters whose secondary storage is Elasticsearch or OpenSearch.
+pub async fn take_history_backup(
+    configuration: &configuration::Configuration,
+    params: TakeHistoryBackupParams,
+) -> Result<models::TakeHistoryBackupResponse, Error<TakeHistoryBackupError>> {
+    let uri_str = format!("{}/backups/history", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.take_history_backup_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TakeHistoryBackupResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TakeHistoryBackupResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<TakeHistoryBackupError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

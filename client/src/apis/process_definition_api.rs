@@ -257,7 +257,9 @@ pub async fn get_process_definition_instance_statistics(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.process_definition_instance_statistics_query);
+    if let Some(ref body) = params.process_definition_instance_statistics_query {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -371,8 +373,9 @@ pub async fn get_process_definition_message_subscription_statistics(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder =
-        req_builder.json(&params.process_definition_message_subscription_statistics_query);
+    if let Some(ref body) = params.process_definition_message_subscription_statistics_query {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -430,7 +433,9 @@ pub async fn get_process_definition_statistics(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.process_definition_element_statistics_query);
+    if let Some(ref body) = params.process_definition_element_statistics_query {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
@@ -590,7 +595,9 @@ pub async fn search_process_definition_variable_names(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.process_definition_variable_name_search_query);
+    if let Some(ref body) = params.process_definition_variable_name_search_query {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;

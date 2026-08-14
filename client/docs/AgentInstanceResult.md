@@ -5,6 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **agent_instance_key** | **models::AgentInstanceKey** | The unique key for this agent instance. | 
+**agent_definition_key** | **models::AgentDefinitionKey** | The key of the agent definition this agent instance runs on. | 
 **status** | [**models::AgentInstanceStatusEnum**](AgentInstanceStatusEnum.md) |  | 
 **definition** | [**models::AgentInstanceDefinition**](AgentInstanceDefinition.md) | The static definition of the agent, including model, provider, and system prompt. | 
 **metrics** | [**models::AgentInstanceMetrics**](AgentInstanceMetrics.md) | Aggregated metrics across all loopIterations of this agent instance. | 

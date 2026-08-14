@@ -22,10 +22,23 @@ pub struct ChangeClusterModeParams {
     pub dry_run: Option<bool>,
 }
 
+/// struct for passing parameters to the method [`change_cluster_mode_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct ChangeClusterModeAsClusterAdminParams {
+    /// The target cluster mode.
+    pub mode: models::Mode,
+    /// The physical tenant to apply the change to. When omitted, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
+    /// If true, the requested change is only validated and the resulting plan is returned, without applying it to the cluster.
+    pub dry_run: Option<bool>,
+}
+
 /// struct for passing parameters to the method [`restore`]
 #[derive(Clone, Debug)]
 pub struct RestoreParams {
     pub restore_request: models::RestoreRequest,
+    /// If true, the requested change is only validated and the resulting plan is returned, without applying it to the cluster.
+    pub dry_run: Option<bool>,
 }
 
 /// struct for typed errors of method [`change_cluster_mode`]
@@ -35,6 +48,18 @@ pub enum ChangeClusterModeError {
     Status400(),
     Status401(models::ProblemDetail),
     Status403(models::ProblemDetail),
+    Status500(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`change_cluster_mode_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ChangeClusterModeAsClusterAdminError {
+    Status400(),
+    Status401(),
+    Status404(models::ProblemDetail),
+    Status409(),
     Status500(),
     UnknownValue(serde_json::Value),
 }
@@ -115,6 +140,63 @@ pub async fn change_cluster_mode(
     }
 }
 
+/// Transitions physical tenants between processing and recovery mode.  If the `physicalTenantId` parameter is not provided, all available physical tenants are transitioned individually.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here.
+pub async fn change_cluster_mode_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: ChangeClusterModeAsClusterAdminParams,
+) -> Result<models::ClusterModeChangeResponse, Error<ChangeClusterModeAsClusterAdminError>> {
+    let uri_str = format!("{}/cluster/v2/mode", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::PATCH, &uri_str);
+
+    req_builder = req_builder.query(&[("mode", &params.mode.to_string())]);
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.dry_run {
+        req_builder = req_builder.query(&[("dryRun", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClusterModeChangeResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClusterModeChangeResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ChangeClusterModeAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Returns the status of the restore that is currently in progress, reported per broker and per partition. There is at most one restore in flight at any time. Once the restore has finished this endpoint returns 404; the per-partition detail is not retained after completion.
 pub async fn get_restore_status(
     configuration: &configuration::Configuration,
@@ -171,6 +253,9 @@ pub async fn restore(
         .client
         .request(reqwest::Method::POST, &uri_str);
 
+    if let Some(ref param_value) = params.dry_run {
+        req_builder = req_builder.query(&[("dryRun", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
