@@ -60,10 +60,12 @@ jobs:
         The spec bundle under external-spec/ is a snapshot, not the live upstream spec.
         Run `make bundle-spec` before you trust any coverage result.
 
-        This runner has Rust, Node and Python but no JDK, so `make generate` cannot run
-        here. If the refreshed spec exposes an operation that has no method on
-        CamundaClient yet, stop and say so on the issue rather than hand-writing a
-        facade method — src/runtime/facade_generated.rs and client/ are generated output.
+        If the refreshed spec exposes an operation that has no method on CamundaClient
+        yet, run `make generate` — the runner image ships a JDK, so openapi-generator
+        works here. Never hand-write into src/runtime/facade_generated.rs or client/:
+        they are generated output and the generation-drift check rejects edits to them.
+        Run `cargo fmt --all` afterwards — the generator does not format what it emits,
+        so an unformatted regeneration shows up as thousands of lines of false drift.
 
         `examples/readme.rs` is the source of truth for the code blocks in `README.md`;
         edit the region there and run `make sync-readme` rather than editing `README.md`.
