@@ -63,7 +63,7 @@ jobs:
         If the refreshed spec exposes an operation that has no method on CamundaClient
         yet, run `make generate` — the runner image ships a JDK, so openapi-generator
         works here. Never hand-write into src/runtime/facade_generated.rs or client/:
-        they are generated output and the generation-drift check rejects edits to them.
+        they are generated output, so changes to them should come from regeneration.
         Run `cargo fmt --all` afterwards — the generator does not format what it emits,
         so an unformatted regeneration shows up as thousands of lines of false drift.
 
