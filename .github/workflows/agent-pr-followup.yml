@@ -49,9 +49,10 @@ jobs:
       verify-artifacts: |
         Cargo.lock
       extra-instructions: |
-        This runner has Rust, Node and Python but no JDK, so `make generate` cannot run
-        here. src/runtime/facade_generated.rs and client/ are generated output — do not
-        hand-edit them; if a fix requires regeneration, say so instead.
+        src/runtime/facade_generated.rs and client/ are generated output — do not
+        hand-edit them. If a fix needs regeneration, run `make generate`; the runner
+        image ships a JDK, so openapi-generator works here. Follow it with
+        `cargo fmt --all`, since the generator does not format what it emits.
 
         `examples/readme.rs` is the source of truth for the code blocks in `README.md`;
         edit the region there rather than editing `README.md`.
