@@ -62,16 +62,27 @@ Class | Method | HTTP request | Description
 *AuthorizationApi* | [**search_authorizations**](docs/AuthorizationApi.md#search_authorizations) | **POST** /authorizations/search | Search authorizations
 *AuthorizationApi* | [**update_authorization**](docs/AuthorizationApi.md#update_authorization) | **PUT** /authorizations/{authorizationKey} | Update authorization
 *BackupApi* | [**delete_history_backup**](docs/BackupApi.md#delete_history_backup) | **DELETE** /backups/history/{backupId} | Delete history backup
+*BackupApi* | [**delete_history_backup_as_cluster_admin**](docs/BackupApi.md#delete_history_backup_as_cluster_admin) | **DELETE** /cluster/v2/backups/history/{backupId} | Delete a history backup across physical tenants
 *BackupApi* | [**delete_runtime_backup**](docs/BackupApi.md#delete_runtime_backup) | **DELETE** /backups/runtime/{backupId} | Delete runtime backup
+*BackupApi* | [**delete_runtime_backup_as_cluster_admin**](docs/BackupApi.md#delete_runtime_backup_as_cluster_admin) | **DELETE** /cluster/v2/backups/runtime/{backupId} | Delete a runtime backup across physical tenants
 *BackupApi* | [**delete_runtime_backup_state**](docs/BackupApi.md#delete_runtime_backup_state) | **DELETE** /backups/runtime/state | Delete runtime backup state
+*BackupApi* | [**delete_runtime_backup_state_as_cluster_admin**](docs/BackupApi.md#delete_runtime_backup_state_as_cluster_admin) | **DELETE** /cluster/v2/backups/runtime/state | Delete runtime backup state across physical tenants
 *BackupApi* | [**get_history_backup**](docs/BackupApi.md#get_history_backup) | **GET** /backups/history/{backupId} | Get history backup
+*BackupApi* | [**get_history_backup_as_cluster_admin**](docs/BackupApi.md#get_history_backup_as_cluster_admin) | **GET** /cluster/v2/backups/history/{backupId} | Get a history backup across physical tenants
 *BackupApi* | [**get_runtime_backup**](docs/BackupApi.md#get_runtime_backup) | **GET** /backups/runtime/{backupId} | Get runtime backup
+*BackupApi* | [**get_runtime_backup_as_cluster_admin**](docs/BackupApi.md#get_runtime_backup_as_cluster_admin) | **GET** /cluster/v2/backups/runtime/{backupId} | Get a runtime backup across physical tenants
 *BackupApi* | [**get_runtime_backup_state**](docs/BackupApi.md#get_runtime_backup_state) | **GET** /backups/runtime/state | Get runtime backup state
+*BackupApi* | [**get_runtime_backup_state_as_cluster_admin**](docs/BackupApi.md#get_runtime_backup_state_as_cluster_admin) | **GET** /cluster/v2/backups/runtime/state | Get runtime backup state across physical tenants
 *BackupApi* | [**list_history_backups**](docs/BackupApi.md#list_history_backups) | **GET** /backups/history | List history backups
+*BackupApi* | [**list_history_backups_as_cluster_admin**](docs/BackupApi.md#list_history_backups_as_cluster_admin) | **GET** /cluster/v2/backups/history | List history backups across physical tenants
 *BackupApi* | [**list_runtime_backups**](docs/BackupApi.md#list_runtime_backups) | **GET** /backups/runtime | List runtime backups
+*BackupApi* | [**list_runtime_backups_as_cluster_admin**](docs/BackupApi.md#list_runtime_backups_as_cluster_admin) | **GET** /cluster/v2/backups/runtime | List runtime backups across physical tenants
 *BackupApi* | [**sync_runtime_backup_state**](docs/BackupApi.md#sync_runtime_backup_state) | **POST** /backups/runtime/state/sync | Force-write runtime backup state
+*BackupApi* | [**sync_runtime_backup_state_as_cluster_admin**](docs/BackupApi.md#sync_runtime_backup_state_as_cluster_admin) | **POST** /cluster/v2/backups/runtime/state/sync | Force-write runtime backup state across physical tenants
 *BackupApi* | [**take_history_backup**](docs/BackupApi.md#take_history_backup) | **POST** /backups/history | Take a history backup
+*BackupApi* | [**take_history_backup_as_cluster_admin**](docs/BackupApi.md#take_history_backup_as_cluster_admin) | **POST** /cluster/v2/backups/history | Take a history backup on one or every physical tenant
 *BackupApi* | [**take_runtime_backup**](docs/BackupApi.md#take_runtime_backup) | **POST** /backups/runtime | Take a runtime backup
+*BackupApi* | [**take_runtime_backup_as_cluster_admin**](docs/BackupApi.md#take_runtime_backup_as_cluster_admin) | **POST** /cluster/v2/backups/runtime | Take a runtime backup on one or every physical tenant
 *BatchOperationApi* | [**cancel_batch_operation**](docs/BatchOperationApi.md#cancel_batch_operation) | **POST** /batch-operations/{batchOperationKey}/cancellation | Cancel Batch operation
 *BatchOperationApi* | [**get_batch_operation**](docs/BatchOperationApi.md#get_batch_operation) | **GET** /batch-operations/{batchOperationKey} | Get batch operation
 *BatchOperationApi* | [**resume_batch_operation**](docs/BatchOperationApi.md#resume_batch_operation) | **POST** /batch-operations/{batchOperationKey}/resumption | Resume Batch operation
@@ -80,9 +91,13 @@ Class | Method | HTTP request | Description
 *BatchOperationApi* | [**suspend_batch_operation**](docs/BatchOperationApi.md#suspend_batch_operation) | **POST** /batch-operations/{batchOperationKey}/suspension | Suspend Batch operation
 *ClockApi* | [**pin_clock**](docs/ClockApi.md#pin_clock) | **PUT** /clock | Pin internal clock (alpha)
 *ClockApi* | [**reset_clock**](docs/ClockApi.md#reset_clock) | **POST** /clock/reset | Reset internal clock (alpha)
+*ClusterApi* | [**cancel_cluster_rebalance**](docs/ClusterApi.md#cancel_cluster_rebalance) | **DELETE** /cluster/v2/rebalance | Stop the running rebalance
+*ClusterApi* | [**get_cluster_rebalance**](docs/ClusterApi.md#get_cluster_rebalance) | **GET** /cluster/v2/rebalance | Report the cluster's current leadership balance
 *ClusterApi* | [**get_cluster_status**](docs/ClusterApi.md#get_cluster_status) | **GET** /cluster/v2/status | Get the status of the whole cluster
+*ClusterApi* | [**get_cluster_topology**](docs/ClusterApi.md#get_cluster_topology) | **GET** /cluster/v2/topology | Get the topology of the whole cluster
 *ClusterApi* | [**get_status**](docs/ClusterApi.md#get_status) | **GET** /status | Get physical tenant status
 *ClusterApi* | [**get_topology**](docs/ClusterApi.md#get_topology) | **GET** /topology | Get cluster topology
+*ClusterApi* | [**trigger_cluster_rebalance**](docs/ClusterApi.md#trigger_cluster_rebalance) | **POST** /cluster/v2/rebalance | Trigger a cluster-wide leadership rebalance
 *ClusterVariableApi* | [**create_global_cluster_variable**](docs/ClusterVariableApi.md#create_global_cluster_variable) | **POST** /cluster-variables/global | Create a global-scoped cluster variable
 *ClusterVariableApi* | [**create_tenant_cluster_variable**](docs/ClusterVariableApi.md#create_tenant_cluster_variable) | **POST** /cluster-variables/tenants/{tenantId} | Create a tenant-scoped cluster variable
 *ClusterVariableApi* | [**delete_global_cluster_variable**](docs/ClusterVariableApi.md#delete_global_cluster_variable) | **DELETE** /cluster-variables/global/{name} | Delete a global-scoped cluster variable
@@ -114,8 +129,11 @@ Class | Method | HTTP request | Description
 *ElementInstanceApi* | [**search_element_instance_incidents**](docs/ElementInstanceApi.md#search_element_instance_incidents) | **POST** /element-instances/{elementInstanceKey}/incidents/search | Search for incidents of a specific element instance
 *ElementInstanceApi* | [**search_element_instance_wait_states**](docs/ElementInstanceApi.md#search_element_instance_wait_states) | **POST** /element-instances/wait-states/search | Search element instance wait states
 *ElementInstanceApi* | [**search_element_instances**](docs/ElementInstanceApi.md#search_element_instances) | **POST** /element-instances/search | Search element instances
+*ExportingApi* | [**get_cluster_exporting_status**](docs/ExportingApi.md#get_cluster_exporting_status) | **GET** /cluster/v2/exporting | Get exporting status of the whole cluster
 *ExportingApi* | [**get_exporting_status**](docs/ExportingApi.md#get_exporting_status) | **GET** /exporting | Get exporting status
+*ExportingApi* | [**pause_cluster_exporting**](docs/ExportingApi.md#pause_cluster_exporting) | **POST** /cluster/v2/exporting/pause | Pause exporting across the whole cluster
 *ExportingApi* | [**pause_exporting**](docs/ExportingApi.md#pause_exporting) | **POST** /exporting/pause | Pause exporting
+*ExportingApi* | [**resume_cluster_exporting**](docs/ExportingApi.md#resume_cluster_exporting) | **POST** /cluster/v2/exporting/resume | Resume exporting across the whole cluster
 *ExportingApi* | [**resume_exporting**](docs/ExportingApi.md#resume_exporting) | **POST** /exporting/resume | Resume exporting
 *ExpressionApi* | [**evaluate_expression**](docs/ExpressionApi.md#evaluate_expression) | **POST** /expression/evaluation | Evaluate an expression
 *FormApi* | [**get_form_by_key**](docs/FormApi.md#get_form_by_key) | **GET** /forms/{formKey} | Get form by key
@@ -202,6 +220,7 @@ Class | Method | HTTP request | Description
 *RecoveryApi* | [**change_cluster_mode_as_cluster_admin**](docs/RecoveryApi.md#change_cluster_mode_as_cluster_admin) | **PATCH** /cluster/v2/mode | Change the cluster mode of one or every physical tenant
 *RecoveryApi* | [**get_restore_status**](docs/RecoveryApi.md#get_restore_status) | **GET** /restore | Get the status of the restore that is currently in progress
 *RecoveryApi* | [**restore**](docs/RecoveryApi.md#restore) | **POST** /restore | Restore from a backup
+*RecoveryApi* | [**restore_as_cluster_admin**](docs/RecoveryApi.md#restore_as_cluster_admin) | **POST** /cluster/v2/restore | Restore one or every physical tenant from a backup
 *ResourceApi* | [**create_deployment**](docs/ResourceApi.md#create_deployment) | **POST** /deployments | Deploy resources
 *ResourceApi* | [**delete_resource**](docs/ResourceApi.md#delete_resource) | **POST** /resources/{resourceKey}/deletion | Delete resource
 *ResourceApi* | [**get_resource**](docs/ResourceApi.md#get_resource) | **GET** /resources/{resourceKey} | Get resource
@@ -345,6 +364,7 @@ Class | Method | HTTP request | Description
  - [AgentInstanceCreationRequest](docs/AgentInstanceCreationRequest.md)
  - [AgentInstanceCreationResult](docs/AgentInstanceCreationResult.md)
  - [AgentInstanceDefinition](docs/AgentInstanceDefinition.md)
+ - [AgentInstanceDefinitionResult](docs/AgentInstanceDefinitionResult.md)
  - [AgentInstanceDocumentContent](docs/AgentInstanceDocumentContent.md)
  - [AgentInstanceFilter](docs/AgentInstanceFilter.md)
  - [AgentInstanceHistoryCommitStatusEnum](docs/AgentInstanceHistoryCommitStatusEnum.md)
@@ -448,10 +468,40 @@ Class | Method | HTTP request | Description
  - [ClockPinRequest](docs/ClockPinRequest.md)
  - [CloudConfigurationResponse](docs/CloudConfigurationResponse.md)
  - [CloudStage](docs/CloudStage.md)
+ - [ClusterBalanceResponse](docs/ClusterBalanceResponse.md)
+ - [ClusterBrokerInfo](docs/ClusterBrokerInfo.md)
+ - [ClusterCompletedRebalance](docs/ClusterCompletedRebalance.md)
+ - [ClusterHistoryBackupInfo](docs/ClusterHistoryBackupInfo.md)
+ - [ClusterHistoryBackupTakeResult](docs/ClusterHistoryBackupTakeResult.md)
+ - [ClusterHistoryBackupTenantInfo](docs/ClusterHistoryBackupTenantInfo.md)
+ - [ClusterHistoryBackupTenantState](docs/ClusterHistoryBackupTenantState.md)
  - [ClusterModeChangeOperation](docs/ClusterModeChangeOperation.md)
  - [ClusterModeChangePlannedChange](docs/ClusterModeChangePlannedChange.md)
  - [ClusterModeChangeResponse](docs/ClusterModeChangeResponse.md)
+ - [ClusterRebalance](docs/ClusterRebalance.md)
+ - [ClusterRebalanceOperationPartition](docs/ClusterRebalanceOperationPartition.md)
+ - [ClusterRebalancePartition](docs/ClusterRebalancePartition.md)
+ - [ClusterRebalanceRequest](docs/ClusterRebalanceRequest.md)
+ - [ClusterRestoreAwaitModeChangeOperation](docs/ClusterRestoreAwaitModeChangeOperation.md)
+ - [ClusterRestoreBrokerOperation](docs/ClusterRestoreBrokerOperation.md)
+ - [ClusterRestoreModeChangeOperation](docs/ClusterRestoreModeChangeOperation.md)
+ - [ClusterRestoreOperation](docs/ClusterRestoreOperation.md)
+ - [ClusterRestorePartitionOperation](docs/ClusterRestorePartitionOperation.md)
+ - [ClusterRestorePartitionRestoreOperation](docs/ClusterRestorePartitionRestoreOperation.md)
+ - [ClusterRestorePlannedChange](docs/ClusterRestorePlannedChange.md)
+ - [ClusterRestoreRequest](docs/ClusterRestoreRequest.md)
+ - [ClusterRestoreResponse](docs/ClusterRestoreResponse.md)
+ - [ClusterRunningRebalance](docs/ClusterRunningRebalance.md)
+ - [ClusterRuntimeBackupInfo](docs/ClusterRuntimeBackupInfo.md)
+ - [ClusterRuntimeBackupState](docs/ClusterRuntimeBackupState.md)
+ - [ClusterRuntimeBackupTakeOutcome](docs/ClusterRuntimeBackupTakeOutcome.md)
+ - [ClusterRuntimeBackupTakeResult](docs/ClusterRuntimeBackupTakeResult.md)
+ - [ClusterRuntimeBackupTenantInfo](docs/ClusterRuntimeBackupTenantInfo.md)
+ - [ClusterRuntimeBackupTenantState](docs/ClusterRuntimeBackupTenantState.md)
  - [ClusterStatusResponse](docs/ClusterStatusResponse.md)
+ - [ClusterTakeHistoryBackupResponse](docs/ClusterTakeHistoryBackupResponse.md)
+ - [ClusterTakeRuntimeBackupResponse](docs/ClusterTakeRuntimeBackupResponse.md)
+ - [ClusterTopologyResponse](docs/ClusterTopologyResponse.md)
  - [ClusterVariableKindEnum](docs/ClusterVariableKindEnum.md)
  - [ClusterVariableKindExactMatch](docs/ClusterVariableKindExactMatch.md)
  - [ClusterVariableKindFilterProperty](docs/ClusterVariableKindFilterProperty.md)
@@ -562,6 +612,7 @@ Class | Method | HTTP request | Description
  - [ExpressionEvaluationRequest](docs/ExpressionEvaluationRequest.md)
  - [ExpressionEvaluationResult](docs/ExpressionEvaluationResult.md)
  - [ExpressionEvaluationWarningItem](docs/ExpressionEvaluationWarningItem.md)
+ - [ExpressionSecretReferenceItem](docs/ExpressionSecretReferenceItem.md)
  - [FormKeyExactMatch](docs/FormKeyExactMatch.md)
  - [FormKeyFilterProperty](docs/FormKeyFilterProperty.md)
  - [FormResult](docs/FormResult.md)
@@ -709,6 +760,7 @@ Class | Method | HTTP request | Description
  - [OffsetPagination](docs/OffsetPagination.md)
  - [OperationTypeExactMatch](docs/OperationTypeExactMatch.md)
  - [OperationTypeFilterProperty](docs/OperationTypeFilterProperty.md)
+ - [OwnAuthorizationSearchResult](docs/OwnAuthorizationSearchResult.md)
  - [OwnerTypeEnum](docs/OwnerTypeEnum.md)
  - [Partition](docs/Partition.md)
  - [PartitionBackupInfo](docs/PartitionBackupInfo.md)
@@ -716,6 +768,8 @@ Class | Method | HTTP request | Description
  - [PartitionBackupState](docs/PartitionBackupState.md)
  - [PartitionCheckpointState](docs/PartitionCheckpointState.md)
  - [PermissionTypeEnum](docs/PermissionTypeEnum.md)
+ - [PhysicalTenantBrokerTopology](docs/PhysicalTenantBrokerTopology.md)
+ - [PhysicalTenantTopology](docs/PhysicalTenantTopology.md)
  - [ProblemDetail](docs/ProblemDetail.md)
  - [ProcessDefinitionElementStatisticsQuery](docs/ProcessDefinitionElementStatisticsQuery.md)
  - [ProcessDefinitionElementStatisticsQueryResult](docs/ProcessDefinitionElementStatisticsQueryResult.md)
@@ -785,6 +839,7 @@ Class | Method | HTTP request | Description
  - [ProcessInstanceSuspensionBatchOperationRequest](docs/ProcessInstanceSuspensionBatchOperationRequest.md)
  - [ProcessInstanceWaitStateStatisticsQueryResult](docs/ProcessInstanceWaitStateStatisticsQueryResult.md)
  - [ProcessInstanceWaitStateStatisticsResult](docs/ProcessInstanceWaitStateStatisticsResult.md)
+ - [RebalanceCancellationResponse](docs/RebalanceCancellationResponse.md)
  - [ResolvedSecret](docs/ResolvedSecret.md)
  - [ResourceFilter](docs/ResourceFilter.md)
  - [ResourceKey](docs/ResourceKey.md)

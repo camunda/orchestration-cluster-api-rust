@@ -27,7 +27,7 @@ pub struct ChangeClusterModeParams {
 pub struct ChangeClusterModeAsClusterAdminParams {
     /// The target cluster mode.
     pub mode: models::Mode,
-    /// The physical tenant to apply the change to. When omitted, the change is applied to every physical tenant of the cluster.
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
     pub physical_tenant_id: Option<String>,
     /// If true, the requested change is only validated and the resulting plan is returned, without applying it to the cluster.
     pub dry_run: Option<bool>,
@@ -37,6 +37,16 @@ pub struct ChangeClusterModeAsClusterAdminParams {
 #[derive(Clone, Debug)]
 pub struct RestoreParams {
     pub restore_request: models::RestoreRequest,
+    /// If true, the requested change is only validated and the resulting plan is returned, without applying it to the cluster.
+    pub dry_run: Option<bool>,
+}
+
+/// struct for passing parameters to the method [`restore_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct RestoreAsClusterAdminParams {
+    pub cluster_restore_request: models::ClusterRestoreRequest,
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
     /// If true, the requested change is only validated and the resulting plan is returned, without applying it to the cluster.
     pub dry_run: Option<bool>,
 }
@@ -82,6 +92,18 @@ pub enum RestoreError {
     Status400(),
     Status401(),
     Status403(),
+    Status409(),
+    Status500(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`restore_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RestoreAsClusterAdminError {
+    Status400(),
+    Status401(),
+    Status404(models::ProblemDetail),
     Status409(),
     Status500(),
     UnknownValue(serde_json::Value),
@@ -247,7 +269,7 @@ pub async fn get_restore_status(
 pub async fn restore(
     configuration: &configuration::Configuration,
     params: RestoreParams,
-) -> Result<models::ClusterModeChangeResponse, Error<RestoreError>> {
+) -> Result<models::ClusterRestoreResponse, Error<RestoreError>> {
     let uri_str = format!("{}/restore", configuration.base_path);
     let mut req_builder = configuration
         .client
@@ -282,12 +304,68 @@ pub async fn restore(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClusterModeChangeResponse`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClusterModeChangeResponse`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClusterRestoreResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClusterRestoreResponse`")))),
         }
     } else {
         let content = resp.text().await?;
         let entity: Option<RestoreError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Restores physical tenants from backups. The restore is described either by a list of backup IDs or by a time range (`from`/`to`) that selects the backups to restore. Restores are only accepted while the targeted physical tenants are in recovery mode; requests are rejected otherwise. The request is validated and acknowledged, but the restore itself is performed asynchronously.  If the `physicalTenantId` parameter is provided, only that physical tenant is restored and `overrides` must be omitted.  If it is not provided, every physical tenant of the cluster is restored: those named in `overrides` with their own backup selection, all others with the selection at the top level of the request body.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here.
+pub async fn restore_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: RestoreAsClusterAdminParams,
+) -> Result<models::ClusterRestoreResponse, Error<RestoreAsClusterAdminError>> {
+    let uri_str = format!("{}/cluster/v2/restore", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.dry_run {
+        req_builder = req_builder.query(&[("dryRun", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.cluster_restore_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClusterRestoreResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClusterRestoreResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<RestoreAsClusterAdminError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

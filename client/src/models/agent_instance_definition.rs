@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// AgentInstanceDefinition : The static definition of an agent instance, set once at creation.
+/// AgentInstanceDefinition : The definition of an agent instance, as submitted at creation. The systemPrompt is a plain string here for backwards compatibility with existing create requests; the read side (AgentInstanceDefinitionResult) exposes it as content blocks instead. This write-side string is deprecated and will be removed as part of #58795.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AgentInstanceDefinition {
     /// The LLM model identifier (for example, gpt-4o).
@@ -26,7 +26,7 @@ pub struct AgentInstanceDefinition {
 }
 
 impl AgentInstanceDefinition {
-    /// The static definition of an agent instance, set once at creation.
+    /// The definition of an agent instance, as submitted at creation. The systemPrompt is a plain string here for backwards compatibility with existing create requests; the read side (AgentInstanceDefinitionResult) exposes it as content blocks instead. This write-side string is deprecated and will be removed as part of #58795.
     pub fn new(model: String, provider: String, system_prompt: String) -> AgentInstanceDefinition {
         AgentInstanceDefinition {
             model,

@@ -16,14 +16,14 @@ pub struct AgentInstanceResult {
     /// The unique key for this agent instance.
     #[serde(rename = "agentInstanceKey")]
     pub agent_instance_key: Box<models::AgentInstanceKey>,
-    /// The key of the agent definition this agent instance runs on.
+    /// The key of the agent definition this agent instance is an instance of.
     #[serde(rename = "agentDefinitionKey")]
     pub agent_definition_key: Box<models::AgentDefinitionKey>,
     #[serde(rename = "status")]
     pub status: models::AgentInstanceStatusEnum,
-    /// The static definition of the agent, including model, provider, and system prompt.
+    /// The definition of the agent, including model, provider, and system prompt. Set at creation, but can change later via a CONFIGURATION history item.
     #[serde(rename = "definition")]
-    pub definition: Box<models::AgentInstanceDefinition>,
+    pub definition: Box<models::AgentInstanceDefinitionResult>,
     /// Aggregated metrics across all loopIterations of this agent instance.
     #[serde(rename = "metrics")]
     pub metrics: Box<models::AgentInstanceMetrics>,
@@ -79,7 +79,7 @@ impl AgentInstanceResult {
         agent_instance_key: models::AgentInstanceKey,
         agent_definition_key: models::AgentDefinitionKey,
         status: models::AgentInstanceStatusEnum,
-        definition: models::AgentInstanceDefinition,
+        definition: models::AgentInstanceDefinitionResult,
         metrics: models::AgentInstanceMetrics,
         limits: models::AgentInstanceLimits,
         tools: Vec<models::AgentTool>,

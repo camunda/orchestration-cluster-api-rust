@@ -213,7 +213,7 @@ impl CamundaClient {
     pub async fn search_own_authorizations(
         &self,
         params: camunda_orchestration_api_client::apis::authentication_api::SearchOwnAuthorizationsParams,
-    ) -> Result<models::AuthorizationSearchResult> {
+    ) -> Result<models::OwnAuthorizationSearchResult> {
         self.guarded(|| {
             let params = params.clone();
             async move {
@@ -324,6 +324,21 @@ impl CamundaClient {
         .await
     }
 
+    /// Delete a history backup across physical tenants (`DELETE /cluster/v2/backups/history/{backupId}`).
+    pub async fn delete_history_backup_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::DeleteHistoryBackupAsClusterAdminParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::delete_history_backup_as_cluster_admin(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     /// Delete runtime backup (`DELETE /backups/runtime/{backupId}`).
     pub async fn delete_runtime_backup(
         &self,
@@ -344,6 +359,21 @@ impl CamundaClient {
         .await
     }
 
+    /// Delete a runtime backup across physical tenants (`DELETE /cluster/v2/backups/runtime/{backupId}`).
+    pub async fn delete_runtime_backup_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::DeleteRuntimeBackupAsClusterAdminParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::delete_runtime_backup_as_cluster_admin(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     /// Delete runtime backup state (`DELETE /backups/runtime/state`).
     pub async fn delete_runtime_backup_state(&self) -> Result<()> {
         self.guarded(|| async {
@@ -354,6 +384,21 @@ impl CamundaClient {
                 )
                 .await?,
             )
+        })
+        .await
+    }
+
+    /// Delete runtime backup state across physical tenants (`DELETE /cluster/v2/backups/runtime/state`).
+    pub async fn delete_runtime_backup_state_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::DeleteRuntimeBackupStateAsClusterAdminParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::delete_runtime_backup_state_as_cluster_admin(&cfg, params).await?)
+            }
         })
         .await
     }
@@ -373,6 +418,21 @@ impl CamundaClient {
                     )
                     .await?,
                 )
+            }
+        })
+        .await
+    }
+
+    /// Get a history backup across physical tenants (`GET /cluster/v2/backups/history/{backupId}`).
+    pub async fn get_history_backup_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::GetHistoryBackupAsClusterAdminParams,
+    ) -> Result<models::ClusterHistoryBackupInfo> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::get_history_backup_as_cluster_admin(&cfg, params).await?)
             }
         })
         .await
@@ -398,6 +458,21 @@ impl CamundaClient {
         .await
     }
 
+    /// Get a runtime backup across physical tenants (`GET /cluster/v2/backups/runtime/{backupId}`).
+    pub async fn get_runtime_backup_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::GetRuntimeBackupAsClusterAdminParams,
+    ) -> Result<models::ClusterRuntimeBackupInfo> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::get_runtime_backup_as_cluster_admin(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     /// Get runtime backup state (`GET /backups/runtime/state`).
     pub async fn get_runtime_backup_state(&self) -> Result<models::RuntimeBackupState> {
         self.guarded(|| async {
@@ -406,6 +481,21 @@ impl CamundaClient {
                 camunda_orchestration_api_client::apis::backup_api::get_runtime_backup_state(&cfg)
                     .await?,
             )
+        })
+        .await
+    }
+
+    /// Get runtime backup state across physical tenants (`GET /cluster/v2/backups/runtime/state`).
+    pub async fn get_runtime_backup_state_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::GetRuntimeBackupStateAsClusterAdminParams,
+    ) -> Result<models::ClusterRuntimeBackupState> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::get_runtime_backup_state_as_cluster_admin(&cfg, params).await?)
+            }
         })
         .await
     }
@@ -425,6 +515,21 @@ impl CamundaClient {
                     )
                     .await?,
                 )
+            }
+        })
+        .await
+    }
+
+    /// List history backups across physical tenants (`GET /cluster/v2/backups/history`).
+    pub async fn list_history_backups_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::ListHistoryBackupsAsClusterAdminParams,
+    ) -> Result<Vec<models::ClusterHistoryBackupInfo>> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::list_history_backups_as_cluster_admin(&cfg, params).await?)
             }
         })
         .await
@@ -450,6 +555,21 @@ impl CamundaClient {
         .await
     }
 
+    /// List runtime backups across physical tenants (`GET /cluster/v2/backups/runtime`).
+    pub async fn list_runtime_backups_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::ListRuntimeBackupsAsClusterAdminParams,
+    ) -> Result<Vec<models::ClusterRuntimeBackupInfo>> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::list_runtime_backups_as_cluster_admin(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     /// Force-write runtime backup state (`POST /backups/runtime/state/sync`).
     pub async fn sync_runtime_backup_state(&self) -> Result<models::RuntimeBackupState> {
         self.guarded(|| async {
@@ -458,6 +578,21 @@ impl CamundaClient {
                 camunda_orchestration_api_client::apis::backup_api::sync_runtime_backup_state(&cfg)
                     .await?,
             )
+        })
+        .await
+    }
+
+    /// Force-write runtime backup state across physical tenants (`POST /cluster/v2/backups/runtime/state/sync`).
+    pub async fn sync_runtime_backup_state_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::SyncRuntimeBackupStateAsClusterAdminParams,
+    ) -> Result<models::ClusterRuntimeBackupState> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::sync_runtime_backup_state_as_cluster_admin(&cfg, params).await?)
+            }
         })
         .await
     }
@@ -482,6 +617,21 @@ impl CamundaClient {
         .await
     }
 
+    /// Take a history backup on one or every physical tenant (`POST /cluster/v2/backups/history`).
+    pub async fn take_history_backup_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::TakeHistoryBackupAsClusterAdminParams,
+    ) -> Result<models::ClusterTakeHistoryBackupResponse> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::take_history_backup_as_cluster_admin(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     /// Take a runtime backup (`POST /backups/runtime`).
     pub async fn take_runtime_backup(
         &self,
@@ -497,6 +647,21 @@ impl CamundaClient {
                     )
                     .await?,
                 )
+            }
+        })
+        .await
+    }
+
+    /// Take a runtime backup on one or every physical tenant (`POST /cluster/v2/backups/runtime`).
+    pub async fn take_runtime_backup_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::backup_api::TakeRuntimeBackupAsClusterAdminParams,
+    ) -> Result<models::ClusterTakeRuntimeBackupResponse> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::backup_api::take_runtime_backup_as_cluster_admin(&cfg, params).await?)
             }
         })
         .await
@@ -619,6 +784,30 @@ impl CamundaClient {
         .await
     }
 
+    /// Stop the running rebalance (`DELETE /cluster/v2/rebalance`).
+    pub async fn cancel_cluster_rebalance(&self) -> Result<models::RebalanceCancellationResponse> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::cluster_api::cancel_cluster_rebalance(&cfg)
+                    .await?,
+            )
+        })
+        .await
+    }
+
+    /// Report the cluster's current leadership balance (`GET /cluster/v2/rebalance`).
+    pub async fn get_cluster_rebalance(&self) -> Result<models::ClusterBalanceResponse> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::cluster_api::get_cluster_rebalance(&cfg)
+                    .await?,
+            )
+        })
+        .await
+    }
+
     /// Get the status of the whole cluster (`GET /cluster/v2/status`).
     pub async fn get_cluster_status(&self) -> Result<models::ClusterStatusResponse> {
         self.guarded(|| async {
@@ -631,11 +820,43 @@ impl CamundaClient {
         .await
     }
 
+    /// Get the topology of the whole cluster (`GET /cluster/v2/topology`).
+    pub async fn get_cluster_topology(&self) -> Result<models::ClusterTopologyResponse> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::cluster_api::get_cluster_topology(&cfg)
+                    .await?,
+            )
+        })
+        .await
+    }
+
     /// Get physical tenant status (`GET /status`).
     pub async fn get_status(&self) -> Result<()> {
         self.guarded(|| async {
             let cfg = self.configuration().await?;
             Ok(camunda_orchestration_api_client::apis::cluster_api::get_status(&cfg).await?)
+        })
+        .await
+    }
+
+    /// Trigger a cluster-wide leadership rebalance (`POST /cluster/v2/rebalance`).
+    pub async fn trigger_cluster_rebalance(
+        &self,
+        params: camunda_orchestration_api_client::apis::cluster_api::TriggerClusterRebalanceParams,
+    ) -> Result<models::ClusterBalanceResponse> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::cluster_api::trigger_cluster_rebalance(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
         })
         .await
     }
@@ -1120,6 +1341,15 @@ impl CamundaClient {
         .await
     }
 
+    /// Get exporting status of the whole cluster (`GET /cluster/v2/exporting`).
+    pub async fn get_cluster_exporting_status(&self) -> Result<models::ExportingStatusResponse> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(camunda_orchestration_api_client::apis::exporting_api::get_cluster_exporting_status(&cfg).await?)
+        })
+        .await
+    }
+
     /// Get exporting status (`GET /exporting`).
     pub async fn get_exporting_status(&self) -> Result<models::ExportingStatusResponse> {
         self.guarded(|| async {
@@ -1128,6 +1358,26 @@ impl CamundaClient {
                 camunda_orchestration_api_client::apis::exporting_api::get_exporting_status(&cfg)
                     .await?,
             )
+        })
+        .await
+    }
+
+    /// Pause exporting across the whole cluster (`POST /cluster/v2/exporting/pause`).
+    pub async fn pause_cluster_exporting(
+        &self,
+        params: camunda_orchestration_api_client::apis::exporting_api::PauseClusterExportingParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::exporting_api::pause_cluster_exporting(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
         })
         .await
     }
@@ -1148,6 +1398,20 @@ impl CamundaClient {
                     .await?,
                 )
             }
+        })
+        .await
+    }
+
+    /// Resume exporting across the whole cluster (`POST /cluster/v2/exporting/resume`).
+    pub async fn resume_cluster_exporting(&self) -> Result<()> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::exporting_api::resume_cluster_exporting(
+                    &cfg,
+                )
+                .await?,
+            )
         })
         .await
     }
@@ -2418,7 +2682,7 @@ impl CamundaClient {
     pub async fn restore(
         &self,
         params: camunda_orchestration_api_client::apis::recovery_api::RestoreParams,
-    ) -> Result<models::ClusterModeChangeResponse> {
+    ) -> Result<models::ClusterRestoreResponse> {
         self.guarded(|| {
             let params = params.clone();
             async move {
@@ -2426,6 +2690,26 @@ impl CamundaClient {
                 Ok(
                     camunda_orchestration_api_client::apis::recovery_api::restore(&cfg, params)
                         .await?,
+                )
+            }
+        })
+        .await
+    }
+
+    /// Restore one or every physical tenant from a backup (`POST /cluster/v2/restore`).
+    pub async fn restore_as_cluster_admin(
+        &self,
+        params: camunda_orchestration_api_client::apis::recovery_api::RestoreAsClusterAdminParams,
+    ) -> Result<models::ClusterRestoreResponse> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::recovery_api::restore_as_cluster_admin(
+                        &cfg, params,
+                    )
+                    .await?,
                 )
             }
         })

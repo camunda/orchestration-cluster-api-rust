@@ -8,6 +8,7 @@ Method | HTTP request | Description
 [**change_cluster_mode_as_cluster_admin**](RecoveryApi.md#change_cluster_mode_as_cluster_admin) | **PATCH** /cluster/v2/mode | Change the cluster mode of one or every physical tenant
 [**get_restore_status**](RecoveryApi.md#get_restore_status) | **GET** /restore | Get the status of the restore that is currently in progress
 [**restore**](RecoveryApi.md#restore) | **POST** /restore | Restore from a backup
+[**restore_as_cluster_admin**](RecoveryApi.md#restore_as_cluster_admin) | **POST** /cluster/v2/restore | Restore one or every physical tenant from a backup
 
 
 
@@ -55,7 +56,7 @@ Transitions physical tenants between processing and recovery mode.  If the `phys
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **mode** | [**Mode**](Mode.md) | The target cluster mode. | [required] |
-**physical_tenant_id** | Option<**String**> | The physical tenant to apply the change to. When omitted, the change is applied to every physical tenant of the cluster. |  |
+**physical_tenant_id** | Option<**String**> | The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster. |  |
 **dry_run** | Option<**bool**> | If true, the requested change is only validated and the resulting plan is returned, without applying it to the cluster. |  |[default to false]
 
 ### Return type
@@ -103,7 +104,7 @@ This endpoint does not need any parameter.
 
 ## restore
 
-> models::ClusterModeChangeResponse restore(restore_request, dry_run)
+> models::ClusterRestoreResponse restore(restore_request, dry_run)
 Restore from a backup
 
 Restores the cluster from a backup. The restore is described either by a single backup ID or by a time range (`from`/`to`) that selects the backups to restore. This endpoint is only accessible while the cluster is in recovery mode; requests are rejected otherwise. The request is validated and acknowledged, but the restore itself is performed asynchronously.
@@ -118,7 +119,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::ClusterModeChangeResponse**](ClusterModeChangeResponse.md)
+[**models::ClusterRestoreResponse**](ClusterRestoreResponse.md)
 
 ### Authorization
 
@@ -128,6 +129,38 @@ Name | Type | Description  | Required | Notes
 
 - **Content-Type**: application/json
 - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## restore_as_cluster_admin
+
+> models::ClusterRestoreResponse restore_as_cluster_admin(cluster_restore_request, physical_tenant_id, dry_run)
+Restore one or every physical tenant from a backup
+
+Restores physical tenants from backups. The restore is described either by a list of backup IDs or by a time range (`from`/`to`) that selects the backups to restore. Restores are only accepted while the targeted physical tenants are in recovery mode; requests are rejected otherwise. The request is validated and acknowledged, but the restore itself is performed asynchronously.  If the `physicalTenantId` parameter is provided, only that physical tenant is restored and `overrides` must be omitted.  If it is not provided, every physical tenant of the cluster is restored: those named in `overrides` with their own backup selection, all others with the selection at the top level of the request body.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**cluster_restore_request** | [**ClusterRestoreRequest**](ClusterRestoreRequest.md) |  | [required] |
+**physical_tenant_id** | Option<**String**> | The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster. |  |
+**dry_run** | Option<**bool**> | If true, the requested change is only validated and the resulting plan is returned, without applying it to the cluster. |  |[default to false]
+
+### Return type
+
+[**models::ClusterRestoreResponse**](ClusterRestoreResponse.md)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json, application/problem+json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

@@ -47,7 +47,7 @@ pub enum ResolveSecretsError {
     UnknownValue(serde_json::Value),
 }
 
-/// List the `camunda.secrets.*` references known for the caller's physical tenant.  Only references the caller holds `SECRET:READ` on are returned. This endpoint never returns secret values, only the reference names.  The references are read from the secret stores configured for the caller's physical tenant. Secret names that cannot form a valid `camunda.secrets.<name>` reference (for example names containing a dot or a dash) are omitted, since they could neither be resolved nor be used in a BPMN expression.  This endpoint is an alpha feature and may be subject to change in future releases.
+/// List the `camunda.secrets.*` references known for the caller's physical tenant.  Only references the caller holds `SECRET:READ` on are returned. This endpoint never returns secret values, only the reference names.  The references are read from the secret stores configured for the caller's physical tenant. A store may hold names outside the reference name charset (for example one containing a dot); those are omitted, since `/secrets/resolve` would reject them and no permission can be granted on them.  A returned reference is usable verbatim with `/secrets/resolve`. In a FEEL expression, however, a name that is not a bare identifier has to be backtick-escaped, since FEEL reads a bare dash as the minus operator: a listed `camunda.secrets.db-password` is written `` =camunda.secrets.`db-password` `` in a BPMN input mapping.  This endpoint is an alpha feature and may be subject to change in future releases.
 pub async fn list_secrets(
     configuration: &configuration::Configuration,
     params: ListSecretsParams,

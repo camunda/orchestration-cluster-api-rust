@@ -5,6 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **agent_instance_key** | Option<[**models::AgentInstanceKeyFilterProperty**](AgentInstanceKeyFilterProperty.md)> | The unique key of the agent instance. | [optional]
+**agent_definition_key** | Option<[**models::AgentDefinitionKeyFilterProperty**](AgentDefinitionKeyFilterProperty.md)> | The key of the agent definition this agent instance is an instance of. | [optional]
 **status** | Option<[**models::AgentInstanceStatusFilterProperty**](AgentInstanceStatusFilterProperty.md)> | The current status of the agent instance. | [optional]
 **element_id** | Option<[**models::ElementIdFilterProperty**](ElementIdFilterProperty.md)> | The BPMN element ID of the agent task. | [optional]
 **process_instance_key** | Option<[**models::ProcessInstanceKeyFilterProperty**](ProcessInstanceKeyFilterProperty.md)> | The key of the process instance that owns this agent instance. | [optional]

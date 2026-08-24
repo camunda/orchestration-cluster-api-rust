@@ -17,6 +17,9 @@ pub struct AgentInstanceFilter {
     /// The unique key of the agent instance.
     #[serde(rename = "agentInstanceKey", skip_serializing_if = "Option::is_none")]
     pub agent_instance_key: Option<Box<models::AgentInstanceKeyFilterProperty>>,
+    /// The key of the agent definition this agent instance is an instance of.
+    #[serde(rename = "agentDefinitionKey", skip_serializing_if = "Option::is_none")]
+    pub agent_definition_key: Option<Box<models::AgentDefinitionKeyFilterProperty>>,
     /// The current status of the agent instance.
     #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
     pub status: Option<Box<models::AgentInstanceStatusFilterProperty>>,
@@ -81,6 +84,7 @@ impl AgentInstanceFilter {
     pub fn new() -> AgentInstanceFilter {
         AgentInstanceFilter {
             agent_instance_key: None,
+            agent_definition_key: None,
             status: None,
             element_id: None,
             process_instance_key: None,
