@@ -67,8 +67,9 @@ async fn restore() -> Result<(), Box<dyn std::error::Error>> {
 async fn restore_as_cluster_admin() -> Result<(), Box<dyn std::error::Error>> {
     let client = CamundaClient::from_env()?;
 
-    // `overrides` selects backups per physical tenant, and is only allowed for a
-    // cluster-wide restore, that is when `physical_tenant_id` is omitted.
+    // Omitting `physical_tenant_id` restores the whole cluster. A cluster-wide
+    // restore may also set `overrides` to pick a different backup per physical
+    // tenant.
     let result = client
         .restore_as_cluster_admin(RestoreAsClusterAdminParams {
             cluster_restore_request: ClusterRestoreRequest {

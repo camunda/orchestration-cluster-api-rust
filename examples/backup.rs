@@ -183,7 +183,8 @@ async fn delete_history_backup() -> Result<(), Box<dyn std::error::Error>> {
 async fn take_runtime_backup_as_cluster_admin() -> Result<(), Box<dyn std::error::Error>> {
     let client = CamundaClient::from_env()?;
 
-    // Omit `physical_tenant_id` to back up every physical tenant of the cluster.
+    // Setting `physical_tenant_id` scopes the backup to one physical tenant; omit
+    // it to back up every physical tenant of the cluster.
     let result = client
         .take_runtime_backup_as_cluster_admin(TakeRuntimeBackupAsClusterAdminParams {
             physical_tenant_id: Some("default".to_string()),
