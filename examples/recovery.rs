@@ -6,7 +6,9 @@
 
 use camunda_orchestration_sdk::apis::recovery_api::ChangeClusterModeAsClusterAdminParams;
 use camunda_orchestration_sdk::apis::recovery_api::ChangeClusterModeParams;
+use camunda_orchestration_sdk::apis::recovery_api::RestoreAsClusterAdminParams;
 use camunda_orchestration_sdk::apis::recovery_api::RestoreParams;
+use camunda_orchestration_sdk::models::ClusterRestoreRequest;
 use camunda_orchestration_sdk::models::Mode;
 use camunda_orchestration_sdk::models::RestoreRequest;
 use camunda_orchestration_sdk::CamundaClient;
@@ -60,6 +62,28 @@ async fn restore() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 // endregion Restore
+
+// region RestoreAsClusterAdmin
+async fn restore_as_cluster_admin() -> Result<(), Box<dyn std::error::Error>> {
+    let client = CamundaClient::from_env()?;
+
+    // `overrides` selects backups per physical tenant, and is only allowed for a
+    // cluster-wide restore, that is when `physical_tenant_id` is omitted.
+    let result = client
+        .restore_as_cluster_admin(RestoreAsClusterAdminParams {
+            cluster_restore_request: ClusterRestoreRequest {
+                backup_ids: Some(Some(vec![1])),
+                ..Default::default()
+            },
+            physical_tenant_id: None,
+            dry_run: Some(true),
+        })
+        .await?;
+    println!("{result:#?}");
+
+    Ok(())
+}
+// endregion RestoreAsClusterAdmin
 
 // region GetRestoreStatus
 async fn get_restore_status() -> Result<(), Box<dyn std::error::Error>> {
