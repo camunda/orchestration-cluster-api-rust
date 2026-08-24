@@ -20,11 +20,36 @@ pub struct DeleteHistoryBackupParams {
     pub backup_id: i64,
 }
 
+/// struct for passing parameters to the method [`delete_history_backup_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct DeleteHistoryBackupAsClusterAdminParams {
+    /// The id of the backup.
+    pub backup_id: i64,
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
+}
+
 /// struct for passing parameters to the method [`delete_runtime_backup`]
 #[derive(Clone, Debug)]
 pub struct DeleteRuntimeBackupParams {
     /// The id of the backup.
     pub backup_id: i64,
+}
+
+/// struct for passing parameters to the method [`delete_runtime_backup_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct DeleteRuntimeBackupAsClusterAdminParams {
+    /// The id of the backup.
+    pub backup_id: i64,
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
+}
+
+/// struct for passing parameters to the method [`delete_runtime_backup_state_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct DeleteRuntimeBackupStateAsClusterAdminParams {
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`get_history_backup`]
@@ -34,11 +59,36 @@ pub struct GetHistoryBackupParams {
     pub backup_id: i64,
 }
 
+/// struct for passing parameters to the method [`get_history_backup_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct GetHistoryBackupAsClusterAdminParams {
+    /// The id of the backup.
+    pub backup_id: i64,
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
+}
+
 /// struct for passing parameters to the method [`get_runtime_backup`]
 #[derive(Clone, Debug)]
 pub struct GetRuntimeBackupParams {
     /// The id of the backup.
     pub backup_id: i64,
+}
+
+/// struct for passing parameters to the method [`get_runtime_backup_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct GetRuntimeBackupAsClusterAdminParams {
+    /// The id of the backup.
+    pub backup_id: i64,
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
+}
+
+/// struct for passing parameters to the method [`get_runtime_backup_state_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct GetRuntimeBackupStateAsClusterAdminParams {
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`list_history_backups`]
@@ -50,11 +100,38 @@ pub struct ListHistoryBackupsParams {
     pub verbose: Option<bool>,
 }
 
+/// struct for passing parameters to the method [`list_history_backups_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct ListHistoryBackupsAsClusterAdminParams {
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
+    /// A prefix that backup ids must match, ending in a single '*'. If omitted, all backups are returned.
+    pub prefix: Option<String>,
+    /// Whether to ask the secondary storage for snapshot-level detail. Setting this to `false` makes the query cheaper, but the store then reports neither snapshot state nor start time, so both the per-snapshot `details` and the per-tenant `state` are incomplete and the listing order is unspecified.
+    pub verbose: Option<bool>,
+}
+
 /// struct for passing parameters to the method [`list_runtime_backups`]
 #[derive(Clone, Debug)]
 pub struct ListRuntimeBackupsParams {
     /// A prefix that backup ids must match, ending in a single '*'. If omitted, all backups are returned.
     pub prefix: Option<String>,
+}
+
+/// struct for passing parameters to the method [`list_runtime_backups_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct ListRuntimeBackupsAsClusterAdminParams {
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
+    /// A prefix that backup ids must match, ending in a single '*'. If omitted, all backups are returned.
+    pub prefix: Option<String>,
+}
+
+/// struct for passing parameters to the method [`sync_runtime_backup_state_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct SyncRuntimeBackupStateAsClusterAdminParams {
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
 }
 
 /// struct for passing parameters to the method [`take_history_backup`]
@@ -63,9 +140,25 @@ pub struct TakeHistoryBackupParams {
     pub take_history_backup_request: models::TakeHistoryBackupRequest,
 }
 
+/// struct for passing parameters to the method [`take_history_backup_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct TakeHistoryBackupAsClusterAdminParams {
+    pub take_history_backup_request: models::TakeHistoryBackupRequest,
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
+}
+
 /// struct for passing parameters to the method [`take_runtime_backup`]
 #[derive(Clone, Debug)]
 pub struct TakeRuntimeBackupParams {
+    pub take_runtime_backup_request: Option<models::TakeRuntimeBackupRequest>,
+}
+
+/// struct for passing parameters to the method [`take_runtime_backup_as_cluster_admin`]
+#[derive(Clone, Debug)]
+pub struct TakeRuntimeBackupAsClusterAdminParams {
+    /// The physical tenant to apply the change to. When omitted, or when passed with an empty value, the change is applied to every physical tenant of the cluster.
+    pub physical_tenant_id: Option<String>,
     pub take_runtime_backup_request: Option<models::TakeRuntimeBackupRequest>,
 }
 
@@ -81,6 +174,19 @@ pub enum DeleteHistoryBackupError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`delete_history_backup_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteHistoryBackupAsClusterAdminError {
+    Status400(),
+    Status401(),
+    Status403(models::ProblemDetail),
+    Status404(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`delete_runtime_backup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -88,6 +194,18 @@ pub enum DeleteRuntimeBackupError {
     Status401(),
     Status403(),
     Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`delete_runtime_backup_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteRuntimeBackupAsClusterAdminError {
+    Status400(),
+    Status401(),
+    Status404(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     Status503(),
     UnknownValue(serde_json::Value),
 }
@@ -103,10 +221,34 @@ pub enum DeleteRuntimeBackupStateError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`delete_runtime_backup_state_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteRuntimeBackupStateAsClusterAdminError {
+    Status401(),
+    Status404(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_history_backup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetHistoryBackupError {
+    Status401(),
+    Status403(),
+    Status404(models::ProblemDetail),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_history_backup_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetHistoryBackupAsClusterAdminError {
+    Status400(),
     Status401(),
     Status403(),
     Status404(models::ProblemDetail),
@@ -127,12 +269,35 @@ pub enum GetRuntimeBackupError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_runtime_backup_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetRuntimeBackupAsClusterAdminError {
+    Status400(),
+    Status401(),
+    Status404(models::ProblemDetail),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_runtime_backup_state`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetRuntimeBackupStateError {
     Status401(),
     Status403(),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_runtime_backup_state_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetRuntimeBackupStateAsClusterAdminError {
+    Status401(),
+    Status404(models::ProblemDetail),
     Status500(),
     Status503(),
     UnknownValue(serde_json::Value),
@@ -150,6 +315,19 @@ pub enum ListHistoryBackupsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`list_history_backups_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListHistoryBackupsAsClusterAdminError {
+    Status400(),
+    Status401(),
+    Status403(models::ProblemDetail),
+    Status404(models::ProblemDetail),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`list_runtime_backups`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -162,12 +340,36 @@ pub enum ListRuntimeBackupsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`list_runtime_backups_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListRuntimeBackupsAsClusterAdminError {
+    Status400(),
+    Status401(),
+    Status404(models::ProblemDetail),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`sync_runtime_backup_state`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SyncRuntimeBackupStateError {
     Status401(),
     Status403(),
+    Status500(),
+    Status503(),
+    Status504(models::ProblemDetail),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`sync_runtime_backup_state_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SyncRuntimeBackupStateAsClusterAdminError {
+    Status401(),
+    Status404(models::ProblemDetail),
     Status500(),
     Status503(),
     Status504(models::ProblemDetail),
@@ -187,6 +389,20 @@ pub enum TakeHistoryBackupError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`take_history_backup_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TakeHistoryBackupAsClusterAdminError {
+    Status400(),
+    Status401(),
+    Status403(),
+    Status404(models::ProblemDetail),
+    Status409(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`take_runtime_backup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -198,6 +414,21 @@ pub enum TakeRuntimeBackupError {
     Status500(),
     Status503(),
     Status504(models::ProblemDetail),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`take_runtime_backup_as_cluster_admin`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TakeRuntimeBackupAsClusterAdminError {
+    Status400(models::ProblemDetail),
+    Status401(),
+    Status404(models::ProblemDetail),
+    Status409(models::ClusterTakeRuntimeBackupResponse),
+    Status500(models::ClusterTakeRuntimeBackupResponse),
+    Status502(models::ClusterTakeRuntimeBackupResponse),
+    Status503(models::ClusterTakeRuntimeBackupResponse),
+    Status504(models::ClusterTakeRuntimeBackupResponse),
     UnknownValue(serde_json::Value),
 }
 
@@ -235,6 +466,52 @@ pub async fn delete_history_backup(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteHistoryBackupError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Deletes the history backup with the given id from every physical tenant of the cluster, or from the one named by `physicalTenantId`. A tenant that does not hold the backup has already reached the requested end state, so it counts as deleted rather than as a failure.  The request is all-or-nothing: a physical tenant the backup cannot be deleted from fails the whole request, and the deletions that already succeeded on other tenants are not undone. Narrow the request with `physicalTenantId` to delete from the tenants that can still be reached.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Only available on clusters whose secondary storage is Elasticsearch or OpenSearch. Use `DELETE /v2/backups/history/{backupId}` to act as a single physical tenant.
+pub async fn delete_history_backup_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: DeleteHistoryBackupAsClusterAdminParams,
+) -> Result<(), Error<DeleteHistoryBackupAsClusterAdminError>> {
+    let uri_str = format!(
+        "{}/cluster/v2/backups/history/{backupId}",
+        configuration.base_path,
+        backupId = params.backup_id
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteHistoryBackupAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -285,6 +562,52 @@ pub async fn delete_runtime_backup(
     }
 }
 
+/// Deletes the runtime backup with the given id from every physical tenant of the cluster, or from the one named by `physicalTenantId`. A tenant that does not hold the backup has already reached the requested end state, so it counts as deleted rather than as a failure — the same as deleting an unknown backup id through the per-physical-tenant endpoint.  The request is all-or-nothing: a physical tenant the backup cannot be deleted from fails the whole request, and the deletions that already succeeded on other tenants are not undone. Narrow the request with `physicalTenantId` to delete from the tenants that can still be reached.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Use `DELETE /v2/backups/runtime/{backupId}` to act as a single physical tenant.
+pub async fn delete_runtime_backup_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: DeleteRuntimeBackupAsClusterAdminParams,
+) -> Result<(), Error<DeleteRuntimeBackupAsClusterAdminError>> {
+    let uri_str = format!(
+        "{}/cluster/v2/backups/runtime/{backupId}",
+        configuration.base_path,
+        backupId = params.backup_id
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteRuntimeBackupAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Resets the runtime backup state of every partition of the physical tenant, clearing all checkpoint info, backup info, checkpoint metadata, and backup ranges. Used when switching backup stores.
 pub async fn delete_runtime_backup_state(
     configuration: &configuration::Configuration,
@@ -314,6 +637,51 @@ pub async fn delete_runtime_backup_state(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteRuntimeBackupStateError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Resets the runtime backup state of every partition of every physical tenant of the cluster, or of the one named by `physicalTenantId`, clearing all checkpoint info, backup info, checkpoint metadata, and backup ranges. Used when switching backup stores.  The request is all-or-nothing: a physical tenant whose state cannot be reset fails the whole request, and the resets that already succeeded on other tenants are not undone. Narrow the request with `physicalTenantId` to reset the tenants that can still be reached.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Use `DELETE /v2/backups/runtime/state` to act as a single physical tenant.
+pub async fn delete_runtime_backup_state_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: DeleteRuntimeBackupStateAsClusterAdminParams,
+) -> Result<(), Error<DeleteRuntimeBackupStateAsClusterAdminError>> {
+    let uri_str = format!(
+        "{}/cluster/v2/backups/runtime/state",
+        configuration.base_path
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeleteRuntimeBackupStateAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -373,6 +741,61 @@ pub async fn get_history_backup(
     }
 }
 
+/// Reports what every physical tenant of the cluster, or the one named by `physicalTenantId`, holds for the given backup id. There is no aggregated cluster-level state: a tenant that was reached and does not hold this backup reports `NOT_FOUND`, which is a successful observation rather than a failure.  The request is all-or-nothing: a physical tenant whose state cannot be read fails the whole request. Narrow the request with `physicalTenantId` to read the tenants that can still be reached.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Only available on clusters whose secondary storage is Elasticsearch or OpenSearch. Use `GET /v2/backups/history/{backupId}` to act as a single physical tenant.
+pub async fn get_history_backup_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: GetHistoryBackupAsClusterAdminParams,
+) -> Result<models::ClusterHistoryBackupInfo, Error<GetHistoryBackupAsClusterAdminError>> {
+    let uri_str = format!(
+        "{}/cluster/v2/backups/history/{backupId}",
+        configuration.base_path,
+        backupId = params.backup_id
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClusterHistoryBackupInfo`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClusterHistoryBackupInfo`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetHistoryBackupAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Returns detailed status of the runtime backup with the given id.
 pub async fn get_runtime_backup(
     configuration: &configuration::Configuration,
@@ -424,6 +847,61 @@ pub async fn get_runtime_backup(
     }
 }
 
+/// Reports what every physical tenant of the cluster, or the one named by `physicalTenantId`, holds for the given backup id, plus the state aggregated over all of them. A tenant that was reached and does not hold this backup reports `DOES_NOT_EXIST`, which is a successful observation rather than a failure — so a backup only some tenants hold aggregates to `INCOMPLETE`, the same way a backup only some partitions hold does within one tenant.  The request is all-or-nothing: a physical tenant whose state cannot be read fails the whole request. Narrow the request with `physicalTenantId` to read the tenants that can still be reached.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Use `GET /v2/backups/runtime/{backupId}` to act as a single physical tenant.
+pub async fn get_runtime_backup_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: GetRuntimeBackupAsClusterAdminParams,
+) -> Result<models::ClusterRuntimeBackupInfo, Error<GetRuntimeBackupAsClusterAdminError>> {
+    let uri_str = format!(
+        "{}/cluster/v2/backups/runtime/{backupId}",
+        configuration.base_path,
+        backupId = params.backup_id
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClusterRuntimeBackupInfo`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClusterRuntimeBackupInfo`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetRuntimeBackupAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Returns the current checkpoint and backup state of every partition of the physical tenant. Unlike the `backupRuntime` actuator, this fails the whole request if the checkpoint state or the backup ranges cannot be retrieved from any partition, instead of silently returning an empty section.
 pub async fn get_runtime_backup_state(
     configuration: &configuration::Configuration,
@@ -462,6 +940,60 @@ pub async fn get_runtime_backup_state(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetRuntimeBackupStateError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Reports the checkpoint and backup state of every partition of every physical tenant of the cluster, or of the one named by `physicalTenantId`, grouped by physical tenant. Checkpoint ids and log positions only mean anything within one physical tenant's partitions, so nothing is aggregated across tenants.  The request is all-or-nothing: a physical tenant whose state cannot be read fails the whole request rather than contributing an empty section, which an operator making a delete or restore decision could not tell apart from \"nothing to report yet\". Narrow the request with `physicalTenantId` to read the tenants that can still be reached.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Use `GET /v2/backups/runtime/state` to act as a single physical tenant.
+pub async fn get_runtime_backup_state_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: GetRuntimeBackupStateAsClusterAdminParams,
+) -> Result<models::ClusterRuntimeBackupState, Error<GetRuntimeBackupStateAsClusterAdminError>> {
+    let uri_str = format!(
+        "{}/cluster/v2/backups/runtime/state",
+        configuration.base_path
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClusterRuntimeBackupState`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClusterRuntimeBackupState`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetRuntimeBackupStateAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -523,6 +1055,63 @@ pub async fn list_history_backups(
     }
 }
 
+/// Lists the history backups of every physical tenant of the cluster, or of the one named by `physicalTenantId`, grouped by backup id. A backup id that only some physical tenants hold is a supported outcome rather than a degraded one, so only the tenants that hold it are listed under it.  The request is all-or-nothing: a physical tenant whose backups cannot be read fails the whole request rather than silently dropping out of the listing. Narrow the request with `physicalTenantId` to list the backups of the tenants that can still be read.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Only available on clusters whose secondary storage is Elasticsearch or OpenSearch. Use `GET /v2/backups/history` to act as a single physical tenant.
+pub async fn list_history_backups_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: ListHistoryBackupsAsClusterAdminParams,
+) -> Result<Vec<models::ClusterHistoryBackupInfo>, Error<ListHistoryBackupsAsClusterAdminError>> {
+    let uri_str = format!("{}/cluster/v2/backups/history", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.prefix {
+        req_builder = req_builder.query(&[("prefix", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.verbose {
+        req_builder = req_builder.query(&[("verbose", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::ClusterHistoryBackupInfo&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::ClusterHistoryBackupInfo&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListHistoryBackupsAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Returns a list of all available runtime backups of the physical tenant, with their state and additional info, sorted in descending order of backupId.
 pub async fn list_runtime_backups(
     configuration: &configuration::Configuration,
@@ -573,6 +1162,60 @@ pub async fn list_runtime_backups(
     }
 }
 
+/// Lists the runtime backups of every physical tenant of the cluster, or of the one named by `physicalTenantId`, grouped by backup id. Every group reports every targeted tenant, including the ones holding nothing for that id, so a backup only some tenants hold aggregates to `INCOMPLETE` here exactly as it does when looked up directly — the state of a listed group can be trusted to say whether the cluster can be restored from it. A backup id that only some physical tenants hold is a supported outcome rather than a degraded one; tenants that generate their own backup ids never share one, so in that mode each backup forms its own group and the other tenants report `DOES_NOT_EXIST` under it.  The request is all-or-nothing: a physical tenant whose backups cannot be read fails the whole request rather than silently dropping out of the listing. Narrow the request with `physicalTenantId` to list the backups of the tenants that can still be read.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Use `GET /v2/backups/runtime` to act as a single physical tenant.
+pub async fn list_runtime_backups_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: ListRuntimeBackupsAsClusterAdminParams,
+) -> Result<Vec<models::ClusterRuntimeBackupInfo>, Error<ListRuntimeBackupsAsClusterAdminError>> {
+    let uri_str = format!("{}/cluster/v2/backups/runtime", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.prefix {
+        req_builder = req_builder.query(&[("prefix", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::ClusterRuntimeBackupInfo&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::ClusterRuntimeBackupInfo&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListRuntimeBackupsAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Force-writes the checkpoint and backup metadata of every partition of the physical tenant to the backup store, independent of any backup being taken or confirmed, and returns the updated state.
 pub async fn sync_runtime_backup_state(
     configuration: &configuration::Configuration,
@@ -613,6 +1256,62 @@ pub async fn sync_runtime_backup_state(
     } else {
         let content = resp.text().await?;
         let entity: Option<SyncRuntimeBackupStateError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Force-writes the checkpoint and backup metadata of every partition of every physical tenant of the cluster, or of the one named by `physicalTenantId`, to that tenant's backup store, independent of any backup being taken or confirmed, and returns the updated state per physical tenant.  The request is all-or-nothing: a physical tenant whose metadata cannot be written fails the whole request, and the writes that already succeeded on other tenants are not undone. The operation is idempotent, so retrying the same call is the correct remedy. Narrow the request with `physicalTenantId` to write the tenants that can still be reached.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Use `POST /v2/backups/runtime/state/sync` to act as a single physical tenant.
+pub async fn sync_runtime_backup_state_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: SyncRuntimeBackupStateAsClusterAdminParams,
+) -> Result<models::ClusterRuntimeBackupState, Error<SyncRuntimeBackupStateAsClusterAdminError>> {
+    let uri_str = format!(
+        "{}/cluster/v2/backups/runtime/state/sync",
+        configuration.base_path
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClusterRuntimeBackupState`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClusterRuntimeBackupState`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<SyncRuntimeBackupStateAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -671,6 +1370,60 @@ pub async fn take_history_backup(
     }
 }
 
+/// Triggers a history backup on every physical tenant of the cluster, or on the one named by `physicalTenantId`. Every targeted tenant uses the same caller-supplied `backupId`, but the backups are independent: they are neither coordinated nor rolled back together.  The request is all-or-nothing: the `backupId` is checked on every targeted tenant before any snapshot is scheduled, so a tenant that already holds this id, or that cannot be reached, fails the whole request and no backup is started anywhere. There is no aggregated cluster-level state in the response.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Only available on clusters whose secondary storage is Elasticsearch or OpenSearch. Use `POST /v2/backups/history` to act as a single physical tenant.
+pub async fn take_history_backup_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: TakeHistoryBackupAsClusterAdminParams,
+) -> Result<models::ClusterTakeHistoryBackupResponse, Error<TakeHistoryBackupAsClusterAdminError>> {
+    let uri_str = format!("{}/cluster/v2/backups/history", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.take_history_backup_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClusterTakeHistoryBackupResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClusterTakeHistoryBackupResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<TakeHistoryBackupAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Triggers a backup of runtime data on all partitions of the physical tenant.  The `backupId` must be omitted if continuous backups and/or a backup or checkpoint schedule is enabled for the physical tenant, as the id is generated automatically. Otherwise, `backupId` is required.
 pub async fn take_runtime_backup(
     configuration: &configuration::Configuration,
@@ -715,6 +1468,62 @@ pub async fn take_runtime_backup(
     } else {
         let content = resp.text().await?;
         let entity: Option<TakeRuntimeBackupError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Triggers a runtime backup on every physical tenant of the cluster, or on the one named by `physicalTenantId`. A cluster-wide backup is a set of independent per-tenant backups, not an atomic snapshot of the cluster: they are neither coordinated nor rolled back together, and each tenant stores its own, so the same `backupId` can be used for all of them.  Every targeted physical tenant must be in the same backup-id mode. `backupId` must be omitted when every targeted tenant generates its own ids (because continuous backups and/or a backup or checkpoint schedule is enabled for it), and is required when none of them does. A cluster whose targeted tenants mix the two modes is rejected with 400 and has to be driven one tenant at a time through `POST /v2/backups/runtime`. In generated-id mode each tenant generates its own id, so the response reports an id per physical tenant rather than one for the cluster.  The trigger is all-or-error, and never silent about a partial trigger: if any targeted tenant cannot be triggered the response carries an error status, but its body still lists every targeted tenant — which ones were triggered, under which `backupId` to monitor or delete them, and why the others failed. Nothing is rolled back, so the backups that were triggered keep running and have to be deleted explicitly. A request rejected before any tenant was triggered answers with a problem detail instead, and nothing is running.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here. Use `POST /v2/backups/runtime` to act as a single physical tenant.
+pub async fn take_runtime_backup_as_cluster_admin(
+    configuration: &configuration::Configuration,
+    params: TakeRuntimeBackupAsClusterAdminParams,
+) -> Result<models::ClusterTakeRuntimeBackupResponse, Error<TakeRuntimeBackupAsClusterAdminError>> {
+    let uri_str = format!("{}/cluster/v2/backups/runtime", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref param_value) = params.physical_tenant_id {
+        req_builder = req_builder.query(&[("physicalTenantId", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    if let Some(ref body) = params.take_runtime_backup_request {
+        req_builder = req_builder.json(body);
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClusterTakeRuntimeBackupResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClusterTakeRuntimeBackupResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<TakeRuntimeBackupAsClusterAdminError> =
+            serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

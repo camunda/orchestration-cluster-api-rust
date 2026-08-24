@@ -45,6 +45,31 @@ pub struct AgentInstanceHistoryItem {
     /// The agent-side timestamp of when this message was produced.
     #[serde(rename = "producedAt")]
     pub produced_at: chrono::DateTime<chrono::FixedOffset>,
+    /// The complete list of tools available to the agent as of this entry. CONFIGURATION items only; omit for other roles. Omit to leave the tool list unchanged; send an empty array to clear it.
+    #[serde(
+        rename = "tools",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub tools: Option<Option<Vec<models::AgentTool>>>,
+    /// The LLM model identifier as of this entry. CONFIGURATION items only; omit for other roles.
+    #[serde(rename = "model", skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// The LLM provider as of this entry. CONFIGURATION items only; omit for other roles.
+    #[serde(rename = "provider", skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// The operational limits as of this entry. CONFIGURATION items only; omit for other roles.
+    #[serde(rename = "limits", skip_serializing_if = "Option::is_none")]
+    pub limits: Option<Box<models::AgentInstanceLimits>>,
+    /// The system prompt, as content blocks, as of this entry. CONFIGURATION items only; omit for other roles. Omit to leave the system prompt unchanged; when present, must be non-empty.
+    #[serde(
+        rename = "systemPrompt",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub system_prompt: Option<Option<Vec<models::AgentInstanceMessageContent>>>,
 }
 
 impl AgentInstanceHistoryItem {
@@ -64,6 +89,11 @@ impl AgentInstanceHistoryItem {
             tool_calls: None,
             metrics: None,
             produced_at,
+            tools: None,
+            model: None,
+            provider: None,
+            limits: None,
+            system_prompt: None,
         }
     }
 }

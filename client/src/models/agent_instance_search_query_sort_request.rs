@@ -30,6 +30,8 @@ impl AgentInstanceSearchQuerySortRequest {
 pub enum Field {
     #[serde(rename = "agentInstanceKey")]
     AgentInstanceKey,
+    #[serde(rename = "agentDefinitionKey")]
+    AgentDefinitionKey,
     #[serde(rename = "status")]
     Status,
     #[serde(rename = "elementId")]

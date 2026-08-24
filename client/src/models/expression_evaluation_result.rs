@@ -22,6 +22,9 @@ pub struct ExpressionEvaluationResult {
     /// List of warnings generated during expression evaluation
     #[serde(rename = "warnings")]
     pub warnings: Vec<models::ExpressionEvaluationWarningItem>,
+    /// The secret references resolved from trusted sources while evaluating the expression: a `camunda.secrets.<name>` reference used directly in the expression, or a reference carried by a `SECRET_REFERENCE`-kind cluster variable the expression read. References appearing only in request-body variables or plain cluster variables are excluded. Callers use this to know which `camunda.secrets.<name>` occurrences in the result they may safely resolve.
+    #[serde(rename = "referencedSecrets")]
+    pub referenced_secrets: Vec<models::ExpressionSecretReferenceItem>,
 }
 
 impl ExpressionEvaluationResult {
@@ -29,11 +32,13 @@ impl ExpressionEvaluationResult {
         expression: String,
         result: Option<serde_json::Value>,
         warnings: Vec<models::ExpressionEvaluationWarningItem>,
+        referenced_secrets: Vec<models::ExpressionSecretReferenceItem>,
     ) -> ExpressionEvaluationResult {
         ExpressionEvaluationResult {
             expression,
             result,
             warnings,
+            referenced_secrets,
         }
     }
 }

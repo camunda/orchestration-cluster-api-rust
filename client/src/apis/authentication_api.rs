@@ -86,7 +86,7 @@ pub async fn get_authentication(
 pub async fn search_own_authorizations(
     configuration: &configuration::Configuration,
     params: SearchOwnAuthorizationsParams,
-) -> Result<models::AuthorizationSearchResult, Error<SearchOwnAuthorizationsError>> {
+) -> Result<models::OwnAuthorizationSearchResult, Error<SearchOwnAuthorizationsError>> {
     let uri_str = format!(
         "{}/authentication/me/authorizations/search",
         configuration.base_path
@@ -120,8 +120,8 @@ pub async fn search_own_authorizations(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AuthorizationSearchResult`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AuthorizationSearchResult`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::OwnAuthorizationSearchResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::OwnAuthorizationSearchResult`")))),
         }
     } else {
         let content = resp.text().await?;

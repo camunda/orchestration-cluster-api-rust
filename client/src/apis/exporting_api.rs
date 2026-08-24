@@ -13,6 +13,13 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`pause_cluster_exporting`]
+#[derive(Clone, Debug)]
+pub struct PauseClusterExportingParams {
+    /// If true, soft-pauses exporting instead of a hard pause.
+    pub soft: Option<bool>,
+}
+
 /// struct for passing parameters to the method [`pause_exporting`]
 #[derive(Clone, Debug)]
 pub struct PauseExportingParams {
@@ -20,10 +27,32 @@ pub struct PauseExportingParams {
     pub soft: Option<bool>,
 }
 
+/// struct for typed errors of method [`get_cluster_exporting_status`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetClusterExportingStatusError {
+    Status401(),
+    Status403(),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_exporting_status`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetExportingStatusError {
+    Status401(),
+    Status403(),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`pause_cluster_exporting`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PauseClusterExportingError {
     Status401(),
     Status403(),
     Status500(),
@@ -42,6 +71,17 @@ pub enum PauseExportingError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`resume_cluster_exporting`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ResumeClusterExportingError {
+    Status401(),
+    Status403(),
+    Status500(),
+    Status503(),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`resume_exporting`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -51,6 +91,52 @@ pub enum ResumeExportingError {
     Status500(),
     Status503(),
     UnknownValue(serde_json::Value),
+}
+
+/// Returns the exporting status of the whole cluster, folded over the exporting status of every physical tenant. Only `PAUSED` and `SOFT_PAUSED` confirm that exporting is paused cluster-wide; every other value means at least one physical tenant is not paused, so callers should keep polling. A physical tenant that itself reports `MIXED` makes the whole cluster `MIXED`.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here.
+pub async fn get_cluster_exporting_status(
+    configuration: &configuration::Configuration,
+) -> Result<models::ExportingStatusResponse, Error<GetClusterExportingStatusError>> {
+    let uri_str = format!("{}/cluster/v2/exporting", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ExportingStatusResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ExportingStatusResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetClusterExportingStatusError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 /// Returns the exporting status of the physical tenant, aggregated over every replica of every one of its partitions.  Because pause and resume are applied to all replicas, the status is only a single phase if every replica reports that phase; otherwise it is `MIXED`, which means a pause or resume is still in flight or was only partially applied. Backup tooling should treat only `PAUSED` and `SOFT_PAUSED` as confirmation that exporting is paused.
@@ -99,6 +185,47 @@ pub async fn get_exporting_status(
     }
 }
 
+/// Pauses exporting on every physical tenant of the cluster in one call. With `soft=true`, every physical tenant is soft-paused instead.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here.
+pub async fn pause_cluster_exporting(
+    configuration: &configuration::Configuration,
+    params: PauseClusterExportingParams,
+) -> Result<(), Error<PauseClusterExportingError>> {
+    let uri_str = format!("{}/cluster/v2/exporting/pause", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref param_value) = params.soft {
+        req_builder = req_builder.query(&[("soft", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PauseClusterExportingError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Pauses exporting on all partitions of the physical tenant. While paused, exported records are not committed, so the log is not compacted for the affected partitions.  With `soft=true`, exporting continues to run but its position is not committed, so the state after resuming is identical to a hard pause; use this variant when exporting must keep progressing (e.g. to avoid falling behind) while still preventing log compaction, such as during a backup.
 pub async fn pause_exporting(
     configuration: &configuration::Configuration,
@@ -132,6 +259,43 @@ pub async fn pause_exporting(
     } else {
         let content = resp.text().await?;
         let entity: Option<PauseExportingError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Resumes exporting on every physical tenant of the cluster in one call, after a pause or soft pause.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here.
+pub async fn resume_cluster_exporting(
+    configuration: &configuration::Configuration,
+) -> Result<(), Error<ResumeClusterExportingError>> {
+    let uri_str = format!("{}/cluster/v2/exporting/resume", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ResumeClusterExportingError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

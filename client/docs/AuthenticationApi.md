@@ -38,7 +38,7 @@ This endpoint does not need any parameter.
 
 ## search_own_authorizations
 
-> models::AuthorizationSearchResult search_own_authorizations(authorization_search_query)
+> models::OwnAuthorizationSearchResult search_own_authorizations(authorization_search_query)
 Search own authorizations
 
 Search for the current authenticated principal's own authorization records — including authorizations granted directly to the user or client, as well as those granted via a group, role, or mapping rule the principal belongs to.
@@ -52,7 +52,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::AuthorizationSearchResult**](AuthorizationSearchResult.md)
+[**models::OwnAuthorizationSearchResult**](OwnAuthorizationSearchResult.md)
 
 ### Authorization
 

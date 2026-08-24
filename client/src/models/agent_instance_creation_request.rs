@@ -17,24 +17,48 @@ pub struct AgentInstanceCreationRequest {
     /// The key of the AI Agent Sub-process or AI Agent Task element instance. The engine uses this key to infer processInstanceKey, elementId, processDefinitionKey, and tenantId.
     #[serde(rename = "elementInstanceKey")]
     pub element_instance_key: Box<models::ElementInstanceKey>,
-    /// Static definition set once at creation.
-    #[serde(rename = "definition")]
-    pub definition: Box<models::AgentInstanceDefinition>,
-    /// Limits for the agent execution. When omitted, all limits default to -1 (no limit).
+    /// The agent's initial definition; model, provider, and systemPrompt can all be changed later via a CONFIGURATION history item. Required when history is empty or omitted. Must be omitted when history is non-empty — supply model, provider, and systemPrompt through a CONFIGURATION item in history instead.
+    #[serde(rename = "definition", skip_serializing_if = "Option::is_none")]
+    pub definition: Option<Box<models::AgentInstanceDefinition>>,
+    /// Limits for the agent execution. When omitted, all limits default to -1 (no limit). Must be omitted when history is non-empty — supply limits through a CONFIGURATION item in history instead, if needed.
     #[serde(rename = "limits", skip_serializing_if = "Option::is_none")]
     pub limits: Option<Box<models::AgentInstanceLimits>>,
+    /// The key of the job activation during which this creation is being made. Required whenever history is non-empty.
+    #[serde(
+        rename = "jobKey",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub job_key: Option<Option<Box<models::JobKey>>>,
+    /// Opaque lease token received from the job activation response. Disambiguates this activation from any other activation of the same job: if the job is later retried, history items submitted under a superseded lease are discarded rather than committed.
+    #[serde(
+        rename = "jobLease",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub job_lease: Option<Option<String>>,
+    /// A batch of history items to append to the agent instance's conversation history, in request order. Each created item is echoed back in the response's createdHistory, positionally correlated. When non-empty, model, provider, and systemPrompt (and, if needed, limits) must be established through a CONFIGURATION item in this batch instead of the top-level definition/limits, which must then be omitted.
+    #[serde(
+        rename = "history",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub history: Option<Option<Vec<models::AgentInstanceHistoryItem>>>,
 }
 
 impl AgentInstanceCreationRequest {
     /// Request to create a new agent instance.
-    pub fn new(
-        element_instance_key: models::ElementInstanceKey,
-        definition: models::AgentInstanceDefinition,
-    ) -> AgentInstanceCreationRequest {
+    pub fn new(element_instance_key: models::ElementInstanceKey) -> AgentInstanceCreationRequest {
         AgentInstanceCreationRequest {
             element_instance_key: Box::new(element_instance_key),
-            definition: Box::new(definition),
+            definition: None,
             limits: None,
+            job_key: None,
+            job_lease: None,
+            history: None,
         }
     }
 }
