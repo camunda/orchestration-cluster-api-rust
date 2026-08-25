@@ -5,6 +5,9 @@
 # Transient upstream spec clone (never commit — see camunda-schema-bundler)
 external-spec/upstream/
 
+# Side-effect report written by check-example-coverage.py on every run
+external-spec/missing-examples.json
+
 # Generated Docusaurus markdown (regenerate with `make docs-md`; consumed by camunda-docs)
 docs-md/
 
