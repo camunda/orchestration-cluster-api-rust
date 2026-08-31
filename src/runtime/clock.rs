@@ -165,7 +165,7 @@ pub struct EngineClock {
 impl std::fmt::Debug for EngineClock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EngineClock")
-            .field("pinned", &self.state.lock().map(|s| *s).unwrap_or(None))
+            .field("pinned", &*self.state.lock().expect("clock state poisoned"))
             .finish()
     }
 }
@@ -194,25 +194,37 @@ impl EngineClock {
     pub async fn pin_to(&self, epoch_millis: i64) -> Result<()> {
         let _gate = self.gate.lock().await;
 
-        let next_mono = {
-            let state = self.state.lock().expect("clock state poisoned");
-            match *state {
-                Some(pinned) if epoch_millis <= pinned.wall_ms => return Ok(()),
-                Some(pinned) => {
-                    pinned.mono + Duration::from_millis((epoch_millis - pinned.wall_ms) as u64)
-                }
-                None => {
-                    let ahead = epoch_millis.saturating_sub(self.live_wall_millis()).max(0);
-                    self.live.now() + Duration::from_millis(ahead as u64)
-                }
+        if let Some(pinned) = self.pinned() {
+            if epoch_millis <= pinned.wall_ms {
+                return Ok(());
             }
-        };
+        }
 
         self.engine.pin(epoch_millis).await?;
 
-        *self.state.lock().expect("clock state poisoned") = Some(Pinned {
+        // Derive the reading *after* the round-trip. While an initial pin is in flight
+        // `now()` still reports live time, which can outrun an instant computed before the
+        // request was sent -- publishing that would make `now()` jump backwards. The gate
+        // means no other pin can have moved the state in the meantime.
+        let mut state = self.state.lock().expect("clock state poisoned");
+        let (candidate, visible) = match *state {
+            Some(pinned) => (
+                pinned.mono
+                    + Duration::from_millis(
+                        epoch_millis.saturating_sub(pinned.wall_ms).max(0) as u64
+                    ),
+                pinned.mono,
+            ),
+            None => {
+                let ahead = epoch_millis.saturating_sub(self.live_wall_millis()).max(0);
+                let live = self.live.now();
+                (live + Duration::from_millis(ahead as u64), live)
+            }
+        };
+
+        *state = Some(Pinned {
             wall_ms: epoch_millis,
-            mono: next_mono,
+            mono: candidate.max(visible),
         });
         Ok(())
     }
@@ -465,12 +477,20 @@ mod tests {
         pins: std::sync::Mutex<Vec<i64>>,
         resets: std::sync::Mutex<u32>,
         refuse: bool,
+        /// Burns real time inside the request, so a pin can outlast the advance it asks for.
+        slow: bool,
     }
 
     impl FakeEngine {
         fn refusing() -> Self {
             FakeEngine {
                 refuse: true,
+                ..Default::default()
+            }
+        }
+        fn slow() -> Self {
+            FakeEngine {
+                slow: true,
                 ..Default::default()
             }
         }
@@ -491,6 +511,11 @@ mod tests {
             // Yield so concurrent callers genuinely interleave rather than each pin
             // completing before the next one starts.
             tokio::task::yield_now().await;
+            if self.slow {
+                for _ in 0..2_000 {
+                    tokio::task::yield_now().await;
+                }
+            }
             self.pins.lock().expect("poisoned").push(epoch_millis);
             Ok(())
         }
@@ -647,5 +672,41 @@ mod tests {
             engine.pins().is_empty(),
             "a zero wait should not move the engine"
         );
+    }
+
+    /// `Clock::now` must never go backwards -- every deadline in the runtime is computed
+    /// from it. An initial pin is the one moment that is at risk: readers still see live
+    /// time while the request is in flight, so a reading computed *before* the round-trip
+    /// can already be in the past by the time it is published.
+    #[tokio::test]
+    async fn now_does_not_go_backwards_when_a_pin_lands() {
+        let clock = Arc::new(EngineClock::new(Arc::new(FakeEngine::slow())));
+
+        let highest = Arc::new(std::sync::Mutex::new(clock.now()));
+        let reader = {
+            let clock = clock.clone();
+            let highest = highest.clone();
+            tokio::spawn(async move {
+                for _ in 0..10_000 {
+                    {
+                        let mut h = highest.lock().expect("poisoned");
+                        *h = (*h).max(clock.now());
+                    }
+                    tokio::task::yield_now().await;
+                }
+            })
+        };
+
+        // Ask for zero advance, so only the round-trip's own duration can leave the
+        // published reading behind what readers have already observed.
+        let target = clock.wall_millis();
+        clock.pin_to(target).await.expect("pin");
+
+        let highest_seen = *highest.lock().expect("poisoned");
+        assert!(
+            clock.now() >= highest_seen,
+            "now() went backwards when the pin landed"
+        );
+        reader.abort();
     }
 }
