@@ -780,3 +780,21 @@ impl CamundaClient {
         }
     }
 }
+
+#[async_trait::async_trait]
+impl super::clock::ClockController for CamundaClient {
+    async fn pin(&self, epoch_millis: i64) -> Result<()> {
+        self.pin_clock(
+            camunda_orchestration_api_client::apis::clock_api::PinClockParams {
+                clock_pin_request: camunda_orchestration_api_client::models::ClockPinRequest::new(
+                    epoch_millis,
+                ),
+            },
+        )
+        .await
+    }
+
+    async fn reset(&self) -> Result<()> {
+        self.reset_clock().await
+    }
+}

@@ -849,9 +849,10 @@ RUNTIME_TYPES = [
     "BackpressureProfile",
     "BackpressureSeverity",
     "BackpressureState",
-    # The `Clock` trait itself is not listed: this generator only collects structs, enums
-    # and type aliases, so a trait never reaches classification.
+    # The `Clock` and `ClockController` traits are not listed: this generator only collects
+    # structs, enums and type aliases, so a trait never reaches classification.
     "LiveClock",
+    "EngineClock",
 ]
 
 
