@@ -30,6 +30,7 @@ use serde_json::Value;
 use camunda_orchestration_api_client::models;
 
 use super::client::CamundaClient;
+use super::clock::Clock;
 use super::config::WorkerDefaults;
 use super::errors::{CamundaError, Result};
 
@@ -190,6 +191,7 @@ impl JobWorkerConfig {
 #[derive(Debug, Clone)]
 pub struct Job {
     inner: models::ActivatedJobResult,
+    clock: Arc<dyn Clock>,
 }
 
 impl Job {
@@ -235,6 +237,20 @@ impl Job {
     }
 
     /// The underlying generated activated-job model.
+    /// The clock this job's worker resolves cadence through. Handlers that need to wait
+    /// must use this rather than `tokio::time::sleep`, so an injected clock controls them.
+    ///
+    /// ```no_run
+    /// # use camunda_orchestration_sdk::{Job, JobAction};
+    /// # async fn handle(job: Job) -> JobAction {
+    /// job.clock().sleep(std::time::Duration::from_secs(1)).await;
+    /// JobAction::complete()
+    /// # }
+    /// ```
+    pub fn clock(&self) -> &Arc<dyn Clock> {
+        &self.clock
+    }
+
     pub fn raw(&self) -> &models::ActivatedJobResult {
         &self.inner
     }
@@ -361,6 +377,15 @@ impl JobWorker {
         }
     }
 
+    /// Wrap an activated job for the handler. The single place a job's clock is chosen,
+    /// so the REST and Falcon paths cannot drift apart on which clock handlers observe.
+    fn wrap_job(&self, activated: models::ActivatedJobResult) -> Job {
+        Job {
+            inner: activated,
+            clock: self.client.clock().clone(),
+        }
+    }
+
     /// Invoke the configured `on_ready` callback, if any. Each run path calls this
     /// exactly once at the moment the worker is ready to receive jobs.
     fn fire_ready(&self) {
@@ -457,7 +482,7 @@ impl JobWorker {
 
             let mut tasks = Vec::with_capacity(jobs.len());
             for activated in jobs {
-                let job = Job { inner: activated };
+                let job = self.wrap_job(activated);
                 let client = self.client.clone();
                 let handler = handler.clone();
                 tasks.push(tokio::spawn(async move {
@@ -537,7 +562,7 @@ impl JobWorker {
             let Some(activated) = worker.next_job(Duration::from_millis(500)).await else {
                 continue;
             };
-            let job = Job { inner: activated };
+            let job = self.wrap_job(activated);
             let handler = handler.clone();
             let worker = worker.clone();
             tokio::spawn(async move {
@@ -742,5 +767,91 @@ mod tests {
         let s = format!("{c:?}");
         assert!(s.contains("on_ready"));
         assert!(s.contains("<callback>"));
+    }
+
+    /// Build an activated job. Only the clock wiring is under test, so the field values
+    /// are arbitrary.
+    fn fake_activated() -> models::ActivatedJobResult {
+        models::ActivatedJobResult::new(
+            "test-type".to_string(),
+            models::ProcessDefinitionId::assume_exists("proc".to_string()),
+            1,
+            models::ElementId::assume_exists("element".to_string()),
+            HashMap::new(),
+            "worker".to_string(),
+            3,
+            0,
+            HashMap::new(),
+            models::TenantId::assume_exists("<default>".to_string()),
+            "physical".to_string(),
+            models::JobKey::assume_exists("1".to_string()),
+            models::ProcessInstanceKey::assume_exists("2".to_string()),
+            models::ProcessDefinitionKey::assume_exists("3".to_string()),
+            models::ElementInstanceKey::assume_exists("4".to_string()),
+            models::JobKindEnum::BpmnElement,
+            models::JobListenerEventTypeEnum::Assigning,
+            None,
+            Vec::new(),
+            None,
+            None,
+            0,
+            None,
+        )
+    }
+
+    /// A handler that waits must be controllable by an injected clock. That only holds if
+    /// the job carries the *client's* clock -- handing it `live_clock()` would compile,
+    /// pass every other test, and silently leave handlers on real time.
+    #[test]
+    fn a_job_carries_the_clients_clock() {
+        let clock: Arc<dyn Clock> = Arc::new(super::super::clock::RecordingClock::default());
+        let client = super::super::client::CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", "http://localhost:8080")
+                .with_clock(clock.clone()),
+        )
+        .expect("client should build from an address alone");
+
+        let worker = client.create_job_worker(JobWorkerConfig::new("test-type"));
+        let job = worker.wrap_job(fake_activated());
+
+        assert!(
+            Arc::ptr_eq(job.clock(), &clock),
+            "the job was handed a different clock than the client's"
+        );
+    }
+
+    /// `wrap_job` is the only place a job's clock is chosen. A second construction site
+    /// could wire the REST path and leave Falcon on real time -- the half-injected failure
+    /// this contract exists to prevent -- and no behavioural test would catch it, because
+    /// the Falcon path needs a live gateway to reach. Guard it structurally instead.
+    #[test]
+    fn jobs_are_only_ever_built_by_wrap_job() {
+        let source = include_str!("job_worker.rs");
+        let constructions = count_job_constructions(source);
+        assert_eq!(
+            constructions, 1,
+            "found {constructions} `Job {{ inner: .. }}` construction sites; expected exactly \
+             one, inside `wrap_job`. Route the new site through `wrap_job` so every delivery \
+             path hands handlers the same clock."
+        );
+    }
+
+    /// Counts `Job { inner: .. }` struct literals, tolerating any whitespace before the
+    /// field. Skips the `struct Job {` definition, which has the same shape. Kept
+    /// dependency-free -- the crate has no regex dev-dep.
+    fn count_job_constructions(source: &str) -> usize {
+        // Production code only. The test module discusses this pattern in prose, and
+        // counting itself would make the guard fail on its own documentation.
+        let production = source.split("\nmod tests {").next().unwrap_or(source);
+        production
+            .match_indices("Job {")
+            .filter(|(i, _)| !production[..*i].ends_with("struct "))
+            .filter(|(i, _)| {
+                production[i + "Job {".len()..]
+                    .trim_start()
+                    .starts_with("inner:")
+            })
+            .count()
     }
 }
