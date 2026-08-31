@@ -82,6 +82,14 @@ impl Clock for LiveClock {
     }
 
     async fn sleep(&self, duration: Duration) {
+        if duration.is_zero() {
+            // `tokio::time::sleep(ZERO)` is Ready on its first poll -- it never yields. A
+            // caller that reschedules itself on completion would spin, and callers reach
+            // zero routinely by computing `deadline - now()` on an elapsed deadline. A 1ns
+            // sleep does yield, so only exactly-zero needs this.
+            tokio::task::yield_now().await;
+            return;
+        }
         tokio::time::sleep(duration).await;
     }
 }
@@ -109,7 +117,11 @@ mod tests {
         );
 
         // Already-elapsed durations are ordinary: callers compute `deadline - now()`, which
-        // goes to zero the moment a deadline passes.
+        // goes to zero the moment a deadline passes. It must still yield.
+        assert!(
+            poll_once(clock.sleep(Duration::ZERO)).is_pending(),
+            "sleep(ZERO) completed without yielding"
+        );
         clock.sleep(Duration::ZERO).await;
 
         let wall = clock.now_wall();
@@ -154,27 +166,35 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    /// Poll a future exactly once. `Pending` means it yielded; `Ready` means it completed
+    /// without ever handing control back to the executor.
+    fn poll_once<F: std::future::Future>(fut: F) -> std::task::Poll<F::Output> {
+        let waker = futures_util::task::noop_waker();
+        let mut cx = std::task::Context::from_waker(&waker);
+        Box::pin(fut).as_mut().poll(&mut cx)
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn sleep_yields_to_the_executor() {
-        // The clause hand-rolled clocks break most often. A sleep that returns on the
-        // current poll turns a worker's poll loop into a spin.
-        let clock = LiveClock;
-        let flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let observed = flag.clone();
-
-        let waiter = tokio::spawn(async move {
-            clock.sleep(Duration::from_millis(50)).await;
-            flag.store(true, std::sync::atomic::Ordering::SeqCst);
-        });
-
-        tokio::task::yield_now().await;
+        // The clause hand-rolled clocks break most often: a sleep that returns on the first
+        // poll turns a caller that reschedules itself into a spin. Asserted by polling
+        // rather than by racing a real sleep, so it is deterministic and states the property
+        // directly.
         assert!(
-            !observed.load(std::sync::atomic::Ordering::SeqCst),
+            poll_once(LiveClock.sleep(Duration::from_secs(30))).is_pending(),
             "sleep() completed without yielding"
         );
+    }
 
-        waiter.await.expect("waiter panicked");
-        assert!(observed.load(std::sync::atomic::Ordering::SeqCst));
+    #[tokio::test(start_paused = true)]
+    async fn a_zero_sleep_yields_too() {
+        // `tokio::time::sleep(ZERO)` is Ready on its first poll. Callers reach zero by
+        // computing `deadline - now()` once a deadline has passed, so without special
+        // handling an expired poll loop spins instead of waiting.
+        assert!(
+            poll_once(LiveClock.sleep(Duration::ZERO)).is_pending(),
+            "sleep(ZERO) completed without yielding"
+        );
     }
 
     #[tokio::test(start_paused = true)]

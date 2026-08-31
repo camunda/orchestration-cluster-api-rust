@@ -30,7 +30,11 @@ pub(crate) struct FalconState {
 }
 
 /// Options for constructing a [`CamundaClient`].
+///
+/// Non-exhaustive: construct with [`CamundaOptions::new`] and the `with_*` builders, so that
+/// later additions here are not breaking changes for callers.
 #[derive(Default)]
+#[non_exhaustive]
 pub struct CamundaOptions {
     /// Programmatic overrides for `CAMUNDA_*` configuration keys. These take precedence
     /// over environment variables.
