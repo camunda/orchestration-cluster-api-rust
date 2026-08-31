@@ -33,6 +33,7 @@ pub use runtime::backpressure::{
     BackpressureManager, BackpressureProfile, BackpressureSeverity, BackpressureState,
 };
 pub use runtime::client::{CamundaClient, CamundaOptions};
+pub use runtime::clock::{live_clock, Clock, LiveClock};
 pub use runtime::config::{CamundaConfig, LogLevel, RetryConfig, TlsConfig, WorkerDefaults};
 pub use runtime::errors::{CamundaError, Result};
 pub use runtime::eventual::ConsistencyOptions;
