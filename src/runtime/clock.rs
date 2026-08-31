@@ -254,6 +254,15 @@ mod tests {
     #[test]
     fn ambient_time_stays_banned_in_clippy_config() {
         let config = include_str!("../../clippy.toml");
+        // Live entries only. Prose in this file names the banned paths, and a bare
+        // substring check would accept a commented-out entry -- or accept
+        // `tokio::time::sleep` on the strength of the `sleep_until` line alone.
+        let entries: Vec<&str> = config
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.starts_with('#'))
+            .collect();
+
         for path in [
             "std::time::Instant::now",
             "tokio::time::Instant::now",
@@ -262,11 +271,9 @@ mod tests {
             "tokio::time::sleep_until",
             "std::thread::sleep",
         ] {
-            // Match the quoted path: a bare substring check passes for `tokio::time::sleep`
-            // on the strength of the `sleep_until` entry alone.
-            let entry = format!("\"{path}\"");
+            let field = format!("path = \"{path}\"");
             assert!(
-                config.contains(&entry),
+                entries.iter().any(|line| line.contains(&field)),
                 "`{path}` is no longer banned in clippy.toml; ambient time can re-enter the runtime"
             );
         }
