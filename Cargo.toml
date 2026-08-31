@@ -28,7 +28,9 @@ tokio-tungstenite = { version = "0.24", default-features = false, features = ["c
 futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full"] }
+# `test-util` is deliberately excluded from tokio's `full`; it is what provides
+# `start_paused`, which lets clock tests advance virtual time instead of waiting.
+tokio = { version = "1", features = ["full", "test-util"] }
 
 [features]
 default = ["native-tls"]

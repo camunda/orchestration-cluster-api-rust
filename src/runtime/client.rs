@@ -12,6 +12,7 @@ use camunda_orchestration_api_client::models;
 
 use super::auth::Authentication;
 use super::backpressure::{is_backpressure_error, BackpressureManager, BackpressureState};
+use super::clock::{self, Clock};
 use super::config::CamundaConfig;
 use super::errors::{CamundaError, Result};
 use super::eventual::ConsistencyOptions;
@@ -37,6 +38,8 @@ pub struct CamundaOptions {
     /// A pre-built `reqwest::Client` to use for all requests (including OAuth token
     /// fetches). When `None`, a default client is created.
     pub http_client: Option<reqwest::Client>,
+    /// The clock the client's cadence resolves through. When `None`, real time is used.
+    pub clock: Option<Arc<dyn Clock>>,
 }
 
 impl CamundaOptions {
@@ -56,6 +59,12 @@ impl CamundaOptions {
         self.http_client = Some(client);
         self
     }
+
+    /// Resolve the client's cadence through `clock` instead of real time.
+    pub fn with_clock(mut self, clock: Arc<dyn Clock>) -> Self {
+        self.clock = Some(clock);
+        self
+    }
 }
 
 /// The primary entry point of the SDK.
@@ -71,6 +80,7 @@ pub struct CamundaClient {
     bp: Arc<BackpressureManager>,
     workers: Arc<std::sync::Mutex<Vec<JobWorkerHandle>>>,
     falcon: FalconState,
+    clock: Arc<dyn Clock>,
 }
 
 impl CamundaClient {
@@ -101,12 +111,18 @@ impl CamundaClient {
             bp,
             workers: Arc::new(std::sync::Mutex::new(Vec::new())),
             falcon: FalconState::default(),
+            clock: options.clock.unwrap_or_else(clock::live_clock),
         })
     }
 
     /// The resolved configuration.
     pub fn config(&self) -> &CamundaConfig {
         &self.config
+    }
+
+    /// The clock this client's cadence resolves through.
+    pub fn clock(&self) -> &Arc<dyn Clock> {
+        &self.clock
     }
 
     /// The authentication handler.
