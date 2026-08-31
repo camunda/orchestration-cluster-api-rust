@@ -27,8 +27,7 @@
 //! and `tokio::time::Instant::now` move together — but it does not touch `std::time::Instant`.
 //! A clock reading `std` while sleeping on tokio would report that no time had passed across
 //! a sleep that the runtime believes took thirty seconds, which is worse than either being
-//! real. `tokio::time::Instant` derefs to the `std` type, so callers that need one can still
-//! get it.
+//! real. Callers that need the `std` type can convert with `Instant::into_std`.
 
 use std::fmt::Debug;
 use std::sync::{Arc, OnceLock};
