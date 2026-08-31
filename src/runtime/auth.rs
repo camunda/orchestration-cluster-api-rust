@@ -10,11 +10,13 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
+use tokio::time::Instant;
 
+use super::clock::Clock;
 use super::config::CamundaConfig;
 use super::errors::{CamundaError, Result};
 use camunda_orchestration_api_client::apis::configuration::Configuration;
@@ -94,11 +96,16 @@ struct Inner {
     cache: Mutex<Option<CachedToken>>,
     // Optional cross-process token cache directory.
     oauth_cache_dir: Option<PathBuf>,
+    clock: Arc<dyn Clock>,
 }
 
 impl Authentication {
     /// Build an [`Authentication`] from resolved configuration.
-    pub fn from_config(config: &CamundaConfig, http: reqwest::Client) -> Self {
+    pub fn from_config(
+        config: &CamundaConfig,
+        http: reqwest::Client,
+        clock: Arc<dyn Clock>,
+    ) -> Self {
         Authentication {
             inner: Arc::new(Inner {
                 strategy: config.auth_strategy,
@@ -112,6 +119,7 @@ impl Authentication {
                 http,
                 cache: Mutex::new(None),
                 oauth_cache_dir: config.oauth_cache_dir.clone().map(PathBuf::from),
+                clock,
             }),
         }
     }
@@ -148,7 +156,7 @@ impl Authentication {
         {
             let cache = self.inner.cache.lock().await;
             if let Some(cached) = cache.as_ref() {
-                if Instant::now() < cached.refresh_after {
+                if self.inner.clock.now() < cached.refresh_after {
                     return Ok(cached.token.clone());
                 }
             }
@@ -156,7 +164,7 @@ impl Authentication {
 
         // Try the cross-process disk cache before hitting the token endpoint.
         if let Some(disk) = self.read_disk_token() {
-            if Instant::now() < disk.refresh_after {
+            if self.inner.clock.now() < disk.refresh_after {
                 let token = disk.token.clone();
                 let mut cache = self.inner.cache.lock().await;
                 *cache = Some(disk);
@@ -191,18 +199,22 @@ impl Authentication {
         let path = self.cache_file_path()?;
         let bytes = std::fs::read(&path).ok()?;
         let disk: DiskToken = serde_json::from_slice(&bytes).ok()?;
-        let now_wall_ms = SystemTime::now()
+        let now_wall_ms = self
+            .inner
+            .clock
+            .now_wall()
             .duration_since(UNIX_EPOCH)
             .ok()?
             .as_millis();
         let refresh_after_wall = UNIX_EPOCH
             + Duration::from_millis(disk.refresh_after_unix_ms.min(u64::MAX as u128) as u64);
-        // Map the wall-clock expiry onto the monotonic clock.
+        // Map the wall-clock expiry onto the monotonic clock. Both branches must read one
+        // `now()`, or they disagree by however far the clock moved between the two calls.
+        let now = self.inner.clock.now();
         let refresh_after = if disk.refresh_after_unix_ms > now_wall_ms {
-            Instant::now()
-                + Duration::from_millis((disk.refresh_after_unix_ms - now_wall_ms) as u64)
+            now + Duration::from_millis((disk.refresh_after_unix_ms - now_wall_ms) as u64)
         } else {
-            Instant::now()
+            now
         };
         Some(CachedToken {
             token: disk.access_token,
@@ -302,8 +314,8 @@ impl Authentication {
         let lead_duration = Duration::from_secs(lead);
         Ok(CachedToken {
             token: token.access_token,
-            refresh_after: Instant::now() + lead_duration,
-            refresh_after_wall: SystemTime::now() + lead_duration,
+            refresh_after: self.inner.clock.now() + lead_duration,
+            refresh_after_wall: self.inner.clock.now_wall() + lead_duration,
         })
     }
 }

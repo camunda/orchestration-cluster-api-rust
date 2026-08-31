@@ -16,10 +16,13 @@
 //! returns to unlimited.
 
 use std::str::FromStr;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use tokio::sync::Notify;
+use tokio::time::Instant;
+
+use super::clock::Clock;
 
 use super::errors::CamundaError;
 
@@ -154,11 +157,12 @@ pub struct BackpressureManager {
     observe_only: bool,
     inner: Mutex<Inner>,
     notify: Notify,
+    clock: Arc<dyn Clock>,
 }
 
 impl BackpressureManager {
-    /// Create a manager for the given profile.
-    pub fn new(profile: BackpressureProfile) -> Self {
+    /// Create a manager for the given profile, resolving its cadence through `clock`.
+    pub fn new(profile: BackpressureProfile, clock: Arc<dyn Clock>) -> Self {
         BackpressureManager {
             observe_only: profile == BackpressureProfile::Legacy,
             inner: Mutex::new(Inner {
@@ -174,6 +178,7 @@ impl BackpressureManager {
                 backoff: Duration::ZERO,
             }),
             notify: Notify::new(),
+            clock,
         }
     }
 
@@ -215,7 +220,7 @@ impl BackpressureManager {
                 st.backoff
             };
             if !backoff.is_zero() {
-                tokio::time::sleep(backoff).await;
+                self.clock.sleep(backoff).await;
             }
 
             // Register interest *before* re-checking, so a concurrent release cannot be lost.
@@ -271,7 +276,7 @@ impl BackpressureManager {
 
     /// Record a backpressure signal from the server.
     pub fn record_backpressure(&self) {
-        let now = Instant::now();
+        let now = self.clock.now();
         let mut st = self.inner.lock().unwrap();
         st.last_event_at = Some(now);
         st.consecutive += 1;
@@ -313,7 +318,7 @@ impl BackpressureManager {
 
     /// Record a successful (non-backpressure) completion, triggering passive recovery.
     pub fn record_healthy_hint(&self) {
-        let now = Instant::now();
+        let now = self.clock.now();
         let mut st = self.inner.lock().unwrap();
         // Reset backoff immediately on success — the server clearly has capacity.
         st.backoff = Duration::ZERO;
@@ -439,7 +444,10 @@ mod tests {
 
     #[test]
     fn starts_unlimited() {
-        let bp = BackpressureManager::new(BackpressureProfile::Balanced);
+        let bp = BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        );
         let s = bp.state();
         assert_eq!(s.permits_max, None);
         assert_eq!(s.severity, BackpressureSeverity::Healthy);
@@ -447,7 +455,10 @@ mod tests {
 
     #[test]
     fn boots_and_shrinks_on_backpressure() {
-        let bp = BackpressureManager::new(BackpressureProfile::Balanced);
+        let bp = BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        );
         bp.record_backpressure();
         let s = bp.state();
         // First signal: boots to INITIAL_MAX then shrinks by the soft factor.
@@ -460,7 +471,10 @@ mod tests {
 
     #[test]
     fn escalates_to_severe_after_threshold() {
-        let bp = BackpressureManager::new(BackpressureProfile::Balanced);
+        let bp = BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        );
         for _ in 0..SEVERE_THRESHOLD {
             bp.record_backpressure();
         }
@@ -469,7 +483,10 @@ mod tests {
 
     #[test]
     fn legacy_profile_never_gates() {
-        let bp = BackpressureManager::new(BackpressureProfile::Legacy);
+        let bp = BackpressureManager::new(
+            BackpressureProfile::Legacy,
+            super::super::clock::live_clock(),
+        );
         for _ in 0..10 {
             bp.record_backpressure();
         }
@@ -479,7 +496,10 @@ mod tests {
 
     #[tokio::test]
     async fn acquire_release_round_trips_when_capped() {
-        let bp = BackpressureManager::new(BackpressureProfile::Balanced);
+        let bp = BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        );
         // Force a cap.
         bp.record_backpressure();
         // Acquire and release should not deadlock.
@@ -492,8 +512,38 @@ mod tests {
 
     #[tokio::test]
     async fn legacy_acquire_is_noop() {
-        let bp = BackpressureManager::new(BackpressureProfile::Legacy);
+        let bp = BackpressureManager::new(
+            BackpressureProfile::Legacy,
+            super::super::clock::live_clock(),
+        );
         bp.acquire().await.unwrap();
         assert_eq!(bp.state().permits_current, 0);
+    }
+
+    /// The gate's backoff must be spent on the injected clock, not on ambient
+    /// time. Without this the seam exists but `acquire` still blocks the whole
+    /// runtime for real seconds under test — the defect the JS and C# SDKs
+    /// shipped with.
+    #[tokio::test(start_paused = true)]
+    async fn the_acquire_gate_waits_on_the_injected_clock() {
+        let clock = std::sync::Arc::new(super::super::clock::RecordingClock::default());
+        let mgr = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+
+        // Backoff only engages once the gate is severe *and* pinned at the permit
+        // floor, so hammer it until it gets there — one signal is not enough.
+        for _ in 0..64 {
+            mgr.record_backpressure();
+        }
+        mgr.acquire().await.unwrap();
+        mgr.release();
+
+        assert!(
+            !clock.sleeps().is_empty(),
+            "acquire backed off without going through the injected clock"
+        );
+        assert!(
+            clock.now_calls() > 0,
+            "the recovery window was measured against ambient time"
+        );
     }
 }
