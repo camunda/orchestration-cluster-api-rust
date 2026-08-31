@@ -239,6 +239,12 @@ impl Job {
     /// The clock this job's worker resolves cadence through. Handlers that need to wait
     /// must use this rather than `tokio::time::sleep`, so an injected clock controls them.
     ///
+    /// For short in-handler coordination only -- spacing a retry, waiting for a resource to
+    /// settle. A long or business wait belongs in the process as a BPMN timer event: a
+    /// handler holding a job for minutes occupies a worker slot, risks the job timeout
+    /// expiring underneath it, and hides the wait from the process model where it cannot be
+    /// seen or changed.
+    ///
     /// ```no_run
     /// # use camunda_orchestration_sdk::{Job, JobAction};
     /// # async fn handle(job: Job) -> JobAction {
