@@ -126,7 +126,8 @@ mod tests {
     use super::*;
     use std::sync::LazyLock;
 
-    /// These exercise poll ordering, not clock behaviour, so they keep real time \u2014 which is\n    /// already virtual under start_paused.
+    /// These exercise poll ordering, not clock behaviour, so they keep real time — which is
+    /// already virtual under start_paused.
     static LIVE: LazyLock<std::sync::Arc<dyn Clock>> =
         LazyLock::new(super::super::clock::live_clock);
     use std::sync::atomic::{AtomicU32, Ordering};

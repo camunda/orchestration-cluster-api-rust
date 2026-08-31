@@ -208,12 +208,13 @@ impl Authentication {
             .as_millis();
         let refresh_after_wall = UNIX_EPOCH
             + Duration::from_millis(disk.refresh_after_unix_ms.min(u64::MAX as u128) as u64);
-        // Map the wall-clock expiry onto the monotonic clock.
+        // Map the wall-clock expiry onto the monotonic clock. Both branches must read one
+        // `now()`, or they disagree by however far the clock moved between the two calls.
+        let now = self.inner.clock.now();
         let refresh_after = if disk.refresh_after_unix_ms > now_wall_ms {
-            self.inner.clock.now()
-                + Duration::from_millis((disk.refresh_after_unix_ms - now_wall_ms) as u64)
+            now + Duration::from_millis((disk.refresh_after_unix_ms - now_wall_ms) as u64)
         } else {
-            self.inner.clock.now()
+            now
         };
         Some(CachedToken {
             token: disk.access_token,

@@ -73,7 +73,7 @@ mod tests {
     use super::*;
     use std::sync::LazyLock;
 
-    /// These exercise retry ordering, not clock behaviour, so they keep real time \u2014 which is
+    /// These exercise retry ordering, not clock behaviour, so they keep real time — which is
     /// already virtual under start_paused.
     static LIVE: LazyLock<std::sync::Arc<dyn Clock>> =
         LazyLock::new(super::super::clock::live_clock);
