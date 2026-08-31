@@ -1,0 +1,17 @@
+# Ambient time is banned outside the clock adapter. Every wait and every elapsed-time
+# measurement must resolve through the injected `Clock`, otherwise a test clock controls
+# nothing and the seam silently stops being used -- the failure the JS and C# SDKs shipped.
+#
+# `tokio::time::timeout` is deliberately absent: a timeout is an I/O bound, not cadence.
+#
+# The legitimate exceptions carry a narrow `#[allow(clippy::disallowed_methods)]` with a
+# reason, rather than a module-level allow, so a *new* ambient-time call in those files is
+# still caught.
+disallowed-methods = [
+    { path = "std::time::Instant::now", reason = "measure elapsed time with `Clock::now`" },
+    { path = "tokio::time::Instant::now", reason = "measure elapsed time with `Clock::now`" },
+    { path = "std::time::SystemTime::now", reason = "read wall time with `Clock::now_wall`" },
+    { path = "tokio::time::sleep", reason = "wait with `Clock::sleep`" },
+    { path = "tokio::time::sleep_until", reason = "wait with `Clock::sleep`" },
+    { path = "std::thread::sleep", reason = "wait with `Clock::sleep`" },
+]

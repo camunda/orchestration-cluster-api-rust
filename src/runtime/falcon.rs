@@ -390,6 +390,8 @@ fn pick_endpoint<'a>(endpoints: &'a [String], avoid: Option<&str>, seed: &mut u6
 /// The reconnect loop. Runs until the process ends (the link lives for the client's life).
 async fn supervise(inner: Arc<LinkInner>, hooks: LinkHooks, ready_tx: oneshot::Sender<Result<()>>) {
     let mut idle = link_idle(DEFAULT_HEARTBEAT_MS);
+    // Seeds an RNG for reconnect jitter, not cadence -- nothing observable depends on it.
+    #[allow(clippy::disallowed_methods)]
     let mut seed = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64 | 1)
@@ -455,6 +457,11 @@ async fn supervise(inner: Arc<LinkInner>, hooks: LinkHooks, ready_tx: oneshot::S
                     return;
                 }
                 last_failed = Some(url);
+                // Falcon is deliberately still on real time: this sleep shares `supervise`
+                // with five `tokio::time::timeout` I/O bounds, and injecting a clock here
+                // means threading one through `LinkInner` and both `start` signatures.
+                // Tracked as its own slice rather than half-converting the module.
+                #[allow(clippy::disallowed_methods)]
                 tokio::time::sleep(Duration::from_millis(250)).await;
             }
         }

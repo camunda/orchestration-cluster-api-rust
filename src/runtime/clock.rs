@@ -70,6 +70,8 @@ pub trait Clock: Send + Sync + Debug {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LiveClock;
 
+// The one place ambient time is legitimate: this impl *is* the adapter onto it.
+#[allow(clippy::disallowed_methods)]
 #[async_trait]
 impl Clock for LiveClock {
     fn now(&self) -> Instant {
@@ -244,5 +246,36 @@ mod tests {
             "live_clock() should hand out the same shared clock"
         );
         assert_clock_contract(live_clock().as_ref()).await;
+    }
+
+    /// The ban lives in `clippy.toml`, which no code references. Delete that file and
+    /// clippy simply stops warning -- green build, ambient time back in the runtime. Assert
+    /// the entries are present so removing them is loud instead.
+    #[test]
+    fn ambient_time_stays_banned_in_clippy_config() {
+        let config = include_str!("../../clippy.toml");
+        // Live entries only. Prose in this file names the banned paths, and a bare
+        // substring check would accept a commented-out entry -- or accept
+        // `tokio::time::sleep` on the strength of the `sleep_until` line alone.
+        let entries: Vec<&str> = config
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.starts_with('#'))
+            .collect();
+
+        for path in [
+            "std::time::Instant::now",
+            "tokio::time::Instant::now",
+            "std::time::SystemTime::now",
+            "tokio::time::sleep",
+            "tokio::time::sleep_until",
+            "std::thread::sleep",
+        ] {
+            let field = format!("path = \"{path}\"");
+            assert!(
+                entries.iter().any(|line| line.contains(&field)),
+                "`{path}` is no longer banned in clippy.toml; ambient time can re-enter the runtime"
+            );
+        }
     }
 }
