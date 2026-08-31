@@ -412,7 +412,10 @@ impl JobWorker {
         if self.config.startup_jitter_max_seconds > 0 {
             let max_ms = self.config.startup_jitter_max_seconds.saturating_mul(1000);
             let delay = (super::rand_fraction() * max_ms as f64) as u64;
-            tokio::time::sleep(Duration::from_millis(delay)).await;
+            self.client
+                .clock()
+                .sleep(Duration::from_millis(delay))
+                .await;
         }
 
         // Falcon upgrade: when the gateway advertises the command stream, take pushed
@@ -448,7 +451,7 @@ impl JobWorker {
             }
             let jobs = self.poll().await?;
             if jobs.is_empty() {
-                tokio::time::sleep(poll_interval).await;
+                self.client.clock().sleep(poll_interval).await;
                 continue;
             }
 

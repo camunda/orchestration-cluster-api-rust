@@ -8,6 +8,7 @@
 use std::future::Future;
 use std::time::Duration;
 
+use super::clock::Clock;
 use super::config::RetryConfig;
 use super::errors::{CamundaError, Result};
 
@@ -34,7 +35,11 @@ fn backoff_delay(cfg: &RetryConfig, attempt: u32) -> Duration {
 /// Run `op`, retrying on transient failures per `cfg`.
 ///
 /// `op` is a factory so each attempt gets a fresh future.
-pub(crate) async fn with_retry<T, F, Fut>(cfg: &RetryConfig, mut op: F) -> Result<T>
+pub(crate) async fn with_retry<T, F, Fut>(
+    cfg: &RetryConfig,
+    clock: &dyn Clock,
+    mut op: F,
+) -> Result<T>
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T>>,
@@ -57,7 +62,7 @@ where
                     error = %err,
                     "retrying transient error"
                 );
-                tokio::time::sleep(delay).await;
+                clock.sleep(delay).await;
             }
         }
     }
@@ -66,6 +71,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::LazyLock;
+
+    /// These exercise retry ordering, not clock behaviour, so they keep real time \u2014 which is
+    /// already virtual under start_paused.
+    static LIVE: LazyLock<std::sync::Arc<dyn Clock>> =
+        LazyLock::new(super::super::clock::live_clock);
     use std::sync::atomic::{AtomicU32, Ordering};
 
     fn cfg() -> RetryConfig {
@@ -96,7 +107,7 @@ mod tests {
     #[tokio::test]
     async fn retries_until_success() {
         let calls = AtomicU32::new(0);
-        let result: Result<u32> = with_retry(&cfg(), || {
+        let result: Result<u32> = with_retry(&cfg(), LIVE.as_ref(), || {
             let n = calls.fetch_add(1, Ordering::SeqCst);
             async move {
                 if n < 2 {
@@ -117,7 +128,7 @@ mod tests {
     #[tokio::test]
     async fn gives_up_after_max_attempts() {
         let calls = AtomicU32::new(0);
-        let result: Result<u32> = with_retry(&cfg(), || {
+        let result: Result<u32> = with_retry(&cfg(), LIVE.as_ref(), || {
             calls.fetch_add(1, Ordering::SeqCst);
             async {
                 Err(CamundaError::Api {
@@ -134,12 +145,42 @@ mod tests {
     #[tokio::test]
     async fn does_not_retry_non_retryable() {
         let calls = AtomicU32::new(0);
-        let result: Result<u32> = with_retry(&cfg(), || {
+        let result: Result<u32> = with_retry(&cfg(), LIVE.as_ref(), || {
             calls.fetch_add(1, Ordering::SeqCst);
             async { Err(CamundaError::Validation("nope".into())) }
         })
         .await;
         assert!(result.is_err());
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+    #[tokio::test(start_paused = true)]
+    async fn backoff_waits_on_the_injected_clock() {
+        // Slice 1 built the seam and changed nothing; this is the assertion that would have
+        // caught it staying unused. The recorded sleeps are the proof the wait came here
+        // rather than going to `tokio::time::sleep` directly.
+        let clock = std::sync::Arc::new(super::super::clock::RecordingClock::default());
+        let calls = AtomicU32::new(0);
+
+        let result: Result<u32> = with_retry(&cfg(), clock.as_ref(), || {
+            let n = calls.fetch_add(1, Ordering::SeqCst);
+            async move {
+                if n < 2 {
+                    Err(CamundaError::Api {
+                        status: 503,
+                        body: None,
+                    })
+                } else {
+                    Ok(n)
+                }
+            }
+        })
+        .await;
+
+        assert!(result.is_ok());
+        assert_eq!(
+            clock.sleeps().len(),
+            2,
+            "two retries should have produced two waits on the injected clock"
+        );
     }
 }

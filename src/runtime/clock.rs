@@ -99,6 +99,47 @@ pub fn live_clock() -> Arc<dyn Clock> {
     LIVE.get_or_init(|| Arc::new(LiveClock)).clone()
 }
 
+/// A clock that records what was asked of it, for tests that need to prove a wait resolved
+/// here rather than through an ambient timer.
+///
+/// Lives beside the trait rather than in one test module because several subsystems need it,
+/// and a per-module copy is how implementations drift apart.
+#[cfg(test)]
+#[derive(Debug, Default)]
+pub(crate) struct RecordingClock {
+    inner: LiveClock,
+    sleeps: std::sync::Mutex<Vec<Duration>>,
+    now_calls: std::sync::Mutex<u32>,
+}
+
+#[cfg(test)]
+impl RecordingClock {
+    pub(crate) fn sleeps(&self) -> Vec<Duration> {
+        self.sleeps.lock().expect("poisoned").clone()
+    }
+
+    pub(crate) fn now_calls(&self) -> u32 {
+        *self.now_calls.lock().expect("poisoned")
+    }
+}
+
+#[cfg(test)]
+#[async_trait]
+impl Clock for RecordingClock {
+    fn now(&self) -> Instant {
+        *self.now_calls.lock().expect("poisoned") += 1;
+        self.inner.now()
+    }
+
+    fn now_wall(&self) -> SystemTime {
+        self.inner.now_wall()
+    }
+
+    async fn sleep(&self, duration: Duration) {
+        self.sleeps.lock().expect("poisoned").push(duration);
+        self.inner.sleep(duration).await;
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -28,8 +28,9 @@
 //! ```
 
 use std::future::Future;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use super::clock::Clock;
 use super::errors::{CamundaError, Result};
 
 /// Options controlling an eventual-consistency poll.
@@ -86,6 +87,7 @@ impl ConsistencyOptions {
 pub(crate) async fn poll<T, F, Fut, P>(
     opts: &ConsistencyOptions,
     default_timeout_ms: u64,
+    clock: &dyn Clock,
     mut op: F,
     mut predicate: P,
 ) -> Result<T>
@@ -97,7 +99,7 @@ where
     let timeout = opts
         .timeout
         .unwrap_or_else(|| Duration::from_millis(default_timeout_ms));
-    let started = Instant::now();
+    let started = clock.now();
 
     loop {
         match op().await {
@@ -109,18 +111,24 @@ where
             Err(e) => return Err(e),
         }
 
-        if started.elapsed() >= timeout {
+        let elapsed = clock.now().duration_since(started);
+        if elapsed >= timeout {
             return Err(CamundaError::EventualConsistencyTimeout {
-                elapsed_ms: started.elapsed().as_millis() as u64,
+                elapsed_ms: elapsed.as_millis() as u64,
             });
         }
-        tokio::time::sleep(opts.interval).await;
+        clock.sleep(opts.interval).await;
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::LazyLock;
+
+    /// These exercise poll ordering, not clock behaviour, so they keep real time \u2014 which is\n    /// already virtual under start_paused.
+    static LIVE: LazyLock<std::sync::Arc<dyn Clock>> =
+        LazyLock::new(super::super::clock::live_clock);
     use std::sync::atomic::{AtomicU32, Ordering};
 
     #[tokio::test]
@@ -130,6 +138,7 @@ mod tests {
         let result: Result<u32> = poll(
             &opts,
             1_000,
+            LIVE.as_ref(),
             || {
                 let n = calls.fetch_add(1, Ordering::SeqCst);
                 async move { Ok(n) }
@@ -147,6 +156,7 @@ mod tests {
         let result: Result<u32> = poll(
             &opts,
             1_000,
+            LIVE.as_ref(),
             || {
                 let n = calls.fetch_add(1, Ordering::SeqCst);
                 async move {
@@ -171,7 +181,14 @@ mod tests {
         let opts = ConsistencyOptions::default()
             .interval(Duration::from_millis(1))
             .timeout(Duration::from_millis(10));
-        let result: Result<u32> = poll(&opts, 1_000, || async { Ok(0u32) }, |_| false).await;
+        let result: Result<u32> = poll(
+            &opts,
+            1_000,
+            LIVE.as_ref(),
+            || async { Ok(0u32) },
+            |_| false,
+        )
+        .await;
         assert!(matches!(
             result,
             Err(CamundaError::EventualConsistencyTimeout { .. })
@@ -184,6 +201,7 @@ mod tests {
         let result: Result<u32> = poll(
             &opts,
             1_000,
+            LIVE.as_ref(),
             || async {
                 Err(CamundaError::Api {
                     status: 500,
@@ -194,5 +212,43 @@ mod tests {
         )
         .await;
         assert!(matches!(result, Err(CamundaError::Api { status: 500, .. })));
+    }
+    #[tokio::test(start_paused = true)]
+    async fn the_poll_loop_waits_and_measures_on_the_injected_clock() {
+        let clock = std::sync::Arc::new(super::super::clock::RecordingClock::default());
+        let opts = ConsistencyOptions {
+            interval: Duration::from_millis(250),
+            timeout: Some(Duration::from_secs(30)),
+            retry_not_found: false,
+        };
+
+        let result: Result<u32> = poll(
+            &opts,
+            1_000,
+            clock.as_ref(),
+            || async { Ok(0u32) },
+            |_| false,
+        )
+        .await;
+
+        assert!(matches!(
+            result,
+            Err(CamundaError::EventualConsistencyTimeout { .. })
+        ));
+        assert!(
+            !clock.sleeps().is_empty(),
+            "the poll gap did not wait on the injected clock"
+        );
+        assert!(
+            clock
+                .sleeps()
+                .iter()
+                .all(|d| *d == Duration::from_millis(250)),
+            "the poller waited for something other than its configured interval"
+        );
+        assert!(
+            clock.now_calls() > 0,
+            "the deadline was decided without reading the injected clock"
+        );
     }
 }

@@ -102,8 +102,12 @@ impl CamundaClient {
                 .build()
                 .map_err(CamundaError::Network)?,
         };
-        let auth = Authentication::from_config(&config, http.clone());
-        let bp = Arc::new(BackpressureManager::new(config.backpressure_profile));
+        let clock = options.clock.unwrap_or_else(clock::live_clock);
+        let auth = Authentication::from_config(&config, http.clone(), clock.clone());
+        let bp = Arc::new(BackpressureManager::new(
+            config.backpressure_profile,
+            clock.clone(),
+        ));
         Ok(CamundaClient {
             config,
             auth,
@@ -115,7 +119,7 @@ impl CamundaClient {
             bp,
             workers: Arc::new(std::sync::Mutex::new(Vec::new())),
             falcon: FalconState::default(),
-            clock: options.clock.unwrap_or_else(clock::live_clock),
+            clock,
         })
     }
 
@@ -172,7 +176,7 @@ impl CamundaClient {
         Fut: std::future::Future<Output = Result<T>>,
     {
         self.bp.acquire().await?;
-        let result = retry::with_retry(&self.config.retry, &op).await;
+        let result = retry::with_retry(&self.config.retry, self.clock.as_ref(), &op).await;
         match &result {
             Ok(_) => self.bp.record_healthy_hint(),
             Err(e) if is_backpressure_error(e) => self.bp.record_backpressure(),
@@ -574,7 +578,14 @@ impl CamundaClient {
         F: FnMut() -> Fut,
         Fut: std::future::Future<Output = Result<T>>,
     {
-        super::eventual::poll(&options, self.config.eventual_poll_default_ms, op, |_| true).await
+        super::eventual::poll(
+            &options,
+            self.config.eventual_poll_default_ms,
+            self.clock.as_ref(),
+            op,
+            |_| true,
+        )
+        .await
     }
 
     /// Poll a read operation until `predicate` is satisfied by its result, retrying `404`
@@ -594,6 +605,7 @@ impl CamundaClient {
         super::eventual::poll(
             &options,
             self.config.eventual_poll_default_ms,
+            self.clock.as_ref(),
             op,
             predicate,
         )
