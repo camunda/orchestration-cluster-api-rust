@@ -97,6 +97,18 @@ snippet: edit the region, run `make sync-readme`, commit both files. **Run `carg
 before `make sync-readme`** — rustfmt may reflow snippet source, which would otherwise make
 the README and CI disagree.
 
+### Ambient time is banned outside the clock adapter
+
+`clippy.toml` bans `Instant::now`, `SystemTime::now`, `tokio::time::sleep`/`sleep_until`
+and `std::thread::sleep`. Cadence must resolve through the injected `Clock`, or a test
+clock controls nothing. `tokio::time::timeout` is deliberately *not* banned -- a timeout
+is an I/O bound, not cadence.
+
+The handful of legitimate uses carry a narrow `#[allow(clippy::disallowed_methods)]` on
+the specific statement or impl block, never a module-level allow, so new ambient-time
+calls in those same files are still caught. If you need a new exception, scope it the
+same way and say why.
+
 ### Always-green policy
 
 The **hand-written** crate (`src/`) must be warning- and clippy-clean. Generated lint noise in

@@ -21,6 +21,9 @@ thread_local! {
     static RNG_STATE: Cell<u64> = Cell::new(seed());
 }
 
+// Seeds the jitter RNG. Startup jitter defaults to 0 and only retry backoff jitters at
+// all, so no observable cadence depends on this being controllable.
+#[allow(clippy::disallowed_methods)]
 fn seed() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     let nanos = SystemTime::now()
