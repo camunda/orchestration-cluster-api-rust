@@ -236,7 +236,6 @@ impl Job {
         &self.inner.custom_headers
     }
 
-    /// The underlying generated activated-job model.
     /// The clock this job's worker resolves cadence through. Handlers that need to wait
     /// must use this rather than `tokio::time::sleep`, so an injected clock controls them.
     ///
@@ -251,6 +250,7 @@ impl Job {
         &self.clock
     }
 
+    /// The underlying generated activated-job model.
     pub fn raw(&self) -> &models::ActivatedJobResult {
         &self.inner
     }
@@ -841,9 +841,13 @@ mod tests {
     /// field. Skips the `struct Job {` definition, which has the same shape. Kept
     /// dependency-free -- the crate has no regex dev-dep.
     fn count_job_constructions(source: &str) -> usize {
-        // Production code only. The test module discusses this pattern in prose, and
-        // counting itself would make the guard fail on its own documentation.
-        let production = source.split("\nmod tests {").next().unwrap_or(source);
+        // Production code only: the test module discusses this pattern in prose, and
+        // counting itself would make the guard fail on its own documentation. Matching
+        // "mod tests" alone tolerates brace and whitespace reformatting; if it ever stops
+        // matching, the guard over-counts and fails loudly rather than going quiet.
+        let production = source
+            .split_once("mod tests")
+            .map_or(source, |(before, _)| before);
         production
             .match_indices("Job {")
             .filter(|(i, _)| !production[..*i].ends_with("struct "))
