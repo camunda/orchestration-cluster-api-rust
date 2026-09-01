@@ -103,11 +103,6 @@ pub fn live_clock() -> Arc<dyn Clock> {
     LIVE.get_or_init(|| Arc::new(LiveClock)).clone()
 }
 
-/// A clock that records what was asked of it, for tests that need to prove a wait resolved
-/// here rather than through an ambient timer.
-///
-/// Lives beside the trait rather than in one test module because several subsystems need it,
-/// and a per-module copy is how implementations drift apart.
 /// The engine-side clock an [`EngineClock`] drives.
 ///
 /// Implemented for [`CamundaClient`](super::client::CamundaClient) in terms of the
@@ -150,9 +145,11 @@ struct Pinned {
 /// # }
 /// ```
 ///
-/// Waits are resolved against an instant fixed *before* the engine is contacted, so
-/// overlapping waits settle at one instant rather than summing, while sequential waits
-/// compose. Ten concurrent one-second waits advance the engine by one second, not ten.
+/// A wait resolves against an instant read before the engine is contacted, so waits
+/// that overlap -- those that read the clock before any of them lands -- settle at a
+/// single instant instead of summing. A wait that begins after an earlier one has
+/// landed reads the new time and composes from it, which is the intended behaviour: it
+/// really did start later.
 pub struct EngineClock {
     engine: Arc<dyn ClockController>,
     live: LiveClock,
@@ -298,6 +295,11 @@ impl Clock for EngineClock {
         }
     }
 }
+/// A clock that records what was asked of it, for tests that need to prove a wait resolved
+/// here rather than through an ambient timer.
+///
+/// Lives beside the trait rather than in one test module because several subsystems need it,
+/// and a per-module copy is how implementations drift apart.
 #[cfg(test)]
 #[derive(Debug, Default)]
 pub(crate) struct RecordingClock {
@@ -552,12 +554,18 @@ mod tests {
         );
     }
 
-    /// Ten concurrent one-second waits are all satisfied by the *same* instant. Deriving
-    /// each wake time from the pinned value at request time instead would advance the
-    /// engine ten seconds -- the defect the C# SDK was corrected for.
-    #[tokio::test]
+    /// Waits that overlap an in-flight pin are all satisfied by the *same* instant.
+    /// Deriving each wake time from the pinned value at request time instead would
+    /// advance the engine ten seconds -- the defect the C# SDK was corrected for.
+    ///
+    /// Multi-threaded on purpose. On the default single-threaded runtime the ten tasks
+    /// happen to read the clock before any pin lands, so the test passed without
+    /// exercising the collapse at all; under a real scheduler it failed two runs in
+    /// five. The slow engine makes the overlap deterministic instead of incidental.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn overlapping_waits_settle_at_one_instant() {
-        let (engine, clock) = engine_clock();
+        let engine = Arc::new(FakeEngine::slow());
+        let clock = EngineClock::new(engine.clone());
         let clock = Arc::new(clock);
 
         // Pin to a known instant first, so every reading below is exact. Starting from
