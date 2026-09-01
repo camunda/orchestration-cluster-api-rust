@@ -493,14 +493,14 @@ def _is_public(item: dict) -> bool:
 
 
 def collect_types(crate: Crate) -> dict[str, TypeItem]:
-    """Extract every public struct / enum / type alias declared in this crate."""
+    """Extract every public struct / enum / type alias / trait declared in this crate."""
     types: dict[str, TypeItem] = {}
     for item_id, item in crate.index.items():
         inner = item.get("inner")
         if not isinstance(inner, dict):
             continue
         kind = next(iter(inner), "")
-        if kind not in ("struct", "enum", "type_alias"):
+        if kind not in ("struct", "enum", "type_alias", "trait"):
             continue
         if not _is_public(item):
             continue
@@ -525,6 +525,10 @@ def collect_types(crate: Crate) -> dict[str, TypeItem]:
         elif kind == "type_alias":
             ti.generics = _render_generics(body.get("generics"))
             ti.alias_target = _render_alias_target(body.get("type"), name)
+        elif kind == "trait":
+            # A trait's methods hang off the trait itself, not off impls, so
+            # _collect_methods (which walks impls) finds nothing for them.
+            ti.methods = _collect_trait_methods(crate, body.get("items", []))
         types[name] = ti
     return types
 
@@ -601,6 +605,29 @@ def _render_variant_payload(crate: Crate, variant: dict) -> str:
             )
         return "{ " + ", ".join(parts) + " }"
     return ""
+
+
+def _collect_trait_methods(crate: Crate, item_ids: list) -> list[Method]:
+    """Collect a trait's methods, which are function items directly on the trait."""
+    out: list[Method] = []
+    for mid in item_ids:
+        m = crate.get(mid)
+        if not m:
+            continue
+        fn = m.get("inner", {}).get("function")
+        name = m.get("name", "")
+        if not fn or not name or name.startswith("_"):
+            continue
+        out.append(
+            Method(
+                name=name,
+                signature=render_fn_signature(name, fn),
+                docs=_docs(m),
+                is_async=bool((fn.get("header") or {}).get("is_async")),
+            )
+        )
+    out.sort(key=lambda x: x.name)
+    return out
 
 
 def _collect_methods(crate: Crate, impl_ids: list) -> list[Method]:
@@ -849,8 +876,8 @@ RUNTIME_TYPES = [
     "BackpressureProfile",
     "BackpressureSeverity",
     "BackpressureState",
-    # The `Clock` and `ClockController` traits are not listed: this generator only collects
-    # structs, enums and type aliases, so a trait never reaches classification.
+    "Clock",
+    "ClockController",
     "LiveClock",
     "EngineClock",
 ]
