@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MessageSubscriptionResult {
+    /// The business id inherited from the subscribing process instance when this message subscription was opened. It is `null` when the process instance has no business id, and for message start event subscriptions, which are not tied to a process instance.
+    #[serde(rename = "businessId", deserialize_with = "Option::deserialize")]
+    pub business_id: Option<models::BusinessId>,
     /// The message subscription key associated with this message subscription.
     #[serde(rename = "messageSubscriptionKey")]
     pub message_subscription_key: Box<models::MessageSubscriptionKey>,
@@ -90,6 +93,7 @@ pub struct MessageSubscriptionResult {
 
 impl MessageSubscriptionResult {
     pub fn new(
+        business_id: Option<models::BusinessId>,
         message_subscription_key: models::MessageSubscriptionKey,
         process_definition_id: models::ProcessDefinitionId,
         process_definition_key: Option<models::ProcessDefinitionKey>,
@@ -110,6 +114,7 @@ impl MessageSubscriptionResult {
         tenant_id: models::TenantId,
     ) -> MessageSubscriptionResult {
         MessageSubscriptionResult {
+            business_id,
             message_subscription_key: Box::new(message_subscription_key),
             process_definition_id,
             process_definition_key: if let Some(x) = process_definition_key {

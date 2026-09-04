@@ -5,7 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **process_definition_id** | **String** | The BPMN process id of the process definition to start an instance of.  | 
-**process_definition_version** | Option<**i32**> | The version of the process. By default, the latest version of the process is used.  | [optional][default to -1]
+**process_definition_version** | Option<**i32**> | The version of the process. If omitted, the latest active version is used.  | [optional][default to -1]
 **variables** | Option<**std::collections::HashMap<String, serde_json::Value>**> | JSON object that will instantiate the variables for the root variable scope of the process instance.  | [optional]
 **tenant_id** | Option<**String**> | The tenant id of the process definition. If multi-tenancy is enabled, provide the tenant id of the process definition to start a process instance of. If multi-tenancy is disabled, don't provide this parameter.  | [optional]
 **operation_reference** | Option<**i64**> | A reference key chosen by the user that will be part of all records resulting from this operation. Must be > 0 if provided.  | [optional]

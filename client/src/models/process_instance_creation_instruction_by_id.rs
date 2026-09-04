@@ -16,7 +16,7 @@ pub struct ProcessInstanceCreationInstructionById {
     /// The BPMN process id of the process definition to start an instance of.
     #[serde(rename = "processDefinitionId")]
     pub process_definition_id: models::ProcessDefinitionId,
-    /// The version of the process. By default, the latest version of the process is used.
+    /// The version of the process. If omitted, the latest active version is used.
     #[serde(
         rename = "processDefinitionVersion",
         skip_serializing_if = "Option::is_none"

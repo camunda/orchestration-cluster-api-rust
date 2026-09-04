@@ -109,6 +109,8 @@ pub enum Result {
     NoResponse,
     #[serde(rename = "CANCELLED")]
     Cancelled,
+    #[serde(rename = "PHYSICAL_TENANT_DISABLED")]
+    PhysicalTenantDisabled,
 }
 
 impl Default for Result {

@@ -1,4 +1,4 @@
-# UserTaskFilter
+# UserTaskFilterFields
 
 ## Properties
 
@@ -25,7 +25,6 @@ Name | Type | Description | Notes
 **process_instance_key** | Option<[**models::ProcessInstanceKeyFilterProperty**](ProcessInstanceKeyFilterProperty.md)> | The key of the process instance. | [optional]
 **element_instance_key** | Option<**models::ElementInstanceKey**> | The key of the element instance. | [optional]
 **tags** | Option<**HashSet<String>**> | List of tags. Tags need to start with a letter; then alphanumerics, `_`, `-`, `:`, or `.`; length ≤ 100. | [optional]
-**dollar_or** | Option<[**Vec<models::UserTaskFilterFields>**](UserTaskFilterFields.md)> | Defines a list of alternative filter groups combined using OR logic. Each object in the array is evaluated independently, and the filter matches if any one of them is satisfied.  Top-level fields and the `$or` clause are combined using AND logic — meaning: (top-level filters) AND (any of the `$or` filters) must match. <br> <em>Example:</em>  ```json {   \"assignee\": \"user1\",   \"$or\": [     { \"candidateGroup\": \"groupA\" },     { \"candidateUser\": \"user2\" }   ] } ``` This matches user tasks that:  <ul style=\"padding-left: 20px; margin-left: 20px;\">   <li style=\"list-style-type: disc;\">are assigned to <em>user1</em></li>   <li style=\"list-style-type: disc;\">and match either:     <ul style=\"padding-left: 20px; margin-left: 20px;\">       <li style=\"list-style-type: circle;\"><code>candidateGroup</code> is <em>groupA</em>, or</li>       <li style=\"list-style-type: circle;\"><code>candidateUser</code> is <em>user2</em></li>     </ul>   </li> </ul> <br> <p>Note: Using complex <code>$or</code> conditions may impact performance, use with caution in high-volume environments.  | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**business_id** | Option<**String**> | The business id inherited from the subscribing process instance when this message subscription was opened. It is `null` when the process instance has no business id, and for message start event subscriptions, which are not tied to a process instance.  | 
 **message_subscription_key** | **models::MessageSubscriptionKey** | The message subscription key associated with this message subscription. | 
 **process_definition_id** | **String** | The process definition ID associated with this message subscription. | 
 **process_definition_key** | Option<**models::ProcessDefinitionKey**> | The process definition key associated with this message subscription. | 

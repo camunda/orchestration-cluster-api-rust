@@ -5,7 +5,6 @@ All URIs are relative to *http://localhost:8080/v2*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**create_agent_instance**](AgentInstanceApi.md#create_agent_instance) | **POST** /agent-instances | Create agent instance
-[**create_agent_instance_history_item**](AgentInstanceApi.md#create_agent_instance_history_item) | **POST** /agent-instances/{agentInstanceKey}/history | Create agent instance history item
 [**get_agent_instance**](AgentInstanceApi.md#get_agent_instance) | **GET** /agent-instances/{agentInstanceKey} | Get agent instance
 [**search_agent_instance_history**](AgentInstanceApi.md#search_agent_instance_history) | **POST** /agent-instances/{agentInstanceKey}/history/search | Search agent instance history
 [**search_agent_instances**](AgentInstanceApi.md#search_agent_instances) | **POST** /agent-instances/search | Search agent instances
@@ -30,37 +29,6 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::AgentInstanceCreationResult**](AgentInstanceCreationResult.md)
-
-### Authorization
-
-[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json, application/problem+json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## create_agent_instance_history_item
-
-> models::AgentInstanceHistoryItemCreationResult create_agent_instance_history_item(agent_instance_key, agent_instance_history_item_request)
-Create agent instance history item
-
-Appends a single history item to an agent instance's conversation history. The created item has commitStatus PENDING until the job identified by jobLease completes successfully, at which point it transitions to COMMITTED. If the job fails or is superseded by a retry, the item is marked DISCARDED. 
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**agent_instance_key** | **AgentInstanceKey** | The key of the agent instance to append the history item to. | [required] |
-**agent_instance_history_item_request** | [**AgentInstanceHistoryItemRequest**](AgentInstanceHistoryItemRequest.md) |  | [required] |
-
-### Return type
-
-[**models::AgentInstanceHistoryItemCreationResult**](AgentInstanceHistoryItemCreationResult.md)
 
 ### Authorization
 
@@ -170,7 +138,7 @@ Name | Type | Description  | Required | Notes
 > models::AgentInstanceUpdateResult update_agent_instance(agent_instance_key, agent_instance_update_request)
 Update agent instance
 
-Updates the mutable fields of an agent instance (status, metric counters, and tools) and appends a batch of history items to its conversation history. Metric values are treated as deltas and applied immediately to the aggregate counters. Tool updates replace the existing tool list. Each history item created for this request is echoed back in the response. 
+Updates the status of an agent instance and appends a batch of history items to its conversation history. Each history item created for this request is echoed back in the response. 
 
 ### Parameters
 

@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TenantSearchQuerySortRequest {
-    /// The field to sort by.
+    /// The field to sort by. `key` is deprecated and should not be used anymore.
     #[serde(rename = "field")]
     pub field: Field,
     #[serde(rename = "order", skip_serializing_if = "Option::is_none")]
@@ -25,7 +25,7 @@ impl TenantSearchQuerySortRequest {
         TenantSearchQuerySortRequest { field, order: None }
     }
 }
-/// The field to sort by.
+/// The field to sort by. `key` is deprecated and should not be used anymore.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Field {
     #[serde(rename = "key")]

@@ -17,9 +17,9 @@ pub struct AgentInstanceHistoryItemResult {
     /// The unique key for this history item. Stable and sortable by creation order.
     #[serde(rename = "historyItemKey")]
     pub history_item_key: Box<models::AgentHistoryItemKey>,
-    /// The client-supplied identifier this item was created with. Empty for items that don't carry one.
+    /// The client-supplied identifier this item was created with. Empty for items that don't carry one. Not unique: a job can be re-activated under a superseded lease any number of times before it completes, so one historyItemId can have zero or more DISCARDED records and at most one COMMITTED record, since only historyItemKey is guaranteed unique. Filter by commitStatus rather than assuming one record per historyItemId.
     #[serde(rename = "historyItemId")]
-    pub history_item_id: String,
+    pub history_item_id: models::HistoryItemId,
     /// The key of the agent instance this item belongs to.
     #[serde(rename = "agentInstanceKey")]
     pub agent_instance_key: Box<models::AgentInstanceKey>,
@@ -74,7 +74,7 @@ impl AgentInstanceHistoryItemResult {
     /// A single conversation history item belonging to an agent instance.
     pub fn new(
         history_item_key: models::AgentHistoryItemKey,
-        history_item_id: String,
+        history_item_id: models::HistoryItemId,
         agent_instance_key: models::AgentInstanceKey,
         element_instance_key: models::ElementInstanceKey,
         job_key: models::JobKey,

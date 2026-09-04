@@ -17,7 +17,7 @@ pub struct AgentInstanceCreationResult {
     /// The system-generated key for the created agent instance.
     #[serde(rename = "agentInstanceKey")]
     pub agent_instance_key: Box<models::AgentInstanceKey>,
-    /// One entry per history item submitted in the request, in request order. Empty when no history items were submitted.
+    /// One entry per history item submitted in the request, in request order.
     #[serde(rename = "createdHistory")]
     pub created_history: Vec<models::AgentInstanceCreatedHistoryItem>,
 }
