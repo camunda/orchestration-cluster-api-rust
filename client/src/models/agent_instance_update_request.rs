@@ -14,39 +14,18 @@ use serde::{Deserialize, Serialize};
 /// AgentInstanceUpdateRequest : Request to update the mutable state of an agent instance.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AgentInstanceUpdateRequest {
-    /// The key of the currently-active element instance for this agent instance. Used for ownership/equality validation against the stored agent instance and, when the supplied key differs from the previous association (re-entry of an ad-hoc sub-process or AI Agent task), appended to elementInstanceKeys with the reverse link updated on the supplied element instance.
+    /// The key of the currently-active element instance for this agent instance. Used for ownership/equality validation against the stored agent instance and, when the supplied key differs from the previous association (re-entry of an ad-hoc sub-process or AI Agent task), appended to elementInstanceKeys with the reverse link updated on the supplied element instance. Only one element instance may hold this write claim at a time: any update from a different element instance is rejected while the current writer's job is still active.
     #[serde(rename = "elementInstanceKey")]
     pub element_instance_key: Box<models::ElementInstanceKey>,
     /// The new status of the agent instance.
     #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
     pub status: Option<models::AgentInstanceUpdateStatusEnum>,
-    /// Metric increments to apply to the aggregate counters.
-    #[serde(rename = "metrics", skip_serializing_if = "Option::is_none")]
-    pub metrics: Option<Box<models::AgentInstanceMetricsDelta>>,
-    /// The complete list of tools available to the agent, replacing any previously stored tools. When provided, the engine replaces the existing tool list with this value.
-    #[serde(
-        rename = "tools",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub tools: Option<Option<Vec<models::AgentTool>>>,
-    /// The key of the job activation during which this update is being made. Required whenever history is provided.
-    #[serde(
-        rename = "jobKey",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub job_key: Option<Option<Box<models::JobKey>>>,
+    /// The key of the job activation during which this update is being made. An update must always be attributed to the active job that produced it.
+    #[serde(rename = "jobKey")]
+    pub job_key: Box<models::JobKey>,
     /// Opaque lease token received from the job activation response. Disambiguates this activation from any other activation of the same job: if the job is later retried, history items submitted under a superseded lease are discarded rather than committed.
-    #[serde(
-        rename = "jobLease",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub job_lease: Option<Option<String>>,
+    #[serde(rename = "jobLease")]
+    pub job_lease: String,
     /// A batch of history items to append to the agent instance's conversation history, in request order. Each created item is echoed back in the response's createdHistory, positionally correlated.
     #[serde(
         rename = "history",
@@ -59,14 +38,16 @@ pub struct AgentInstanceUpdateRequest {
 
 impl AgentInstanceUpdateRequest {
     /// Request to update the mutable state of an agent instance.
-    pub fn new(element_instance_key: models::ElementInstanceKey) -> AgentInstanceUpdateRequest {
+    pub fn new(
+        element_instance_key: models::ElementInstanceKey,
+        job_key: models::JobKey,
+        job_lease: String,
+    ) -> AgentInstanceUpdateRequest {
         AgentInstanceUpdateRequest {
             element_instance_key: Box::new(element_instance_key),
             status: None,
-            metrics: None,
-            tools: None,
-            job_key: None,
-            job_lease: None,
+            job_key: Box::new(job_key),
+            job_lease,
             history: None,
         }
     }

@@ -20,6 +20,15 @@ pub struct AgentInstanceMetrics {
     /// Total output tokens produced across all model calls.
     #[serde(rename = "outputTokens")]
     pub output_tokens: i64,
+    /// Total reasoning tokens consumed across all model calls.
+    #[serde(rename = "reasoningTokenCount")]
+    pub reasoning_token_count: i64,
+    /// Total tokens used to create prompt cache entries across all model calls.
+    #[serde(rename = "cacheCreationTokenCount")]
+    pub cache_creation_token_count: i64,
+    /// Total tokens read from prompt cache across all model calls.
+    #[serde(rename = "cacheReadTokenCount")]
+    pub cache_read_token_count: i64,
     /// Total number of LLM calls made.
     #[serde(rename = "modelCalls")]
     pub model_calls: i32,
@@ -33,12 +42,18 @@ impl AgentInstanceMetrics {
     pub fn new(
         input_tokens: i64,
         output_tokens: i64,
+        reasoning_token_count: i64,
+        cache_creation_token_count: i64,
+        cache_read_token_count: i64,
         model_calls: i32,
         tool_calls: i32,
     ) -> AgentInstanceMetrics {
         AgentInstanceMetrics {
             input_tokens,
             output_tokens,
+            reasoning_token_count,
+            cache_creation_token_count,
+            cache_read_token_count,
             model_calls,
             tool_calls,
         }

@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct AgentInstanceHistoryItem {
     /// Caller-assigned identifier used to detect and dedupe retries of the same item. For example, when a retried job activation resubmits history items it already sent in an earlier attempt, those items are not rejected; they are flagged via isDuplicate in the response instead. Must be non-blank.
     #[serde(rename = "historyItemId")]
-    pub history_item_id: String,
+    pub history_item_id: models::HistoryItemId,
     /// The loop iteration this item belongs to.
     #[serde(rename = "loopIteration")]
     pub loop_iteration: i32,
@@ -41,7 +41,7 @@ pub struct AgentInstanceHistoryItem {
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub metrics: Option<Option<Box<models::AgentInstanceHistoryItemMetrics>>>,
+    pub metrics: Option<Option<Box<models::AgentInstanceHistoryItemMetricsRequest>>>,
     /// The agent-side timestamp of when this message was produced.
     #[serde(rename = "producedAt")]
     pub produced_at: chrono::DateTime<chrono::FixedOffset>,
@@ -75,7 +75,7 @@ pub struct AgentInstanceHistoryItem {
 impl AgentInstanceHistoryItem {
     /// A single history item to append to the agent instance's conversation history, submitted as part of the batch on an agent instance update request.
     pub fn new(
-        history_item_id: String,
+        history_item_id: models::HistoryItemId,
         loop_iteration: i32,
         role: models::AgentInstanceHistoryRoleEnum,
         content: Vec<models::AgentInstanceMessageContent>,

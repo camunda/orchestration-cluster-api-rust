@@ -22,7 +22,7 @@ pub struct MappingRuleFilter {
     pub claim_value: Option<String>,
     /// The name of the mapping rule.
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    pub name: Option<Box<models::StringFilterProperty>>,
     /// The ID of the mapping rule.
     #[serde(rename = "mappingRuleId", skip_serializing_if = "Option::is_none")]
     pub mapping_rule_id: Option<models::MappingRuleId>,

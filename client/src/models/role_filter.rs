@@ -19,7 +19,7 @@ pub struct RoleFilter {
     pub role_id: Option<models::RoleId>,
     /// The role name search filters.
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    pub name: Option<Box<models::StringFilterProperty>>,
 }
 
 impl RoleFilter {

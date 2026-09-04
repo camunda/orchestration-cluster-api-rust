@@ -586,7 +586,7 @@ pub async fn cancel_process_instances_batch_operation(
     }
 }
 
-/// Creates and starts an instance of the specified process. The process definition to use to create the instance can be specified either using its unique key (as returned by Deploy resources), or using the BPMN process id and a version.  Waits for the completion of the process instance before returning a result when awaitCompletion is enabled.
+/// Creates and starts an instance of the specified process. The process definition to use to create the instance can be specified either using its unique key (as returned by Deploy resources), or using the BPMN process id and a version. If only the process definition id is given, the latest ACTIVE version is used. If no ACTIVE version exists, the request is rejected as not found.  Waits for the completion of the process instance before returning a result when awaitCompletion is enabled.
 pub async fn create_process_instance(
     configuration: &configuration::Configuration,
     params: CreateProcessInstanceParams,
@@ -1301,7 +1301,7 @@ pub async fn resolve_process_instance_incidents(
     }
 }
 
-/// Resumes a suspended process instance, returning it to the ACTIVE state and continuing processing. Only process instances in the SUSPENDED state can be resumed.
+/// Resumes a suspended process instance, returning it to the ACTIVE state and continuing processing. Only process instances in the SUSPENDED state can be resumed. A child process instance can be resumed independently of its parent or root process instance; resumption does not cascade to or from related instances.
 pub async fn resume_process_instance(
     configuration: &configuration::Configuration,
     params: ResumeProcessInstanceParams,
@@ -1346,7 +1346,7 @@ pub async fn resume_process_instance(
     }
 }
 
-/// Resumes multiple suspended process instances. Since only SUSPENDED root instances can be resumed, any given filters for state and parentProcessInstanceKey are ignored and overridden during this batch operation. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
+/// Resumes multiple suspended process instances. Any given filter for state or parentProcessInstanceKey is ignored and overridden, as only SUSPENDED process instances can be resumed and resumption does not cascade between parent and child instances, so child instances are resumed independently of their parent or root instance. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
 pub async fn resume_process_instances_batch_operation(
     configuration: &configuration::Configuration,
     params: ResumeProcessInstancesBatchOperationParams,
@@ -1506,7 +1506,7 @@ pub async fn search_process_instances(
     }
 }
 
-/// Suspends a running process instance, pausing further processing until it is resumed. Only process instances in the ACTIVE state can be suspended.
+/// Suspends a running process instance, pausing further processing until it is resumed. Only process instances in the ACTIVE state can be suspended. A child process instance can be suspended independently of its parent or root process instance; suspension does not cascade to or from related instances.
 pub async fn suspend_process_instance(
     configuration: &configuration::Configuration,
     params: SuspendProcessInstanceParams,
@@ -1551,7 +1551,7 @@ pub async fn suspend_process_instance(
     }
 }
 
-/// Suspends multiple running process instances. Since only ACTIVE root instances can be suspended, any given filters for state and parentProcessInstanceKey are ignored and overridden during this batch operation. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
+/// Suspends multiple running process instances. Any given filter for state or parentProcessInstanceKey is ignored and overridden, as only ACTIVE process instances can be suspended and suspension does not cascade between parent and child instances, so child instances are suspended independently of their parent or root instance. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
 pub async fn suspend_process_instances_batch_operation(
     configuration: &configuration::Configuration,
     params: SuspendProcessInstancesBatchOperationParams,

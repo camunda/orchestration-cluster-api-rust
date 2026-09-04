@@ -20,6 +20,24 @@ pub struct AgentInstanceHistoryItemMetrics {
     /// Output tokens produced by this LLM call. Null when not provided.
     #[serde(rename = "outputTokens", deserialize_with = "Option::deserialize")]
     pub output_tokens: Option<i64>,
+    /// Reasoning tokens consumed by this LLM call. Null when not provided.
+    #[serde(
+        rename = "reasoningTokenCount",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub reasoning_token_count: Option<i64>,
+    /// Cache-creation tokens consumed by this LLM call. Null when not provided.
+    #[serde(
+        rename = "cacheCreationTokenCount",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub cache_creation_token_count: Option<i64>,
+    /// Cache-read tokens consumed by this LLM call. Null when not provided.
+    #[serde(
+        rename = "cacheReadTokenCount",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub cache_read_token_count: Option<i64>,
     /// Wall-clock duration of the LLM call in milliseconds. Null when not provided.
     #[serde(rename = "durationMs", deserialize_with = "Option::deserialize")]
     pub duration_ms: Option<i64>,
@@ -30,11 +48,17 @@ impl AgentInstanceHistoryItemMetrics {
     pub fn new(
         input_tokens: Option<i64>,
         output_tokens: Option<i64>,
+        reasoning_token_count: Option<i64>,
+        cache_creation_token_count: Option<i64>,
+        cache_read_token_count: Option<i64>,
         duration_ms: Option<i64>,
     ) -> AgentInstanceHistoryItemMetrics {
         AgentInstanceHistoryItemMetrics {
             input_tokens,
             output_tokens,
+            reasoning_token_count,
+            cache_creation_token_count,
+            cache_read_token_count,
             duration_ms,
         }
     }

@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 /// MessageSubscriptionFilter : Message subscription search filter.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MessageSubscriptionFilter {
+    /// Filter by the business id inherited from the subscribing process instance when the subscription was opened. Supports advanced string filtering, including `$like` with `*`/`?` wildcards.
+    #[serde(rename = "businessId", skip_serializing_if = "Option::is_none")]
+    pub business_id: Option<Box<models::StringFilterProperty>>,
     /// The message subscription key associated with this message subscription.
     #[serde(
         rename = "messageSubscriptionKey",
@@ -92,6 +95,7 @@ impl MessageSubscriptionFilter {
     /// Message subscription search filter.
     pub fn new() -> MessageSubscriptionFilter {
         MessageSubscriptionFilter {
+            business_id: None,
             message_subscription_key: None,
             process_definition_key: None,
             process_definition_id: None,

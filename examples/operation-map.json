@@ -195,13 +195,6 @@
       "label": "Create agent instance"
     }
   ],
-  "createAgentInstanceHistoryItem": [
-    {
-      "file": "agent_instance.rs",
-      "region": "CreateAgentInstanceHistoryItem",
-      "label": "Create agent instance history item"
-    }
-  ],
   "createAuthorization": [
     {
       "file": "authorization.rs",

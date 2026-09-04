@@ -11,9 +11,9 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// UserTaskFilter : User task filter request.
+/// UserTaskFilterFields : User task filter fields.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct UserTaskFilter {
+pub struct UserTaskFilterFields {
     /// The user task state.
     #[serde(rename = "state", skip_serializing_if = "Option::is_none")]
     pub state: Option<Box<models::UserTaskStateFilterProperty>>,
@@ -86,15 +86,12 @@ pub struct UserTaskFilter {
     /// List of tags. Tags need to start with a letter; then alphanumerics, `_`, `-`, `:`, or `.`; length ≤ 100.
     #[serde(rename = "tags", skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
-    /// Defines a list of alternative filter groups combined using OR logic. Each object in the array is evaluated independently, and the filter matches if any one of them is satisfied.  Top-level fields and the `$or` clause are combined using AND logic — meaning: (top-level filters) AND (any of the `$or` filters) must match. <br> <em>Example:</em>  ```json {   \"assignee\": \"user1\",   \"$or\": [     { \"candidateGroup\": \"groupA\" },     { \"candidateUser\": \"user2\" }   ] } ``` This matches user tasks that:  <ul style=\"padding-left: 20px; margin-left: 20px;\">   <li style=\"list-style-type: disc;\">are assigned to <em>user1</em></li>   <li style=\"list-style-type: disc;\">and match either:     <ul style=\"padding-left: 20px; margin-left: 20px;\">       <li style=\"list-style-type: circle;\"><code>candidateGroup</code> is <em>groupA</em>, or</li>       <li style=\"list-style-type: circle;\"><code>candidateUser</code> is <em>user2</em></li>     </ul>   </li> </ul> <br> <p>Note: Using complex <code>$or</code> conditions may impact performance, use with caution in high-volume environments.
-    #[serde(rename = "$or", skip_serializing_if = "Option::is_none")]
-    pub dollar_or: Option<Vec<models::UserTaskFilterFields>>,
 }
 
-impl UserTaskFilter {
-    /// User task filter request.
-    pub fn new() -> UserTaskFilter {
-        UserTaskFilter {
+impl UserTaskFilterFields {
+    /// User task filter fields.
+    pub fn new() -> UserTaskFilterFields {
+        UserTaskFilterFields {
             state: None,
             assignee: None,
             business_id: None,
@@ -116,7 +113,6 @@ impl UserTaskFilter {
             process_instance_key: None,
             element_instance_key: None,
             tags: None,
-            dollar_or: None,
         }
     }
 }

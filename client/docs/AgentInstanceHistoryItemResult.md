@@ -5,7 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **history_item_key** | **models::AgentHistoryItemKey** | The unique key for this history item. Stable and sortable by creation order. | 
-**history_item_id** | **String** | The client-supplied identifier this item was created with. Empty for items that don't carry one.  | 
+**history_item_id** | **String** | The client-supplied identifier this item was created with. Empty for items that don't carry one. Not unique: a job can be re-activated under a superseded lease any number of times before it completes, so one historyItemId can have zero or more DISCARDED records and at most one COMMITTED record, since only historyItemKey is guaranteed unique. Filter by commitStatus rather than assuming one record per historyItemId.  | 
 **agent_instance_key** | **models::AgentInstanceKey** | The key of the agent instance this item belongs to. | 
 **element_instance_key** | **models::ElementInstanceKey** | The key of the AI Agent Task or ad-hoc sub-process element instance under which this item was produced. | 
 **job_key** | **models::JobKey** | The key of the job activation during which this item was produced. | 

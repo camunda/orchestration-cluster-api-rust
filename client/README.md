@@ -47,7 +47,6 @@ Class | Method | HTTP request | Description
 *AgentDefinitionApi* | [**get_agent_definition**](docs/AgentDefinitionApi.md#get_agent_definition) | **GET** /agent-definitions/{agentDefinitionKey} | Get agent definition
 *AgentDefinitionApi* | [**search_agent_definitions**](docs/AgentDefinitionApi.md#search_agent_definitions) | **POST** /agent-definitions/search | Search agent definitions
 *AgentInstanceApi* | [**create_agent_instance**](docs/AgentInstanceApi.md#create_agent_instance) | **POST** /agent-instances | Create agent instance
-*AgentInstanceApi* | [**create_agent_instance_history_item**](docs/AgentInstanceApi.md#create_agent_instance_history_item) | **POST** /agent-instances/{agentInstanceKey}/history | Create agent instance history item
 *AgentInstanceApi* | [**get_agent_instance**](docs/AgentInstanceApi.md#get_agent_instance) | **GET** /agent-instances/{agentInstanceKey} | Get agent instance
 *AgentInstanceApi* | [**search_agent_instance_history**](docs/AgentInstanceApi.md#search_agent_instance_history) | **POST** /agent-instances/{agentInstanceKey}/history/search | Search agent instance history
 *AgentInstanceApi* | [**search_agent_instances**](docs/AgentInstanceApi.md#search_agent_instances) | **POST** /agent-instances/search | Search agent instances
@@ -363,7 +362,6 @@ Class | Method | HTTP request | Description
  - [AgentInstanceCreatedHistoryItem](docs/AgentInstanceCreatedHistoryItem.md)
  - [AgentInstanceCreationRequest](docs/AgentInstanceCreationRequest.md)
  - [AgentInstanceCreationResult](docs/AgentInstanceCreationResult.md)
- - [AgentInstanceDefinition](docs/AgentInstanceDefinition.md)
  - [AgentInstanceDefinitionResult](docs/AgentInstanceDefinitionResult.md)
  - [AgentInstanceDocumentContent](docs/AgentInstanceDocumentContent.md)
  - [AgentInstanceFilter](docs/AgentInstanceFilter.md)
@@ -372,9 +370,8 @@ Class | Method | HTTP request | Description
  - [AgentInstanceHistoryCommitStatusFilterProperty](docs/AgentInstanceHistoryCommitStatusFilterProperty.md)
  - [AgentInstanceHistoryFilter](docs/AgentInstanceHistoryFilter.md)
  - [AgentInstanceHistoryItem](docs/AgentInstanceHistoryItem.md)
- - [AgentInstanceHistoryItemCreationResult](docs/AgentInstanceHistoryItemCreationResult.md)
  - [AgentInstanceHistoryItemMetrics](docs/AgentInstanceHistoryItemMetrics.md)
- - [AgentInstanceHistoryItemRequest](docs/AgentInstanceHistoryItemRequest.md)
+ - [AgentInstanceHistoryItemMetricsRequest](docs/AgentInstanceHistoryItemMetricsRequest.md)
  - [AgentInstanceHistoryItemResult](docs/AgentInstanceHistoryItemResult.md)
  - [AgentInstanceHistoryRoleEnum](docs/AgentInstanceHistoryRoleEnum.md)
  - [AgentInstanceHistoryRoleExactMatch](docs/AgentInstanceHistoryRoleExactMatch.md)
@@ -388,7 +385,6 @@ Class | Method | HTTP request | Description
  - [AgentInstanceMessageContent](docs/AgentInstanceMessageContent.md)
  - [AgentInstanceMessageContentTypeEnum](docs/AgentInstanceMessageContentTypeEnum.md)
  - [AgentInstanceMetrics](docs/AgentInstanceMetrics.md)
- - [AgentInstanceMetricsDelta](docs/AgentInstanceMetricsDelta.md)
  - [AgentInstanceObjectContent](docs/AgentInstanceObjectContent.md)
  - [AgentInstanceResult](docs/AgentInstanceResult.md)
  - [AgentInstanceSearchQuery](docs/AgentInstanceSearchQuery.md)
@@ -951,6 +947,7 @@ Class | Method | HTTP request | Description
  - [UserTaskCompletionRequest](docs/UserTaskCompletionRequest.md)
  - [UserTaskEffectiveVariableSearchQueryRequest](docs/UserTaskEffectiveVariableSearchQueryRequest.md)
  - [UserTaskFilter](docs/UserTaskFilter.md)
+ - [UserTaskFilterFields](docs/UserTaskFilterFields.md)
  - [UserTaskProperties](docs/UserTaskProperties.md)
  - [UserTaskResult](docs/UserTaskResult.md)
  - [UserTaskSearchQuery](docs/UserTaskSearchQuery.md)

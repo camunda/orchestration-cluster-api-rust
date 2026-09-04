@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub struct AgentInstanceCreatedHistoryItem {
     /// The historyItemId of the corresponding item in the request, echoed back so callers can correlate response entries with request items by id.
     #[serde(rename = "historyItemId")]
-    pub history_item_id: String,
+    pub history_item_id: models::HistoryItemId,
     /// The system-generated key for the history item. When isDuplicate is true, this is the key of the original entry, not a new one.
     #[serde(rename = "historyItemKey")]
     pub history_item_key: Box<models::AgentHistoryItemKey>,
@@ -28,7 +28,7 @@ pub struct AgentInstanceCreatedHistoryItem {
 impl AgentInstanceCreatedHistoryItem {
     /// The outcome of appending a single history item from an update request's history batch.
     pub fn new(
-        history_item_id: String,
+        history_item_id: models::HistoryItemId,
         history_item_key: models::AgentHistoryItemKey,
         is_duplicate: bool,
     ) -> AgentInstanceCreatedHistoryItem {

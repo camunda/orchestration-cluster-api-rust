@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**business_id** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | Filter by the business id inherited from the subscribing process instance when the subscription was opened. Supports advanced string filtering, including `$like` with `*`/`?` wildcards.  | [optional]
 **message_subscription_key** | Option<[**models::MessageSubscriptionKeyFilterProperty**](MessageSubscriptionKeyFilterProperty.md)> | The message subscription key associated with this message subscription. | [optional]
 **process_definition_key** | Option<[**models::ProcessDefinitionKeyFilterProperty**](ProcessDefinitionKeyFilterProperty.md)> | The process definition key associated with this correlated message subscription. This only works for data created with 8.9 and later. | [optional]
 **process_definition_id** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The process definition ID associated with this message subscription. | [optional]

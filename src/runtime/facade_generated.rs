@@ -75,21 +75,6 @@ impl CamundaClient {
         .await
     }
 
-    /// Create agent instance history item (`POST /agent-instances/{agentInstanceKey}/history`).
-    pub async fn create_agent_instance_history_item(
-        &self,
-        params: camunda_orchestration_api_client::apis::agent_instance_api::CreateAgentInstanceHistoryItemParams,
-    ) -> Result<models::AgentInstanceHistoryItemCreationResult> {
-        self.guarded(|| {
-            let params = params.clone();
-            async move {
-                let cfg = self.configuration().await?;
-                Ok(camunda_orchestration_api_client::apis::agent_instance_api::create_agent_instance_history_item(&cfg, params).await?)
-            }
-        })
-        .await
-    }
-
     /// Get agent instance (`GET /agent-instances/{agentInstanceKey}`).
     pub async fn get_agent_instance(
         &self,

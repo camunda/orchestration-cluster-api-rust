@@ -84,6 +84,8 @@ pub enum State {
     Leaving,
     #[serde(rename = "recovering")]
     Recovering,
+    #[serde(rename = "learner")]
+    Learner,
 }
 
 impl Default for State {
