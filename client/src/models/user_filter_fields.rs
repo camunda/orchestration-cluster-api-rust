@@ -11,33 +11,27 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// UserFilterFields : User search filter fields.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TenantSearchQuerySortRequest {
-    /// The field to sort by.
-    #[serde(rename = "field")]
-    pub field: Field,
-    #[serde(rename = "order", skip_serializing_if = "Option::is_none")]
-    pub order: Option<models::SortOrderEnum>,
+pub struct UserFilterFields {
+    /// The username of the user.
+    #[serde(rename = "username", skip_serializing_if = "Option::is_none")]
+    pub username: Option<Box<models::StringFilterProperty>>,
+    /// The name of the user.
+    #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
+    pub name: Option<Box<models::StringFilterProperty>>,
+    /// The email of the user.
+    #[serde(rename = "email", skip_serializing_if = "Option::is_none")]
+    pub email: Option<Box<models::StringFilterProperty>>,
 }
 
-impl TenantSearchQuerySortRequest {
-    pub fn new(field: Field) -> TenantSearchQuerySortRequest {
-        TenantSearchQuerySortRequest { field, order: None }
-    }
-}
-/// The field to sort by.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-pub enum Field {
-    #[serde(rename = "key")]
-    Key,
-    #[serde(rename = "name")]
-    Name,
-    #[serde(rename = "tenantId")]
-    TenantId,
-}
-
-impl Default for Field {
-    fn default() -> Field {
-        Self::Key
+impl UserFilterFields {
+    /// User search filter fields.
+    pub fn new() -> UserFilterFields {
+        UserFilterFields {
+            username: None,
+            name: None,
+            email: None,
+        }
     }
 }

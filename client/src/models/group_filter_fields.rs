@@ -11,33 +11,23 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// GroupFilterFields : Group filter request
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct TenantSearchQuerySortRequest {
-    /// The field to sort by.
-    #[serde(rename = "field")]
-    pub field: Field,
-    #[serde(rename = "order", skip_serializing_if = "Option::is_none")]
-    pub order: Option<models::SortOrderEnum>,
+pub struct GroupFilterFields {
+    /// The group ID search filters.
+    #[serde(rename = "groupId", skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<Box<models::StringFilterProperty>>,
+    /// The group name search filters.
+    #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
+    pub name: Option<Box<models::StringFilterProperty>>,
 }
 
-impl TenantSearchQuerySortRequest {
-    pub fn new(field: Field) -> TenantSearchQuerySortRequest {
-        TenantSearchQuerySortRequest { field, order: None }
-    }
-}
-/// The field to sort by.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-pub enum Field {
-    #[serde(rename = "key")]
-    Key,
-    #[serde(rename = "name")]
-    Name,
-    #[serde(rename = "tenantId")]
-    TenantId,
-}
-
-impl Default for Field {
-    fn default() -> Field {
-        Self::Key
+impl GroupFilterFields {
+    /// Group filter request
+    pub fn new() -> GroupFilterFields {
+        GroupFilterFields {
+            group_id: None,
+            name: None,
+        }
     }
 }

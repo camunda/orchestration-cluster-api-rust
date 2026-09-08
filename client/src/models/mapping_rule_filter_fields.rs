@@ -11,9 +11,9 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// MappingRuleFilter : Mapping rule search filter.
+/// MappingRuleFilterFields : Mapping rule search filter fields.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct MappingRuleFilter {
+pub struct MappingRuleFilterFields {
     /// The claim name to match against a token.
     #[serde(rename = "claimName", skip_serializing_if = "Option::is_none")]
     pub claim_name: Option<String>,
@@ -26,20 +26,16 @@ pub struct MappingRuleFilter {
     /// The ID of the mapping rule.
     #[serde(rename = "mappingRuleId", skip_serializing_if = "Option::is_none")]
     pub mapping_rule_id: Option<Box<models::StringFilterProperty>>,
-    /// Defines a list of alternative filter groups combined using OR logic. Each object in the array is evaluated independently, and the filter matches if any one of them is satisfied.  Top-level fields and the `$or` clause are combined using AND logic — meaning: (top-level filters) AND (any of the `$or` filters) must match. <br> <em>Example:</em>  ```json {   \"$or\": [     { \"mappingRuleId\": \"rule-1\" },     { \"mappingRuleId\": \"rule-2\" }   ] } ``` This matches mapping rules whose <code>mappingRuleId</code> is <em>rule-1</em> or <em>rule-2</em>. <br> <p>Note: Using complex <code>$or</code> conditions may impact performance, use with caution in high-volume environments.
-    #[serde(rename = "$or", skip_serializing_if = "Option::is_none")]
-    pub dollar_or: Option<Vec<models::MappingRuleFilterFields>>,
 }
 
-impl MappingRuleFilter {
-    /// Mapping rule search filter.
-    pub fn new() -> MappingRuleFilter {
-        MappingRuleFilter {
+impl MappingRuleFilterFields {
+    /// Mapping rule search filter fields.
+    pub fn new() -> MappingRuleFilterFields {
+        MappingRuleFilterFields {
             claim_name: None,
             claim_value: None,
             name: None,
             mapping_rule_id: None,
-            dollar_or: None,
         }
     }
 }
