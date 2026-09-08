@@ -23,6 +23,9 @@ pub struct UserFilter {
     /// The email of the user.
     #[serde(rename = "email", skip_serializing_if = "Option::is_none")]
     pub email: Option<Box<models::StringFilterProperty>>,
+    /// Defines a list of alternative filter groups combined using OR logic. Each object in the array is evaluated independently, and the filter matches if any one of them is satisfied.  Top-level fields and the `$or` clause are combined using AND logic — meaning: (top-level filters) AND (any of the `$or` filters) must match. <br> <em>Example:</em>  ```json {   \"$or\": [     { \"username\": \"user-1\" },     { \"username\": \"user-2\" }   ] } ``` This matches users whose <code>username</code> is <em>user-1</em> or <em>user-2</em>. <br> <p>Note: Using complex <code>$or</code> conditions may impact performance, use with caution in high-volume environments.
+    #[serde(rename = "$or", skip_serializing_if = "Option::is_none")]
+    pub dollar_or: Option<Vec<models::UserFilterFields>>,
 }
 
 impl UserFilter {
@@ -32,6 +35,7 @@ impl UserFilter {
             username: None,
             name: None,
             email: None,
+            dollar_or: None,
         }
     }
 }

@@ -16,10 +16,13 @@ use serde::{Deserialize, Serialize};
 pub struct RoleFilter {
     /// The role ID search filters.
     #[serde(rename = "roleId", skip_serializing_if = "Option::is_none")]
-    pub role_id: Option<models::RoleId>,
+    pub role_id: Option<Box<models::StringFilterProperty>>,
     /// The role name search filters.
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
     pub name: Option<Box<models::StringFilterProperty>>,
+    /// Defines a list of alternative filter groups combined using OR logic. Each object in the array is evaluated independently, and the filter matches if any one of them is satisfied.  Top-level fields and the `$or` clause are combined using AND logic — meaning: (top-level filters) AND (any of the `$or` filters) must match. <br> <em>Example:</em>  ```json {   \"name\": \"Admin\",   \"$or\": [     { \"roleId\": \"role-1\" },     { \"roleId\": \"role-2\" }   ] } ``` This matches roles that:  <ul style=\"padding-left: 20px; margin-left: 20px;\">   <li style=\"list-style-type: disc;\">have name equal to <em>Admin</em></li>   <li style=\"list-style-type: disc;\">and match either:     <ul style=\"padding-left: 20px; margin-left: 20px;\">       <li style=\"list-style-type: circle;\"><code>roleId</code> is <em>role-1</em>, or</li>       <li style=\"list-style-type: circle;\"><code>roleId</code> is <em>role-2</em></li>     </ul>   </li> </ul> <br> <p>Note: Using complex <code>$or</code> conditions may impact performance, use with caution in high-volume environments.
+    #[serde(rename = "$or", skip_serializing_if = "Option::is_none")]
+    pub dollar_or: Option<Vec<models::RoleFilterFields>>,
 }
 
 impl RoleFilter {
@@ -28,6 +31,7 @@ impl RoleFilter {
         RoleFilter {
             role_id: None,
             name: None,
+            dollar_or: None,
         }
     }
 }

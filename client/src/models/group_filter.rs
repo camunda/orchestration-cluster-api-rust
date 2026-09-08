@@ -19,7 +19,10 @@ pub struct GroupFilter {
     pub group_id: Option<Box<models::StringFilterProperty>>,
     /// The group name search filters.
     #[serde(rename = "name", skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    pub name: Option<Box<models::StringFilterProperty>>,
+    /// Defines a list of alternative filter groups combined using OR logic. Each object in the array is evaluated independently, and the filter matches if any one of them is satisfied.  Top-level fields and the `$or` clause are combined using AND logic — meaning: (top-level filters) AND (any of the `$or` filters) must match. <br> <em>Example:</em>  ```json {   \"$or\": [     { \"groupId\": \"group-1\" },     { \"groupId\": \"group-2\" }   ] } ``` This matches groups whose <code>groupId</code> is <em>group-1</em> or <em>group-2</em>. <br> <p>Note: Using complex <code>$or</code> conditions may impact performance, use with caution in high-volume environments.
+    #[serde(rename = "$or", skip_serializing_if = "Option::is_none")]
+    pub dollar_or: Option<Vec<models::GroupFilterFields>>,
 }
 
 impl GroupFilter {
@@ -28,6 +31,7 @@ impl GroupFilter {
         GroupFilter {
             group_id: None,
             name: None,
+            dollar_or: None,
         }
     }
 }

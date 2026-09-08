@@ -11,14 +11,14 @@
 #
 # Usage:
 #   ./scripts/generate.sh              # generate from the existing bundled spec
-#   ./scripts/generate.sh --bundle     # re-bundle the upstream spec first (ref: $SPEC_REF, default main)
+#   ./scripts/generate.sh --bundle     # re-bundle the upstream spec first (ref: $SPEC_REF, default stable/8.10)
 #   ./scripts/generate.sh --bundle-only # re-bundle and stop, for callers without Java
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-SPEC_REF_DEFAULT="main"
+SPEC_REF_DEFAULT="stable/8.10"
 SPEC_REF="${SPEC_REF:-$SPEC_REF_DEFAULT}"
 BUNDLED_SPEC="external-spec/bundled/rest-api.bundle.json"
 BUNDLED_META="external-spec/bundled/spec-metadata.json"
