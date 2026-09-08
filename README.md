@@ -418,7 +418,7 @@ Requirements: Rust toolchain, Java 17+ (for openapi-generator), Node.js (for
 `camunda-schema-bundler` and `@openapitools/openapi-generator-cli`, both run via `npx`).
 
 ```bash
-make bundle      # re-fetch + bundle the upstream spec (ref: main), then regenerate
+make bundle      # re-fetch + bundle the upstream spec (ref: stable/8.10), then regenerate
 make generate    # regenerate from the already-bundled spec
 make build
 make test

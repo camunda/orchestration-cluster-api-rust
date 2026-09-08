@@ -52,13 +52,13 @@ represented, change it there.
 ## Generation pipeline
 
 ```bash
-make bundle      # re-bundle upstream spec (ref: $SPEC_REF, default main) + regenerate
+make bundle      # re-bundle upstream spec (ref: $SPEC_REF, default stable/8.10) + regenerate
 make generate    # regenerate from the already-bundled spec
 ```
 
 `scripts/generate.sh` runs:
 
-1. (`--bundle`) `camunda-schema-bundler --ref main` → `external-spec/bundled/*`.
+1. (`--bundle`) `camunda-schema-bundler --ref stable/8.10` → `external-spec/bundled/*`.
 2. `openapi-generator generate -c openapi-generator-config.yaml` → `client/`.
 3. `scripts/postprocess.py` — runs the numbered hooks (`scripts/hooks/`): Domain Type
    System, semantic field types, generator-bug fixes, and the full-surface facade

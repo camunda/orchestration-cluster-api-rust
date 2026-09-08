@@ -1,6 +1,6 @@
 .PHONY: help bundle bundle-spec generate build test lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check publish-dry-run docs-json docs-md test-docs print-docs-toolchain
 
-SPEC_REF ?= main
+SPEC_REF ?= stable/8.10
 
 # Toolchain used ONLY for rustdoc JSON output, which is nightly-gated. This is
 # deliberately separate from rust-toolchain.toml (which pins the stable channel
