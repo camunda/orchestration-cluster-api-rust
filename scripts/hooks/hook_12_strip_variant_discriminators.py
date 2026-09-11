@@ -58,8 +58,8 @@ _RUST_RAW_KEYWORDS = frozenset(
         "continue", "do", "dyn", "else", "enum", "extern", "false", "final", "fn",
         "for", "if", "impl", "in", "let", "loop", "macro", "match", "mod", "move",
         "mut", "override", "priv", "pub", "ref", "return", "static", "struct",
-        "trait", "true", "type", "typeof", "unsafe", "unsized", "use", "virtual",
-        "where", "while", "yield",
+        "trait", "true", "try", "type", "typeof", "unsafe", "unsized", "use",
+        "virtual", "where", "while", "yield",
     }
 )
 

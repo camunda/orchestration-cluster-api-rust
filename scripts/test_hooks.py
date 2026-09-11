@@ -298,6 +298,60 @@ class StripVariantDiscriminatorsTest(unittest.TestCase):
         hook_12_strip_variant_discriminators.run(ctx)
         self.assertEqual((docs / "JobResultUserTask.md").read_bytes(), once)
 
+    def test_maps_rust_keyword_discriminators_to_raw_identifiers(self):
+        """The generator escapes a keyword discriminator field as a raw identifier
+        (`type` -> `r#type`, `try` -> `r#try`), so the doc-field name the hook strips
+        must be raw-mapped too. Non-keyword names pass through unchanged. Guards the
+        `try` gap (a reserved keyword the table previously omitted)."""
+        rust_ident = hook_12_strip_variant_discriminators._rust_field_ident
+        self.assertEqual(rust_ident("type"), "r#type")
+        self.assertEqual(rust_ident("try"), "r#try")
+        self.assertEqual(rust_ident("match"), "r#match")
+        # A non-keyword field name is returned verbatim.
+        self.assertEqual(rust_ident("content_type"), "content_type")
+
+    def test_strips_stale_try_keyword_discriminator_row_from_doc(self):
+        """A tagged union whose discriminator is the reserved keyword `try` is spelled
+        `r#try` by the generator; the stale doc row must still be stripped (regression
+        for the keyword-table `try` omission)."""
+        enum = (
+            "use crate::models;\n"
+            "use serde::{Deserialize, Serialize};\n\n"
+            "#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]\n"
+            '#[serde(tag = "try")]\n'
+            "pub enum Attempt {\n"
+            '    #[serde(rename = "first")]\n'
+            "    First(Box<models::AttemptFirst>),\n"
+            "}\n"
+        )
+        variant = (
+            "use serde::{Deserialize, Serialize};\n\n"
+            "#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]\n"
+            "pub struct AttemptFirst {\n"
+            '    #[serde(rename = "label")]\n'
+            "    pub label: String,\n"
+            "}\n"
+        )
+        models, ctx = _make_models(
+            {"attempt.rs": enum, "attempt_first.rs": variant}
+        )
+        docs = ctx.client_dir / "docs"
+        docs.mkdir(parents=True)
+        doc = (
+            "# AttemptFirst\n\n## Properties\n\n"
+            "Name | Type | Description | Notes\n"
+            "------------ | ------------- | ------------- | -------------\n"
+            "**r#try** | Option<**String**> | The attempt discriminator. | [optional]\n"
+            "**label** | Option<**String**> | A label. | [optional]\n"
+        )
+        (docs / "AttemptFirst.md").write_bytes(doc.encode("utf-8"))
+
+        hook_12_strip_variant_discriminators.run(ctx)
+
+        out = (docs / "AttemptFirst.md").read_text(encoding="utf-8")
+        self.assertNotIn("**r#try**", out)
+        self.assertIn("**label**", out)
+
     def test_leaves_a_non_discriminator_field_alone(self):
         """A struct that is not a tagged-union variant must be untouched."""
         plain = (

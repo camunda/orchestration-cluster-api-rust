@@ -42,6 +42,20 @@ where
 #[test]
 fn job_result_round_trips() {
     // Request-side, core worker completion path.
+    //
+    // NB: `JobResult`'s variant discriminators were re-declared as
+    // `Option<String>` + `skip_serializing_if = "Option::is_none"` (unlike the
+    // response-side unions below, whose discriminator was a *required* field).
+    // For that optional shape there is no observable runtime defect to guard: serde
+    // consumes the tag for the enum, the variant's optional field stays `None`, and
+    // `skip_serializing_if` omits it — so a payload of `{ "type": "userTask" }`
+    // round-trips to a single `type` key *whether or not* the field is re-declared.
+    // The pre-fix duplicate-key / "missing field" failures only manifest for the
+    // required-discriminator unions asserted below. Reintroduction of the redundant
+    // optional field on `JobResult` is therefore caught structurally by the
+    // generation-time guard (`scripts/test_hooks.py::NoVariantRedeclaresItsTagTest`),
+    // not by this runtime round-trip. This case still pins that the request-side
+    // path deserializes and emits exactly one tag.
     assert_roundtrips::<JobResult>(json!({ "type": "userTask" }), "type");
 }
 
