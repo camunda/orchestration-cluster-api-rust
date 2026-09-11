@@ -46,6 +46,33 @@ _TAG_RE = re.compile(r'#\[serde\(tag\s*=\s*"([^"]+)"\)\]')
 _VARIANT_RE = re.compile(r"\bBox<\s*models::(\w+)\s*>")
 _STRUCT_RE = re.compile(r"^pub struct (\w+)\b", re.MULTILINE)
 
+# Rust keywords ``openapi-generator``'s rust generator escapes as raw identifiers
+# (``r#<kw>``) when they appear as field names — which is exactly how they are then
+# rendered in the generated markdown docs (e.g. a ``type`` discriminator becomes
+# ``**r#type**``). A few keywords (``crate``, ``self``, ``Self``, ``super``) cannot be
+# raw identifiers and the generator suffixes those instead, but none currently occur as
+# discriminator field names.
+_RUST_RAW_KEYWORDS = frozenset(
+    {
+        "abstract", "as", "async", "await", "become", "box", "break", "const",
+        "continue", "do", "dyn", "else", "enum", "extern", "false", "final", "fn",
+        "for", "if", "impl", "in", "let", "loop", "macro", "match", "mod", "move",
+        "mut", "override", "priv", "pub", "ref", "return", "static", "struct",
+        "trait", "true", "type", "typeof", "unsafe", "unsized", "use", "virtual",
+        "where", "while", "yield",
+    }
+)
+
+
+def _rust_field_ident(name: str) -> str:
+    """Map a snake_case field name to the identifier the rust generator emits for it.
+
+    Rust keywords used as field names are escaped as raw identifiers (``r#type``), which
+    is how they appear in both the generated struct and its markdown doc. Non-keyword
+    names are returned unchanged.
+    """
+    return f"r#{name}" if name in _RUST_RAW_KEYWORDS else name
+
 
 def _match_delim(s: str, open_idx: int, open_ch: str, close_ch: str) -> int:
     """Return the index of the delimiter matching the one at ``open_idx``, or -1."""
@@ -201,7 +228,7 @@ def run(ctx: Context) -> None:
         if not tag_match:
             continue
         tag = tag_match.group(1)
-        doc_field = snake_case(tag)
+        doc_field = _rust_field_ident(snake_case(tag))
         for variant in dict.fromkeys(_VARIANT_RE.findall(text)):
             vpath = struct_files.get(variant)
             if vpath is not None:

@@ -177,6 +177,41 @@ _OBJECT_VARIANT = (
 )
 
 
+# An enum tagged on a Rust keyword (`type`), whose variant struct was *already*
+# stripped of the discriminator in a prior generation — only the markdown doc remains
+# stale. Exercises the doc-cleanup branch independently of struct stripping (so a
+# regression that skips it when the struct is already clean is caught), and the
+# raw-identifier (`r#type`) mapping the generator applies to keyword field names.
+_KEYWORD_ENUM = (
+    "use crate::models;\n"
+    "use serde::{Deserialize, Serialize};\n\n"
+    "#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]\n"
+    '#[serde(tag = "type")]\n'
+    "pub enum JobResult {\n"
+    '    #[serde(rename = "userTask")]\n'
+    "    UserTask(Box<models::JobResultUserTask>),\n"
+    "}\n"
+)
+
+# The variant struct as it stands *after* a prior generation stripped the tag: it no
+# longer declares the discriminator field, so `_strip_discriminator` is a no-op on it.
+_STRIPPED_VARIANT = (
+    "use crate::models;\n"
+    "use serde::{Deserialize, Serialize};\n\n"
+    "#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]\n"
+    "pub struct JobResultUserTask {\n"
+    "    /// Whether the task was denied.\n"
+    '    #[serde(rename = "denied")]\n'
+    "    pub denied: bool,\n"
+    "}\n\n"
+    "impl JobResultUserTask {\n"
+    "    pub fn new(denied: bool) -> JobResultUserTask {\n"
+    "        JobResultUserTask { denied }\n"
+    "    }\n"
+    "}\n"
+)
+
+
 class StripVariantDiscriminatorsTest(unittest.TestCase):
     """`hook_12` removes the re-declared discriminator field from every variant struct
     of a `#[serde(tag = ...)]` enum, along with its `new()` param and initializer."""
@@ -228,34 +263,40 @@ class StripVariantDiscriminatorsTest(unittest.TestCase):
         self.assertNotIn(b"\r\n", (models / "text_content.rs").read_bytes())
 
     def test_strips_stale_discriminator_row_from_markdown_doc(self):
-        """The variant's checked-in markdown doc must lose the discriminator row too,
-        even when the struct field was already stripped in a prior generation."""
+        """The variant's checked-in markdown doc must lose the discriminator row even
+        when the struct was already stripped in a prior generation, and even when the
+        discriminator is a Rust keyword the generator escapes as a raw identifier
+        (`r#type`) in Markdown."""
         models, ctx = _make_models(
             {
-                "content.rs": _ENUM_FIXTURE,
-                "text_content.rs": _TEXT_VARIANT,
-                "object_content.rs": _OBJECT_VARIANT,
+                "job_result.rs": _KEYWORD_ENUM,
+                "job_result_user_task.rs": _STRIPPED_VARIANT,
             }
         )
         docs = ctx.client_dir / "docs"
         docs.mkdir(parents=True)
         doc = (
-            "# TextContent\n\n## Properties\n\n"
+            "# JobResultUserTask\n\n## Properties\n\n"
             "Name | Type | Description | Notes\n"
             "------------ | ------------- | ------------- | -------------\n"
-            "**content_type** | **String** | The content type discriminator. | \n"
-            "**text** | **String** | The text content. | \n"
+            "**r#type** | Option<**String**> | The result type discriminator. | [optional]\n"
+            "**denied** | Option<**bool**> | Whether the task was denied. | [optional]\n"
         )
-        (docs / "TextContent.md").write_bytes(doc.encode("utf-8"))
-        hook_12_strip_variant_discriminators.run(ctx)
+        (docs / "JobResultUserTask.md").write_bytes(doc.encode("utf-8"))
 
-        out = (docs / "TextContent.md").read_text(encoding="utf-8")
-        self.assertNotIn("**content_type**", out)
-        self.assertIn("**text**", out)
-        # Idempotent: a second run leaves the already-repaired doc untouched.
-        once = (docs / "TextContent.md").read_bytes()
+        # The struct is already stripped, so its source must be left untouched...
+        before = (models / "job_result_user_task.rs").read_bytes()
         hook_12_strip_variant_discriminators.run(ctx)
-        self.assertEqual((docs / "TextContent.md").read_bytes(), once)
+        self.assertEqual((models / "job_result_user_task.rs").read_bytes(), before)
+
+        # ...but the stale raw-identifier `r#type` row must still be removed from the doc.
+        out = (docs / "JobResultUserTask.md").read_text(encoding="utf-8")
+        self.assertNotIn("**r#type**", out)
+        self.assertIn("**denied**", out)
+        # Idempotent: a second run leaves the already-repaired doc untouched.
+        once = (docs / "JobResultUserTask.md").read_bytes()
+        hook_12_strip_variant_discriminators.run(ctx)
+        self.assertEqual((docs / "JobResultUserTask.md").read_bytes(), once)
 
     def test_leaves_a_non_discriminator_field_alone(self):
         """A struct that is not a tagged-union variant must be untouched."""
