@@ -4,7 +4,6 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**operation** | **String** | The type of the operation. | 
 **broker_id** | **String** | The ID of the broker that applies the operation, including its zone if it belongs to one. | 
 **partition_id** | **i32** | The partition the operation applies to. | 
 

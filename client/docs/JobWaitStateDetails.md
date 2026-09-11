@@ -4,7 +4,6 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**wait_state_type** | **String** | The wait state type discriminator. | 
 **job_key** | **models::JobKey** | The key of the job. | 
 **job_type** | **String** | The job type (worker subscription identifier). | 
 **job_kind** | [**models::JobKindEnum**](JobKindEnum.md) | The kind of job. | 
