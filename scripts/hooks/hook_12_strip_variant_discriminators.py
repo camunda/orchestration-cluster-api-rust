@@ -152,33 +152,50 @@ def _strip_initializer(text: str, ident: str) -> str:
     return text[: brace + 1] + new_inner + text[close:]
 
 
+def _rename_attr_re(tag: str) -> "re.Pattern[str]":
+    """A regex matching a ``#[serde(... rename = "<tag>" ...)]`` attribute, whether the
+    generator renders it on a single line or spreads it across several.
+
+    The rust generator emits a *multiline* ``#[serde(...)]`` for any field carrying more
+    than one directive — which includes an optional/nullable discriminator (``default``,
+    ``skip_serializing_if``, ``double_option``) — so ``rename`` frequently lands on a
+    different physical line from ``#[serde(``. ``[^)]*`` spans those intervening newlines
+    and directives but can never cross the attribute's own closing paren, so the match
+    stays inside one attribute and never leaks into an adjacent one.
+    """
+    return re.compile(r'#\[serde\([^)]*\brename\s*=\s*"' + re.escape(tag) + r'"')
+
+
 def _strip_discriminator(text: str, tag: str) -> str | None:
     """Remove the field whose serde rename is ``tag`` from a variant struct.
 
     Returns the rewritten source, or ``None`` when the struct does not declare the tag
-    (nothing to do — also the idempotency guard on a second pass).
+    (nothing to do — also the idempotency guard on a second pass). Robust to a
+    discriminator whose ``#[serde(...)]`` attribute the generator spread across multiple
+    lines (see :func:`_rename_attr_re`).
     """
-    lines = text.split("\n")
-    attr_re = re.compile(r'#\[serde\(rename\s*=\s*"' + re.escape(tag) + r'"')
-    attr_idx = next((i for i, ln in enumerate(lines) if attr_re.search(ln)), None)
-    if attr_idx is None:
+    m = _rename_attr_re(tag).search(text)
+    if m is None:
         return None
-    # The field declaration is the next `pub <ident>:` line after the attribute.
-    field_idx = attr_idx
-    while field_idx < len(lines) and not lines[field_idx].lstrip().startswith("pub "):
-        field_idx += 1
-    if field_idx >= len(lines):
+    # The field declaration is the next `pub <ident>:` after the attribute (skipping any
+    # trailing directives of a multiline attribute and any interleaved attributes).
+    field_m = re.compile(r"pub\s+(r#\w+|\w+)\s*:").search(text, m.end())
+    if field_m is None:
         return None
-    m = re.match(r"\s*pub\s+(r#\w+|\w+)\s*:", lines[field_idx])
-    if not m:
-        return None
-    ident = m.group(1)
-    # Include the field's leading doc-comment line(s).
-    start = attr_idx
-    while start - 1 >= 0 and lines[start - 1].lstrip().startswith("///"):
-        start -= 1
-    del lines[start : field_idx + 1]
-    out = "\n".join(lines)
+    ident = field_m.group(1)
+    # Delete whole lines: the field's leading `///` doc line(s), its (possibly multiline)
+    # `#[serde(...)]` attribute, and the field declaration line itself.
+    lo = text.rfind("\n", 0, m.start()) + 1
+    while lo > 0:
+        prev_end = lo - 1  # the '\n' terminating the preceding line
+        prev_start = text.rfind("\n", 0, prev_end) + 1
+        if text[prev_start:prev_end].lstrip().startswith("///"):
+            lo = prev_start
+        else:
+            break
+    nl = text.find("\n", field_m.end())
+    hi = len(text) if nl < 0 else nl + 1
+    out = text[:lo] + text[hi:]
     out = _strip_new_param(out, ident)
     out = _strip_initializer(out, ident)
     return out

@@ -212,9 +212,62 @@ _STRIPPED_VARIANT = (
 )
 
 
+# A discriminator the generator rendered as a *multiline* `#[serde(...)]` attribute —
+# exactly how it formats any field carrying more than one directive (here an optional
+# discriminator with `skip_serializing_if`). A line-local `#[serde(rename = ...)]` match
+# misses this shape entirely, leaving the tag re-declared and the variant un-decodable.
+_MULTILINE_VARIANT = (
+    "use crate::models;\n"
+    "use serde::{Deserialize, Serialize};\n\n"
+    "#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]\n"
+    "pub struct ObjectContent {\n"
+    "    /// The content type discriminator.\n"
+    "    #[serde(\n"
+    '        rename = "contentType",\n'
+    '        skip_serializing_if = "Option::is_none"\n'
+    "    )]\n"
+    "    pub content_type: Option<String>,\n"
+    "    /// The object payload.\n"
+    '    #[serde(rename = "object")]\n'
+    "    pub object: Option<serde_json::Value>,\n"
+    "}\n\n"
+    "impl ObjectContent {\n"
+    "    pub fn new(object: Option<serde_json::Value>) -> ObjectContent {\n"
+    "        ObjectContent {\n"
+    "            content_type: None,\n"
+    "            object,\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+)
+
+
 class StripVariantDiscriminatorsTest(unittest.TestCase):
     """`hook_12` removes the re-declared discriminator field from every variant struct
     of a `#[serde(tag = ...)]` enum, along with its `new()` param and initializer."""
+
+    def test_strips_multiline_serde_discriminator(self):
+        models, ctx = _make_models(
+            {
+                "content.rs": _ENUM_FIXTURE,
+                "text_content.rs": _TEXT_VARIANT,
+                "object_content.rs": _MULTILINE_VARIANT,
+            }
+        )
+        hook_12_strip_variant_discriminators.run(ctx)
+
+        obj = (models / "object_content.rs").read_text(encoding="utf-8")
+        # The whole multiline attribute + field + its doc line are gone...
+        self.assertNotIn('rename = "contentType"', obj)
+        self.assertNotIn("content_type", obj)
+        self.assertNotIn("skip_serializing_if", obj)
+        self.assertNotIn("The content type discriminator.", obj)
+        # ...while the sibling non-discriminator field is untouched.
+        self.assertIn("pub object: Option<serde_json::Value>", obj)
+        self.assertIn(
+            "pub fn new(object: Option<serde_json::Value>) -> ObjectContent", obj
+        )
+        self.assertNotIn("content_type: None", obj)
 
     def test_strips_field_param_and_initializer(self):
         models, ctx = _make_models(
@@ -407,9 +460,8 @@ class NoVariantRedeclaresItsTagTest(unittest.TestCase):
                     # defect could slip back in unseen. Fail instead of skipping silently.
                     unresolved.append(f"{path.name}: variant `{variant}` has no struct file")
                     continue
-                if re.search(
-                    r'#\[serde\(rename\s*=\s*"' + re.escape(tag) + r'"',
-                    vpath.read_text(encoding="utf-8"),
+                if hook_12_strip_variant_discriminators._rename_attr_re(tag).search(
+                    vpath.read_text(encoding="utf-8")
                 ):
                     offenders.append(f"{vpath.name} re-declares tag `{tag}`")
         self.assertTrue(tagged_seen, "expected at least one #[serde(tag = ...)] enum")
