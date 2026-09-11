@@ -227,6 +227,36 @@ class StripVariantDiscriminatorsTest(unittest.TestCase):
         hook_12_strip_variant_discriminators.run(ctx)
         self.assertNotIn(b"\r\n", (models / "text_content.rs").read_bytes())
 
+    def test_strips_stale_discriminator_row_from_markdown_doc(self):
+        """The variant's checked-in markdown doc must lose the discriminator row too,
+        even when the struct field was already stripped in a prior generation."""
+        models, ctx = _make_models(
+            {
+                "content.rs": _ENUM_FIXTURE,
+                "text_content.rs": _TEXT_VARIANT,
+                "object_content.rs": _OBJECT_VARIANT,
+            }
+        )
+        docs = ctx.client_dir / "docs"
+        docs.mkdir(parents=True)
+        doc = (
+            "# TextContent\n\n## Properties\n\n"
+            "Name | Type | Description | Notes\n"
+            "------------ | ------------- | ------------- | -------------\n"
+            "**content_type** | **String** | The content type discriminator. | \n"
+            "**text** | **String** | The text content. | \n"
+        )
+        (docs / "TextContent.md").write_bytes(doc.encode("utf-8"))
+        hook_12_strip_variant_discriminators.run(ctx)
+
+        out = (docs / "TextContent.md").read_text(encoding="utf-8")
+        self.assertNotIn("**content_type**", out)
+        self.assertIn("**text**", out)
+        # Idempotent: a second run leaves the already-repaired doc untouched.
+        once = (docs / "TextContent.md").read_bytes()
+        hook_12_strip_variant_discriminators.run(ctx)
+        self.assertEqual((docs / "TextContent.md").read_bytes(), once)
+
     def test_leaves_a_non_discriminator_field_alone(self):
         """A struct that is not a tagged-union variant must be untouched."""
         plain = (
@@ -265,6 +295,7 @@ class NoVariantRedeclaresItsTagTest(unittest.TestCase):
             self.skipTest("generated client models are not present")
         struct_files = self._struct_files()
         offenders = []
+        unresolved = []
         tagged_seen = False
         for path in _MODELS_DIR.glob("*.rs"):
             text = path.read_text(encoding="utf-8")
@@ -276,6 +307,10 @@ class NoVariantRedeclaresItsTagTest(unittest.TestCase):
             for variant in dict.fromkeys(_VARIANT_RE.findall(text)):
                 vpath = struct_files.get(variant)
                 if vpath is None:
+                    # A variant that resolves to no struct file is a coverage hole: the
+                    # guard cannot prove that variant does not re-declare its tag, so the
+                    # defect could slip back in unseen. Fail instead of skipping silently.
+                    unresolved.append(f"{path.name}: variant `{variant}` has no struct file")
                     continue
                 if re.search(
                     r'#\[serde\(rename\s*=\s*"' + re.escape(tag) + r'"',
@@ -283,6 +318,7 @@ class NoVariantRedeclaresItsTagTest(unittest.TestCase):
                 ):
                     offenders.append(f"{vpath.name} re-declares tag `{tag}`")
         self.assertTrue(tagged_seen, "expected at least one #[serde(tag = ...)] enum")
+        self.assertEqual(unresolved, [], "tagged-union variant did not resolve to a struct")
         self.assertEqual(offenders, [])
 
 

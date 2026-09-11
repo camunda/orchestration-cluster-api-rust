@@ -22,7 +22,10 @@ polymorphic type in the client is therefore broken in both directions.
 This hook removes the offending field from each variant struct: its doc comment and
 ``#[serde(rename = "<tag>")]`` attribute, the field declaration itself, and — where the
 generator threaded it through the constructor — its ``new()`` parameter and struct-literal
-initializer. The enum keeps sole ownership of the tag, which is what serde expects.
+initializer. The enum keeps sole ownership of the tag, which is what serde expects. It also
+drops the now-removed field's row from the variant's checked-in markdown doc
+(``client/docs/<Variant>.md``) so the published model documentation does not advertise a
+field the struct no longer exposes.
 
 It is discovery-driven (it reads the ``#[serde(tag = ...)]`` enums straight out of the
 generated model files rather than an enumerated list), so a *new* ``oneOf`` added upstream
@@ -34,7 +37,7 @@ from __future__ import annotations
 
 import re
 
-from .common import Context
+from .common import Context, snake_case
 
 NUMBER = 12
 NAME = "strip-variant-discriminators"
@@ -154,6 +157,28 @@ def _strip_discriminator(text: str, tag: str) -> str | None:
     return out
 
 
+def _strip_doc_field(docs_dir, variant: str, field: str) -> bool:
+    """Drop the ``**<field>**`` property row from the variant's markdown doc.
+
+    ``client/docs/<Variant>.md`` is generated alongside the struct and lists one row per
+    field; when the struct loses its re-declared discriminator the doc must lose the same
+    row. Keyed off the (stable) enum tag rather than the struct's current state, so it also
+    repairs docs whose struct was already stripped, and it is idempotent once the row is
+    gone. Returns ``True`` when a row was removed.
+    """
+    path = docs_dir / f"{variant}.md"
+    if not path.exists():
+        return False
+    text = path.read_bytes().decode("utf-8")
+    lines = text.split("\n")
+    row_re = re.compile(r"^\s*\*\*" + re.escape(field) + r"\*\*\s*\|")
+    kept = [ln for ln in lines if not row_re.match(ln)]
+    if len(kept) == len(lines):
+        return False
+    path.write_bytes("\n".join(kept).encode("utf-8"))
+    return True
+
+
 def _struct_file_index(ctx: Context) -> dict[str, "object"]:
     """Map every ``pub struct Name`` in the models tree to the file that declares it."""
     index: dict[str, object] = {}
@@ -169,21 +194,27 @@ def run(ctx: Context) -> None:
     if not models_dir.exists():
         return
     struct_files = _struct_file_index(ctx)
+    docs_dir = ctx.client_dir / "docs"
     for path in sorted(models_dir.glob("*.rs")):
         text = path.read_bytes().decode("utf-8")
         tag_match = _TAG_RE.search(text)
         if not tag_match:
             continue
         tag = tag_match.group(1)
+        doc_field = snake_case(tag)
         for variant in dict.fromkeys(_VARIANT_RE.findall(text)):
             vpath = struct_files.get(variant)
-            if vpath is None:
-                continue
-            vtext = vpath.read_bytes().decode("utf-8")
-            new_text = _strip_discriminator(vtext, tag)
-            if new_text is not None and new_text != vtext:
-                vpath.write_bytes(new_text.encode("utf-8"))
+            if vpath is not None:
+                vtext = vpath.read_bytes().decode("utf-8")
+                new_text = _strip_discriminator(vtext, tag)
+                if new_text is not None and new_text != vtext:
+                    vpath.write_bytes(new_text.encode("utf-8"))
+                    ctx.log(
+                        NAME,
+                        f"stripped re-declared discriminator `{tag}` from {vpath.name}",
+                    )
+            if _strip_doc_field(docs_dir, variant, doc_field):
                 ctx.log(
                     NAME,
-                    f"stripped re-declared discriminator `{tag}` from {vpath.name}",
+                    f"stripped stale discriminator row `{doc_field}` from {variant}.md",
                 )
