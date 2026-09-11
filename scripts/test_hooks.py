@@ -19,7 +19,6 @@ single instance that prompted it.
 from __future__ import annotations
 
 import ast
-import re
 import tempfile
 import unittest
 from pathlib import Path
