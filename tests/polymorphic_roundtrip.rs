@@ -37,7 +37,11 @@ where
         .unwrap_or_else(|e| panic!("deserialize failed for tag `{tag}`: {e}"));
     let reserialized = serde_json::to_string(&decoded).expect("serialize");
     assert_eq!(reserialized, payload, "round-trip mismatch for tag `{tag}`");
-    let occurrences = reserialized.matches(&format!("\"{tag}\"")).count();
+    // Match the discriminator *key* token (`"tag":`), not the bare quoted string
+    // (`"tag"`): a variant payload could legitimately carry a string *value* equal to
+    // the tag, which would inflate a bare-string count and fail a valid fixture. The
+    // trailing colon pins the count to the JSON key serde emits for the tag.
+    let occurrences = reserialized.matches(&format!("\"{tag}\":")).count();
     assert_eq!(
         occurrences, 1,
         "discriminator `{tag}` must be written exactly once, got: {reserialized}",
