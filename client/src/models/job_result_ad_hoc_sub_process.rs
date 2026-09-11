@@ -29,9 +29,6 @@ pub struct JobResultAdHocSubProcess {
         skip_serializing_if = "Option::is_none"
     )]
     pub is_cancel_remaining_instances: Option<bool>,
-    /// Used to distinguish between different types of job results.
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub r#type: Option<String>,
 }
 
 impl JobResultAdHocSubProcess {
@@ -41,7 +38,6 @@ impl JobResultAdHocSubProcess {
             activate_elements: None,
             is_completion_condition_fulfilled: None,
             is_cancel_remaining_instances: None,
-            r#type: None,
         }
     }
 }

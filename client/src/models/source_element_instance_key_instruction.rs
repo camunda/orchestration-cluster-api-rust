@@ -14,9 +14,6 @@ use serde::{Deserialize, Serialize};
 /// SourceElementInstanceKeyInstruction : Defines an instruction with a sourceElementInstanceKey. The move instruction with this sourceType will terminate one active element instance with the sourceElementInstanceKey and activate a new element instance at targetElementId.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SourceElementInstanceKeyInstruction {
-    /// The type of source element instruction.
-    #[serde(rename = "sourceType")]
-    pub source_type: String,
     /// The source element instance key for the move instruction.
     #[serde(rename = "sourceElementInstanceKey")]
     pub source_element_instance_key: Box<models::ElementInstanceKey>,
@@ -25,11 +22,9 @@ pub struct SourceElementInstanceKeyInstruction {
 impl SourceElementInstanceKeyInstruction {
     /// Defines an instruction with a sourceElementInstanceKey. The move instruction with this sourceType will terminate one active element instance with the sourceElementInstanceKey and activate a new element instance at targetElementId.
     pub fn new(
-        source_type: String,
         source_element_instance_key: models::ElementInstanceKey,
     ) -> SourceElementInstanceKeyInstruction {
         SourceElementInstanceKeyInstruction {
-            source_type,
             source_element_instance_key: Box::new(source_element_instance_key),
         }
     }

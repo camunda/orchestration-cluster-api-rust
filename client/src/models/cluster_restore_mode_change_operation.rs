@@ -14,9 +14,6 @@ use serde::{Deserialize, Serialize};
 /// ClusterRestoreModeChangeOperation : The operation that transitions a broker to a mode once its partitions are restored.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClusterRestoreModeChangeOperation {
-    /// The type of the operation.
-    #[serde(rename = "operation")]
-    pub operation: String,
     /// The ID of the broker that applies the operation, including its zone if it belongs to one.
     #[serde(rename = "brokerId")]
     pub broker_id: String,
@@ -27,15 +24,7 @@ pub struct ClusterRestoreModeChangeOperation {
 
 impl ClusterRestoreModeChangeOperation {
     /// The operation that transitions a broker to a mode once its partitions are restored.
-    pub fn new(
-        operation: String,
-        broker_id: String,
-        mode: String,
-    ) -> ClusterRestoreModeChangeOperation {
-        ClusterRestoreModeChangeOperation {
-            operation,
-            broker_id,
-            mode,
-        }
+    pub fn new(broker_id: String, mode: String) -> ClusterRestoreModeChangeOperation {
+        ClusterRestoreModeChangeOperation { broker_id, mode }
     }
 }

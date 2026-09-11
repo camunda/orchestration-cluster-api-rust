@@ -14,9 +14,6 @@ use serde::{Deserialize, Serialize};
 /// ClusterRestorePartitionRestoreOperation : The operation that restores a single partition from the backups resolved for it.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClusterRestorePartitionRestoreOperation {
-    /// The type of the operation.
-    #[serde(rename = "operation")]
-    pub operation: String,
     /// The ID of the broker that applies the operation, including its zone if it belongs to one.
     #[serde(rename = "brokerId")]
     pub broker_id: String,
@@ -31,13 +28,11 @@ pub struct ClusterRestorePartitionRestoreOperation {
 impl ClusterRestorePartitionRestoreOperation {
     /// The operation that restores a single partition from the backups resolved for it.
     pub fn new(
-        operation: String,
         broker_id: String,
         partition_id: i32,
         backup_ids: Vec<i64>,
     ) -> ClusterRestorePartitionRestoreOperation {
         ClusterRestorePartitionRestoreOperation {
-            operation,
             broker_id,
             partition_id,
             backup_ids,

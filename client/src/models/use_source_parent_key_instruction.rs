@@ -13,17 +13,11 @@ use serde::{Deserialize, Serialize};
 
 /// UseSourceParentKeyInstruction : Instructs the engine to use the source's direct parent key as the ancestor scope key for the target element. This is a simpler alternative to `inferred` that skips hierarchy traversal and directly uses the source's parent key. This is useful when the source and target elements are siblings within the same flow scope.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct UseSourceParentKeyInstruction {
-    /// The type of ancestor scope instruction.
-    #[serde(rename = "ancestorScopeType")]
-    pub ancestor_scope_type: String,
-}
+pub struct UseSourceParentKeyInstruction {}
 
 impl UseSourceParentKeyInstruction {
     /// Instructs the engine to use the source's direct parent key as the ancestor scope key for the target element. This is a simpler alternative to `inferred` that skips hierarchy traversal and directly uses the source's parent key. This is useful when the source and target elements are siblings within the same flow scope.
-    pub fn new(ancestor_scope_type: String) -> UseSourceParentKeyInstruction {
-        UseSourceParentKeyInstruction {
-            ancestor_scope_type,
-        }
+    pub fn new() -> UseSourceParentKeyInstruction {
+        UseSourceParentKeyInstruction {}
     }
 }

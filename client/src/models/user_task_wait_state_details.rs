@@ -13,9 +13,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UserTaskWaitStateDetails {
-    /// The wait state type discriminator.
-    #[serde(rename = "waitStateType")]
-    pub wait_state_type: String,
     /// The key of the user task.
     #[serde(rename = "taskKey")]
     pub task_key: Box<models::UserTaskKey>,
@@ -26,12 +23,10 @@ pub struct UserTaskWaitStateDetails {
 
 impl UserTaskWaitStateDetails {
     pub fn new(
-        wait_state_type: String,
         task_key: models::UserTaskKey,
         due_date: Option<chrono::DateTime<chrono::FixedOffset>>,
     ) -> UserTaskWaitStateDetails {
         UserTaskWaitStateDetails {
-            wait_state_type,
             task_key: Box::new(task_key),
             due_date,
         }

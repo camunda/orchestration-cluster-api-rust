@@ -14,9 +14,6 @@ use serde::{Deserialize, Serialize};
 /// AgentInstanceDocumentContent : A Camunda Document Store reference content block.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AgentInstanceDocumentContent {
-    /// The content type discriminator.
-    #[serde(rename = "contentType")]
-    pub content_type: String,
     /// A reference to a document stored in the Camunda Document Store.
     #[serde(rename = "documentReference")]
     pub document_reference: Box<models::DocumentReference>,
@@ -24,12 +21,8 @@ pub struct AgentInstanceDocumentContent {
 
 impl AgentInstanceDocumentContent {
     /// A Camunda Document Store reference content block.
-    pub fn new(
-        content_type: String,
-        document_reference: models::DocumentReference,
-    ) -> AgentInstanceDocumentContent {
+    pub fn new(document_reference: models::DocumentReference) -> AgentInstanceDocumentContent {
         AgentInstanceDocumentContent {
-            content_type,
             document_reference: Box::new(document_reference),
         }
     }

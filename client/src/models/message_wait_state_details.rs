@@ -13,9 +13,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MessageWaitStateDetails {
-    /// The wait state type discriminator.
-    #[serde(rename = "waitStateType")]
-    pub wait_state_type: String,
     /// The name of the message being awaited.
     #[serde(rename = "messageName")]
     pub message_name: String,
@@ -25,13 +22,8 @@ pub struct MessageWaitStateDetails {
 }
 
 impl MessageWaitStateDetails {
-    pub fn new(
-        wait_state_type: String,
-        message_name: String,
-        correlation_key: Option<String>,
-    ) -> MessageWaitStateDetails {
+    pub fn new(message_name: String, correlation_key: Option<String>) -> MessageWaitStateDetails {
         MessageWaitStateDetails {
-            wait_state_type,
             message_name,
             correlation_key,
         }

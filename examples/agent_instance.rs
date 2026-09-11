@@ -46,7 +46,6 @@ async fn create_agent_instance() -> Result<(), Box<dyn std::error::Error>> {
                     provider: Some("my-provider".to_string()),
                     system_prompt: Some(Some(vec![AgentInstanceMessageContent::Text(Box::new(
                         AgentInstanceTextContent {
-                            content_type: "TEXT".to_string(),
                             text: "my-system-prompt".to_string(),
                         },
                     ))])),

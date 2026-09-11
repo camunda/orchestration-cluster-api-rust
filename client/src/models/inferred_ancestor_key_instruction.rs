@@ -13,17 +13,11 @@ use serde::{Deserialize, Serialize};
 
 /// InferredAncestorKeyInstruction : Instructs the engine to derive the ancestor scope key from the source element's hierarchy. The engine traverses the source element's ancestry to find an instance that matches one of the target element's flow scopes, ensuring the target is activated in the correct scope.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct InferredAncestorKeyInstruction {
-    /// The type of ancestor scope instruction.
-    #[serde(rename = "ancestorScopeType")]
-    pub ancestor_scope_type: String,
-}
+pub struct InferredAncestorKeyInstruction {}
 
 impl InferredAncestorKeyInstruction {
     /// Instructs the engine to derive the ancestor scope key from the source element's hierarchy. The engine traverses the source element's ancestry to find an instance that matches one of the target element's flow scopes, ensuring the target is activated in the correct scope.
-    pub fn new(ancestor_scope_type: String) -> InferredAncestorKeyInstruction {
-        InferredAncestorKeyInstruction {
-            ancestor_scope_type,
-        }
+    pub fn new() -> InferredAncestorKeyInstruction {
+        InferredAncestorKeyInstruction {}
     }
 }
