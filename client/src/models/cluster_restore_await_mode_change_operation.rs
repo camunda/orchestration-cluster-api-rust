@@ -14,9 +14,6 @@ use serde::{Deserialize, Serialize};
 /// ClusterRestoreAwaitModeChangeOperation : The operation that awaits the transition of a broker to a mode.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClusterRestoreAwaitModeChangeOperation {
-    /// The type of the operation.
-    #[serde(rename = "operation")]
-    pub operation: String,
     /// The ID of the broker that applies the operation, including its zone if it belongs to one.
     #[serde(rename = "brokerId")]
     pub broker_id: String,
@@ -27,15 +24,7 @@ pub struct ClusterRestoreAwaitModeChangeOperation {
 
 impl ClusterRestoreAwaitModeChangeOperation {
     /// The operation that awaits the transition of a broker to a mode.
-    pub fn new(
-        operation: String,
-        broker_id: String,
-        mode: String,
-    ) -> ClusterRestoreAwaitModeChangeOperation {
-        ClusterRestoreAwaitModeChangeOperation {
-            operation,
-            broker_id,
-            mode,
-        }
+    pub fn new(broker_id: String, mode: String) -> ClusterRestoreAwaitModeChangeOperation {
+        ClusterRestoreAwaitModeChangeOperation { broker_id, mode }
     }
 }

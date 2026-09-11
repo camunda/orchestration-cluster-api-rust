@@ -4,7 +4,6 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**wait_state_type** | **String** | The wait state type discriminator. | 
 **task_key** | **models::UserTaskKey** | The key of the user task. | 
 **due_date** | Option<**chrono::DateTime<chrono::FixedOffset>**> | The due date of the user task, if set. | 
 

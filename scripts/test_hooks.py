@@ -24,6 +24,7 @@ import unittest
 from pathlib import Path
 
 from scripts.hooks import hook_11_optional_body_json
+from scripts.hooks import hook_12_strip_variant_discriminators
 from scripts.hooks.common import Context
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -104,6 +105,367 @@ class GuardOptionalJsonBodyTest(unittest.TestCase):
             }
         )
         self.assertNotIn(b"\r\n", (apis / "secret_api.rs").read_bytes())
+
+
+_MODELS_DIR = _REPO_ROOT / "client" / "src" / "models"
+
+_TAG_RE = hook_12_strip_variant_discriminators._TAG_RE
+_VARIANT_RE = hook_12_strip_variant_discriminators._VARIANT_RE
+
+
+def _make_models(files: dict[str, str]) -> tuple[Path, Context]:
+    tmp = Path(tempfile.mkdtemp())
+    models = tmp / "src" / "models"
+    models.mkdir(parents=True)
+    for name, body in files.items():
+        (models / name).write_bytes(body.encode("utf-8"))
+    ctx = Context(client_dir=tmp, spec={}, schemas={})
+    return models, ctx
+
+
+_ENUM_FIXTURE = (
+    "use crate::models;\n"
+    "use serde::{Deserialize, Serialize};\n\n"
+    "#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]\n"
+    '#[serde(tag = "contentType")]\n'
+    "pub enum Content {\n"
+    '    #[serde(rename = "TEXT")]\n'
+    "    Text(Box<models::TextContent>),\n"
+    '    #[serde(rename = "OBJECT")]\n'
+    "    Object(Box<models::ObjectContent>),\n"
+    "}\n"
+)
+
+# A required discriminator threaded through `new()` (both a param and an initializer).
+_TEXT_VARIANT = (
+    "use crate::models;\n"
+    "use serde::{Deserialize, Serialize};\n\n"
+    "#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]\n"
+    "pub struct TextContent {\n"
+    "    /// The content type discriminator.\n"
+    '    #[serde(rename = "contentType")]\n'
+    "    pub content_type: String,\n"
+    "    /// The text content.\n"
+    '    #[serde(rename = "text")]\n'
+    "    pub text: String,\n"
+    "}\n\n"
+    "impl TextContent {\n"
+    "    pub fn new(content_type: String, text: String) -> TextContent {\n"
+    "        TextContent { content_type, text }\n"
+    "    }\n"
+    "}\n"
+)
+
+# A discriminator that is the struct's only field — stripping empties the struct.
+_OBJECT_VARIANT = (
+    "use crate::models;\n"
+    "use serde::{Deserialize, Serialize};\n\n"
+    "#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]\n"
+    "pub struct ObjectContent {\n"
+    "    /// The content type discriminator.\n"
+    '    #[serde(rename = "contentType")]\n'
+    "    pub content_type: String,\n"
+    "}\n\n"
+    "impl ObjectContent {\n"
+    "    pub fn new(content_type: String) -> ObjectContent {\n"
+    "        ObjectContent {\n"
+    "            content_type,\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+)
+
+
+# An enum tagged on a Rust keyword (`type`), whose variant struct was *already*
+# stripped of the discriminator in a prior generation — only the markdown doc remains
+# stale. Exercises the doc-cleanup branch independently of struct stripping (so a
+# regression that skips it when the struct is already clean is caught), and the
+# raw-identifier (`r#type`) mapping the generator applies to keyword field names.
+_KEYWORD_ENUM = (
+    "use crate::models;\n"
+    "use serde::{Deserialize, Serialize};\n\n"
+    "#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]\n"
+    '#[serde(tag = "type")]\n'
+    "pub enum JobResult {\n"
+    '    #[serde(rename = "userTask")]\n'
+    "    UserTask(Box<models::JobResultUserTask>),\n"
+    "}\n"
+)
+
+# The variant struct as it stands *after* a prior generation stripped the tag: it no
+# longer declares the discriminator field, so `_strip_discriminator` is a no-op on it.
+_STRIPPED_VARIANT = (
+    "use crate::models;\n"
+    "use serde::{Deserialize, Serialize};\n\n"
+    "#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]\n"
+    "pub struct JobResultUserTask {\n"
+    "    /// Whether the task was denied.\n"
+    '    #[serde(rename = "denied")]\n'
+    "    pub denied: bool,\n"
+    "}\n\n"
+    "impl JobResultUserTask {\n"
+    "    pub fn new(denied: bool) -> JobResultUserTask {\n"
+    "        JobResultUserTask { denied }\n"
+    "    }\n"
+    "}\n"
+)
+
+
+# A discriminator the generator rendered as a *multiline* `#[serde(...)]` attribute —
+# exactly how it formats any field carrying more than one directive (here an optional
+# discriminator with `skip_serializing_if`). A line-local `#[serde(rename = ...)]` match
+# misses this shape entirely, leaving the tag re-declared and the variant un-decodable.
+_MULTILINE_VARIANT = (
+    "use crate::models;\n"
+    "use serde::{Deserialize, Serialize};\n\n"
+    "#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]\n"
+    "pub struct ObjectContent {\n"
+    "    /// The content type discriminator.\n"
+    "    #[serde(\n"
+    '        rename = "contentType",\n'
+    '        skip_serializing_if = "Option::is_none"\n'
+    "    )]\n"
+    "    pub content_type: Option<String>,\n"
+    "    /// The object payload.\n"
+    '    #[serde(rename = "object")]\n'
+    "    pub object: Option<serde_json::Value>,\n"
+    "}\n\n"
+    "impl ObjectContent {\n"
+    "    pub fn new(object: Option<serde_json::Value>) -> ObjectContent {\n"
+    "        ObjectContent {\n"
+    "            content_type: None,\n"
+    "            object,\n"
+    "        }\n"
+    "    }\n"
+    "}\n"
+)
+
+
+class StripVariantDiscriminatorsTest(unittest.TestCase):
+    """`hook_12` removes the re-declared discriminator field from every variant struct
+    of a `#[serde(tag = ...)]` enum, along with its `new()` param and initializer."""
+
+    def test_strips_multiline_serde_discriminator(self):
+        models, ctx = _make_models(
+            {
+                "content.rs": _ENUM_FIXTURE,
+                "text_content.rs": _TEXT_VARIANT,
+                "object_content.rs": _MULTILINE_VARIANT,
+            }
+        )
+        hook_12_strip_variant_discriminators.run(ctx)
+
+        obj = (models / "object_content.rs").read_text(encoding="utf-8")
+        # The whole multiline attribute + field + its doc line are gone...
+        self.assertNotIn('rename = "contentType"', obj)
+        self.assertNotIn("content_type", obj)
+        self.assertNotIn("skip_serializing_if", obj)
+        self.assertNotIn("The content type discriminator.", obj)
+        # ...while the sibling non-discriminator field is untouched.
+        self.assertIn("pub object: Option<serde_json::Value>", obj)
+        self.assertIn(
+            "pub fn new(object: Option<serde_json::Value>) -> ObjectContent", obj
+        )
+        self.assertNotIn("content_type: None", obj)
+
+    def test_strips_field_param_and_initializer(self):
+        models, ctx = _make_models(
+            {
+                "content.rs": _ENUM_FIXTURE,
+                "text_content.rs": _TEXT_VARIANT,
+                "object_content.rs": _OBJECT_VARIANT,
+            }
+        )
+        hook_12_strip_variant_discriminators.run(ctx)
+
+        text = (models / "text_content.rs").read_text(encoding="utf-8")
+        self.assertNotIn('rename = "contentType"', text)
+        self.assertNotIn("content_type", text)
+        self.assertIn("pub text: String", text)
+        # `new` keeps the non-discriminator param.
+        self.assertIn("pub fn new(text: String)", text)
+        self.assertIn("TextContent { text }", text)
+
+        obj = (models / "object_content.rs").read_text(encoding="utf-8")
+        self.assertNotIn("content_type", obj)
+        self.assertIn("pub fn new() -> ObjectContent", obj)
+
+    def test_is_idempotent(self):
+        models, ctx = _make_models(
+            {
+                "content.rs": _ENUM_FIXTURE,
+                "text_content.rs": _TEXT_VARIANT,
+                "object_content.rs": _OBJECT_VARIANT,
+            }
+        )
+        hook_12_strip_variant_discriminators.run(ctx)
+        once = (models / "text_content.rs").read_bytes()
+        hook_12_strip_variant_discriminators.run(ctx)
+        self.assertEqual((models / "text_content.rs").read_bytes(), once)
+
+    def test_preserves_lf_line_endings(self):
+        models, ctx = _make_models(
+            {
+                "content.rs": _ENUM_FIXTURE,
+                "text_content.rs": _TEXT_VARIANT,
+                "object_content.rs": _OBJECT_VARIANT,
+            }
+        )
+        hook_12_strip_variant_discriminators.run(ctx)
+        self.assertNotIn(b"\r\n", (models / "text_content.rs").read_bytes())
+
+    def test_strips_stale_discriminator_row_from_markdown_doc(self):
+        """The variant's checked-in markdown doc must lose the discriminator row even
+        when the struct was already stripped in a prior generation, and even when the
+        discriminator is a Rust keyword the generator escapes as a raw identifier
+        (`r#type`) in Markdown."""
+        models, ctx = _make_models(
+            {
+                "job_result.rs": _KEYWORD_ENUM,
+                "job_result_user_task.rs": _STRIPPED_VARIANT,
+            }
+        )
+        docs = ctx.client_dir / "docs"
+        docs.mkdir(parents=True)
+        doc = (
+            "# JobResultUserTask\n\n## Properties\n\n"
+            "Name | Type | Description | Notes\n"
+            "------------ | ------------- | ------------- | -------------\n"
+            "**r#type** | Option<**String**> | The result type discriminator. | [optional]\n"
+            "**denied** | Option<**bool**> | Whether the task was denied. | [optional]\n"
+        )
+        (docs / "JobResultUserTask.md").write_bytes(doc.encode("utf-8"))
+
+        # The struct is already stripped, so its source must be left untouched...
+        before = (models / "job_result_user_task.rs").read_bytes()
+        hook_12_strip_variant_discriminators.run(ctx)
+        self.assertEqual((models / "job_result_user_task.rs").read_bytes(), before)
+
+        # ...but the stale raw-identifier `r#type` row must still be removed from the doc.
+        out = (docs / "JobResultUserTask.md").read_text(encoding="utf-8")
+        self.assertNotIn("**r#type**", out)
+        self.assertIn("**denied**", out)
+        # Idempotent: a second run leaves the already-repaired doc untouched.
+        once = (docs / "JobResultUserTask.md").read_bytes()
+        hook_12_strip_variant_discriminators.run(ctx)
+        self.assertEqual((docs / "JobResultUserTask.md").read_bytes(), once)
+
+    def test_maps_rust_keyword_discriminators_to_raw_identifiers(self):
+        """The generator escapes a keyword discriminator field as a raw identifier
+        (`type` -> `r#type`, `try` -> `r#try`), so the doc-field name the hook strips
+        must be raw-mapped too. Non-keyword names pass through unchanged. Guards the
+        `try` gap (a reserved keyword the table previously omitted)."""
+        rust_ident = hook_12_strip_variant_discriminators._rust_field_ident
+        self.assertEqual(rust_ident("type"), "r#type")
+        self.assertEqual(rust_ident("try"), "r#try")
+        self.assertEqual(rust_ident("match"), "r#match")
+        # A non-keyword field name is returned verbatim.
+        self.assertEqual(rust_ident("content_type"), "content_type")
+
+    def test_strips_stale_try_keyword_discriminator_row_from_doc(self):
+        """A tagged union whose discriminator is the reserved keyword `try` is spelled
+        `r#try` by the generator; the stale doc row must still be stripped (regression
+        for the keyword-table `try` omission)."""
+        enum = (
+            "use crate::models;\n"
+            "use serde::{Deserialize, Serialize};\n\n"
+            "#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]\n"
+            '#[serde(tag = "try")]\n'
+            "pub enum Attempt {\n"
+            '    #[serde(rename = "first")]\n'
+            "    First(Box<models::AttemptFirst>),\n"
+            "}\n"
+        )
+        variant = (
+            "use serde::{Deserialize, Serialize};\n\n"
+            "#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]\n"
+            "pub struct AttemptFirst {\n"
+            '    #[serde(rename = "label")]\n'
+            "    pub label: String,\n"
+            "}\n"
+        )
+        models, ctx = _make_models(
+            {"attempt.rs": enum, "attempt_first.rs": variant}
+        )
+        docs = ctx.client_dir / "docs"
+        docs.mkdir(parents=True)
+        doc = (
+            "# AttemptFirst\n\n## Properties\n\n"
+            "Name | Type | Description | Notes\n"
+            "------------ | ------------- | ------------- | -------------\n"
+            "**r#try** | Option<**String**> | The attempt discriminator. | [optional]\n"
+            "**label** | Option<**String**> | A label. | [optional]\n"
+        )
+        (docs / "AttemptFirst.md").write_bytes(doc.encode("utf-8"))
+
+        hook_12_strip_variant_discriminators.run(ctx)
+
+        out = (docs / "AttemptFirst.md").read_text(encoding="utf-8")
+        self.assertNotIn("**r#try**", out)
+        self.assertIn("**label**", out)
+
+    def test_leaves_a_non_discriminator_field_alone(self):
+        """A struct that is not a tagged-union variant must be untouched."""
+        plain = (
+            "pub struct Plain {\n"
+            '    #[serde(rename = "contentType")]\n'
+            "    pub content_type: String,\n"
+            "}\n"
+        )
+        models, ctx = _make_models({"plain.rs": plain})
+        hook_12_strip_variant_discriminators.run(ctx)
+        self.assertEqual(
+            (models / "plain.rs").read_text(encoding="utf-8"), plain
+        )
+
+
+class NoVariantRedeclaresItsTagTest(unittest.TestCase):
+    """Class-scoped regression guard over the *real* generated client: no variant
+    struct of any `#[serde(tag = ...)]` enum may re-declare its enum's tag.
+
+    This is the invariant issue #41 restores. It is deliberately not pinned to the
+    six known enums — a new `oneOf` added upstream, regenerated with the same
+    generator bug, would re-introduce exactly this defect and must be caught here.
+    """
+
+    def _struct_files(self) -> dict[str, Path]:
+        index: dict[str, Path] = {}
+        for path in _MODELS_DIR.glob("*.rs"):
+            for m in hook_12_strip_variant_discriminators._STRUCT_RE.finditer(
+                path.read_text(encoding="utf-8")
+            ):
+                index[m.group(1)] = path
+        return index
+
+    def test_no_tagged_union_variant_redeclares_the_tag(self):
+        if not _MODELS_DIR.exists():
+            self.skipTest("generated client models are not present")
+        struct_files = self._struct_files()
+        offenders = []
+        unresolved = []
+        tagged_seen = False
+        for path in _MODELS_DIR.glob("*.rs"):
+            text = path.read_text(encoding="utf-8")
+            tag_match = _TAG_RE.search(text)
+            if not tag_match:
+                continue
+            tagged_seen = True
+            tag = tag_match.group(1)
+            for variant in dict.fromkeys(_VARIANT_RE.findall(text)):
+                vpath = struct_files.get(variant)
+                if vpath is None:
+                    # A variant that resolves to no struct file is a coverage hole: the
+                    # guard cannot prove that variant does not re-declare its tag, so the
+                    # defect could slip back in unseen. Fail instead of skipping silently.
+                    unresolved.append(f"{path.name}: variant `{variant}` has no struct file")
+                    continue
+                if hook_12_strip_variant_discriminators._rename_attr_re(tag).search(
+                    vpath.read_text(encoding="utf-8")
+                ):
+                    offenders.append(f"{vpath.name} re-declares tag `{tag}`")
+        self.assertTrue(tagged_seen, "expected at least one #[serde(tag = ...)] enum")
+        self.assertEqual(unresolved, [], "tagged-union variant did not resolve to a struct")
+        self.assertEqual(offenders, [])
 
 
 class StdlibVersionFloorTest(unittest.TestCase):

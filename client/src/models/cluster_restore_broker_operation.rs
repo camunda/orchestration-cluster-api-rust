@@ -14,9 +14,6 @@ use serde::{Deserialize, Serialize};
 /// ClusterRestoreBrokerOperation : A restore operation that applies to a broker as a whole, such as the one that updates its incarnation number.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClusterRestoreBrokerOperation {
-    /// The type of the operation.
-    #[serde(rename = "operation")]
-    pub operation: String,
     /// The ID of the broker that applies the operation, including its zone if it belongs to one.
     #[serde(rename = "brokerId")]
     pub broker_id: String,
@@ -24,10 +21,7 @@ pub struct ClusterRestoreBrokerOperation {
 
 impl ClusterRestoreBrokerOperation {
     /// A restore operation that applies to a broker as a whole, such as the one that updates its incarnation number.
-    pub fn new(operation: String, broker_id: String) -> ClusterRestoreBrokerOperation {
-        ClusterRestoreBrokerOperation {
-            operation,
-            broker_id,
-        }
+    pub fn new(broker_id: String) -> ClusterRestoreBrokerOperation {
+        ClusterRestoreBrokerOperation { broker_id }
     }
 }

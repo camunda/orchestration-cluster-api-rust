@@ -13,19 +13,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SignalWaitStateDetails {
-    /// The wait state type discriminator.
-    #[serde(rename = "waitStateType")]
-    pub wait_state_type: String,
     /// The name of the signal being awaited.
     #[serde(rename = "signalName")]
     pub signal_name: String,
 }
 
 impl SignalWaitStateDetails {
-    pub fn new(wait_state_type: String, signal_name: String) -> SignalWaitStateDetails {
-        SignalWaitStateDetails {
-            wait_state_type,
-            signal_name,
-        }
+    pub fn new(signal_name: String) -> SignalWaitStateDetails {
+        SignalWaitStateDetails { signal_name }
     }
 }

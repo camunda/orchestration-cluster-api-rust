@@ -37,9 +37,6 @@ pub struct JobResultUserTask {
         skip_serializing_if = "Option::is_none"
     )]
     pub corrections: Option<Option<Box<models::JobResultCorrections>>>,
-    /// Used to distinguish between different types of job results.
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub r#type: Option<String>,
 }
 
 impl JobResultUserTask {
@@ -49,7 +46,6 @@ impl JobResultUserTask {
             denied: None,
             denied_reason: None,
             corrections: None,
-            r#type: None,
         }
     }
 }

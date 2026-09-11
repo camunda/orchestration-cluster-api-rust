@@ -14,9 +14,6 @@ use serde::{Deserialize, Serialize};
 /// AgentInstanceObjectContent : An arbitrary structured content block. Accepts any valid JSON value: objects, arrays, numbers, booleans, or strings. Use TEXT content for human-readable natural language; use OBJECT content for machine-readable structured data.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AgentInstanceObjectContent {
-    /// The content type discriminator.
-    #[serde(rename = "contentType")]
-    pub content_type: String,
     /// Arbitrary structured content — any valid JSON value (object, array, number, boolean, or string).
     #[serde(rename = "object", deserialize_with = "Option::deserialize")]
     pub object: Option<serde_json::Value>,
@@ -24,13 +21,7 @@ pub struct AgentInstanceObjectContent {
 
 impl AgentInstanceObjectContent {
     /// An arbitrary structured content block. Accepts any valid JSON value: objects, arrays, numbers, booleans, or strings. Use TEXT content for human-readable natural language; use OBJECT content for machine-readable structured data.
-    pub fn new(
-        content_type: String,
-        object: Option<serde_json::Value>,
-    ) -> AgentInstanceObjectContent {
-        AgentInstanceObjectContent {
-            content_type,
-            object,
-        }
+    pub fn new(object: Option<serde_json::Value>) -> AgentInstanceObjectContent {
+        AgentInstanceObjectContent { object }
     }
 }

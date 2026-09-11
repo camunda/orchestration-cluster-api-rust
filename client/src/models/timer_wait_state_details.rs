@@ -13,9 +13,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TimerWaitStateDetails {
-    /// The wait state type discriminator.
-    #[serde(rename = "waitStateType")]
-    pub wait_state_type: String,
     /// When the timer is due, as a UNIX epoch timestamp in milliseconds.
     #[serde(rename = "dueDate", deserialize_with = "Option::deserialize")]
     pub due_date: Option<i64>,
@@ -25,13 +22,8 @@ pub struct TimerWaitStateDetails {
 }
 
 impl TimerWaitStateDetails {
-    pub fn new(
-        wait_state_type: String,
-        due_date: Option<i64>,
-        repetitions: Option<i32>,
-    ) -> TimerWaitStateDetails {
+    pub fn new(due_date: Option<i64>, repetitions: Option<i32>) -> TimerWaitStateDetails {
         TimerWaitStateDetails {
-            wait_state_type,
             due_date,
             repetitions,
         }

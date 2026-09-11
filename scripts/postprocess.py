@@ -19,6 +19,7 @@ Hooks (in order):
   09 crate-metadata              set client/Cargo.toml license (Apache-2.0) + repository/homepage/docs
   10 dedupe-hoisted-enums        drop hoisted dead top-level enums from tagged-union model files
   11 guard-optional-json-body    only attach optional request bodies when `Some`, avoiding an unconditional literal JSON `null`
+  12 strip-variant-discriminators  drop the re-declared discriminator field from tagged-union variant structs
 
 Usage:
     python3 scripts/postprocess.py --client-dir client \\

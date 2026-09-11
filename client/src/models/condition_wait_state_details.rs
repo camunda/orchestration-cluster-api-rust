@@ -13,9 +13,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConditionWaitStateDetails {
-    /// The wait state type discriminator.
-    #[serde(rename = "waitStateType")]
-    pub wait_state_type: String,
     /// The condition expression that must evaluate to true to proceed.
     #[serde(rename = "expression")]
     pub expression: String,
@@ -25,16 +22,8 @@ pub struct ConditionWaitStateDetails {
 }
 
 impl ConditionWaitStateDetails {
-    pub fn new(
-        wait_state_type: String,
-        expression: String,
-        events: Vec<Events>,
-    ) -> ConditionWaitStateDetails {
-        ConditionWaitStateDetails {
-            wait_state_type,
-            expression,
-            events,
-        }
+    pub fn new(expression: String, events: Vec<Events>) -> ConditionWaitStateDetails {
+        ConditionWaitStateDetails { expression, events }
     }
 }
 /// The variable events that trigger condition re-evaluation. Empty means all events.

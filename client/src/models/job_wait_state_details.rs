@@ -13,9 +13,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct JobWaitStateDetails {
-    /// The wait state type discriminator.
-    #[serde(rename = "waitStateType")]
-    pub wait_state_type: String,
     /// The key of the job.
     #[serde(rename = "jobKey")]
     pub job_key: Box<models::JobKey>,
@@ -35,7 +32,6 @@ pub struct JobWaitStateDetails {
 
 impl JobWaitStateDetails {
     pub fn new(
-        wait_state_type: String,
         job_key: models::JobKey,
         job_type: String,
         job_kind: models::JobKindEnum,
@@ -43,7 +39,6 @@ impl JobWaitStateDetails {
         retries: Option<i32>,
     ) -> JobWaitStateDetails {
         JobWaitStateDetails {
-            wait_state_type,
             job_key: Box::new(job_key),
             job_type,
             job_kind,

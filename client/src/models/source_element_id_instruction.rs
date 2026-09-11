@@ -14,9 +14,6 @@ use serde::{Deserialize, Serialize};
 /// SourceElementIdInstruction : Defines an instruction with a sourceElementId. The move instruction with this sourceType will terminate all active element instances with the sourceElementId and activate a new element instance for each terminated one at targetElementId.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SourceElementIdInstruction {
-    /// The type of source element instruction.
-    #[serde(rename = "sourceType")]
-    pub source_type: String,
     /// The id of the source element for the move instruction.
     #[serde(rename = "sourceElementId")]
     pub source_element_id: models::ElementId,
@@ -24,13 +21,7 @@ pub struct SourceElementIdInstruction {
 
 impl SourceElementIdInstruction {
     /// Defines an instruction with a sourceElementId. The move instruction with this sourceType will terminate all active element instances with the sourceElementId and activate a new element instance for each terminated one at targetElementId.
-    pub fn new(
-        source_type: String,
-        source_element_id: models::ElementId,
-    ) -> SourceElementIdInstruction {
-        SourceElementIdInstruction {
-            source_type,
-            source_element_id,
-        }
+    pub fn new(source_element_id: models::ElementId) -> SourceElementIdInstruction {
+        SourceElementIdInstruction { source_element_id }
     }
 }

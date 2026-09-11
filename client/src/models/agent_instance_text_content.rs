@@ -14,9 +14,6 @@ use serde::{Deserialize, Serialize};
 /// AgentInstanceTextContent : A plain-text content block.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AgentInstanceTextContent {
-    /// The content type discriminator.
-    #[serde(rename = "contentType")]
-    pub content_type: String,
     /// The text content.
     #[serde(rename = "text")]
     pub text: String,
@@ -24,7 +21,7 @@ pub struct AgentInstanceTextContent {
 
 impl AgentInstanceTextContent {
     /// A plain-text content block.
-    pub fn new(content_type: String, text: String) -> AgentInstanceTextContent {
-        AgentInstanceTextContent { content_type, text }
+    pub fn new(text: String) -> AgentInstanceTextContent {
+        AgentInstanceTextContent { text }
     }
 }

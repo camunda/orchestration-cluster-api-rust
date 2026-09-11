@@ -14,9 +14,6 @@ use serde::{Deserialize, Serialize};
 /// DirectAncestorKeyInstruction : Provides a concrete key to use as ancestor scope for the created element instance.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DirectAncestorKeyInstruction {
-    /// The type of ancestor scope instruction.
-    #[serde(rename = "ancestorScopeType")]
-    pub ancestor_scope_type: String,
     /// The key of the ancestor scope the element instance should be created in. Set to -1 to create the new element instance within an existing element instance of the flow scope. If multiple instances of the target element's flow scope exist, choose one specifically with this property by providing its key.
     #[serde(rename = "ancestorElementInstanceKey")]
     pub ancestor_element_instance_key: Box<models::ElementInstanceKey>,
@@ -25,11 +22,9 @@ pub struct DirectAncestorKeyInstruction {
 impl DirectAncestorKeyInstruction {
     /// Provides a concrete key to use as ancestor scope for the created element instance.
     pub fn new(
-        ancestor_scope_type: String,
         ancestor_element_instance_key: models::ElementInstanceKey,
     ) -> DirectAncestorKeyInstruction {
         DirectAncestorKeyInstruction {
-            ancestor_scope_type,
             ancestor_element_instance_key: Box::new(ancestor_element_instance_key),
         }
     }
