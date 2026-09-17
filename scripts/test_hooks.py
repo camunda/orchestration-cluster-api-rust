@@ -584,10 +584,17 @@ class VersionSkewToleranceTest(unittest.TestCase):
             field, *[f for f in self._all_fields() if 'rename = "jobLeaseToken"' not in f]
         )
 
+    def _patched_args(self, out: str, wire_name: str) -> str:
+        """The serde arguments of `wire_name` alone, so a sibling field's rewrite
+        cannot stand in for the one under test."""
+        attr = hook_08_version_skew_tolerance._serde_attr(wire_name).search(out)
+        self.assertIsNotNone(attr, f"no serde attribute for {wire_name} in output")
+        return attr.group("args")
+
     def test_adds_default_to_a_wrapped_serde_attribute(self):
         models, _ = self._run_hook(self._wrapped_model(patched=False))
         out = (models / "activated_job_result.rs").read_text()
-        self.assertIn("#[serde(default, ", out)
+        self.assertIn("default", self._patched_args(out, "jobLeaseToken"))
         self.assertEqual(out.count('rename = "jobLeaseToken"'), 1)
 
     def test_leaves_an_already_patched_wrapped_attribute_alone(self):
