@@ -23,6 +23,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from scripts.hooks import hook_08_version_skew_tolerance
 from scripts.hooks import hook_11_optional_body_json
 from scripts.hooks import hook_12_strip_variant_discriminators
 from scripts.hooks.common import Context
@@ -493,6 +494,109 @@ class StdlibVersionFloorTest(unittest.TestCase):
                         rel = py.relative_to(_REPO_ROOT).as_posix()
                         offenders.append(f"{rel}:{node.lineno} {node.func.attr}({kw.arg}=...)")
         self.assertEqual(offenders, [])
+
+
+class VersionSkewToleranceTest(unittest.TestCase):
+    """`hook_08` adds `#[serde(default)]` to fields older servers may omit.
+
+    A miss here is invisible at generation time and only shows up in
+    production, as an activate-jobs response from an older server failing to
+    deserialize and stalling the worker. So the hook must refuse to finish
+    quietly when an entry no longer matches.
+    """
+
+    def _run_hook(self, model_src: str) -> tuple[Path, Context]:
+        tmp = Path(tempfile.mkdtemp())
+        models = tmp / "src" / "models"
+        models.mkdir(parents=True)
+        (models / "activated_job_result.rs").write_bytes(model_src.encode("utf-8"))
+        ctx = Context(client_dir=tmp, spec={}, schemas={})
+        hook_08_version_skew_tolerance.run(ctx)
+        return models, ctx
+
+    @staticmethod
+    def _model(*fields: str) -> str:
+        return "pub struct ActivatedJobResult {\n" + "\n".join(fields) + "\n}\n"
+
+    # Every wire name the hook claims to defaultable, rendered the way the
+    # generator emits it, so the fixture moves whenever _DEFAULTABLE does.
+    @classmethod
+    def _all_fields(cls) -> list[str]:
+        return [
+            '    #[serde(rename = "%s", deserialize_with = "Option::deserialize")]\n'
+            "    pub f_%d: Option<String>," % (wire, i)
+            for i, (_, wire) in enumerate(hook_08_version_skew_tolerance._DEFAULTABLE)
+        ]
+
+    def test_adds_default_to_every_declared_field(self):
+        models, _ = self._run_hook(self._model(*self._all_fields()))
+        out = (models / "activated_job_result.rs").read_text()
+        for _, wire in hook_08_version_skew_tolerance._DEFAULTABLE:
+            self.assertIn(f'#[serde(default, rename = "{wire}"', out)
+
+    def test_is_idempotent(self):
+        models, ctx = self._run_hook(self._model(*self._all_fields()))
+        once = (models / "activated_job_result.rs").read_text()
+        hook_08_version_skew_tolerance.run(ctx)
+        self.assertEqual(once, (models / "activated_job_result.rs").read_text())
+
+    def test_raises_when_a_declared_field_is_missing(self):
+        """The defect class: an entry upstream renamed must not skip silently."""
+        for _, wire in hook_08_version_skew_tolerance._DEFAULTABLE:
+            surviving = [f for f in self._all_fields() if f'rename = "{wire}"' not in f]
+            with self.subTest(renamed_away=wire):
+                with self.assertRaises(RuntimeError) as caught:
+                    self._run_hook(self._model(*surviving))
+                self.assertIn(wire, str(caught.exception))
+
+    def test_raises_when_the_model_file_is_missing(self):
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "src" / "models").mkdir(parents=True)
+        ctx = Context(client_dir=tmp, spec={}, schemas={})
+        with self.assertRaises(RuntimeError):
+            hook_08_version_skew_tolerance.run(ctx)
+
+    def test_tolerates_reordered_and_retyped_serde_arguments(self):
+        """The domain-type hooks retype these fields; that must not break the match."""
+        src = self._model(
+            '    #[serde(deserialize_with = "Option::deserialize", rename = "jobLeaseToken")]\n'
+            "    pub job_lease_token: Option<models::JobLeaseToken>,",
+            *[f for f in self._all_fields() if 'rename = "jobLeaseToken"' not in f],
+        )
+        models, _ = self._run_hook(src)
+        out = (models / "activated_job_result.rs").read_text()
+        self.assertIn("#[serde(default, deserialize_with", out)
+
+    # The hook runs on unformatted generator output, where a serde attribute is
+    # one line. Anything re-run over committed code sees the cargo-fmt'd form,
+    # which wraps once there are three arguments.
+    _WRAPPED = (
+        "    #[serde(\n"
+        "        {default}rename = \"jobLeaseToken\",\n"
+        '        deserialize_with = "Option::deserialize"\n'
+        "    )]\n"
+        "    pub job_lease_token: Option<models::JobLeaseToken>,"
+    )
+
+    def _wrapped_model(self, *, patched: bool) -> str:
+        field = self._WRAPPED.format(default="default,\n        " if patched else "")
+        return self._model(
+            field, *[f for f in self._all_fields() if 'rename = "jobLeaseToken"' not in f]
+        )
+
+    def test_adds_default_to_a_wrapped_serde_attribute(self):
+        models, _ = self._run_hook(self._wrapped_model(patched=False))
+        out = (models / "activated_job_result.rs").read_text()
+        self.assertIn("#[serde(default, ", out)
+        self.assertEqual(out.count('rename = "jobLeaseToken"'), 1)
+
+    def test_leaves_an_already_patched_wrapped_attribute_alone(self):
+        patched_attr = self._WRAPPED.format(default="default,\n        ")
+        models, _ = self._run_hook(self._wrapped_model(patched=True))
+        out = (models / "activated_job_result.rs").read_text()
+        # The other fields are unpatched and legitimately change; this one must not.
+        self.assertIn(patched_attr, out)
+        self.assertEqual(out.count("default"), len(self._all_fields()))
 
 
 if __name__ == "__main__":
