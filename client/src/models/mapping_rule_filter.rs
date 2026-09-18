@@ -27,8 +27,13 @@ pub struct MappingRuleFilter {
     #[serde(rename = "mappingRuleId", skip_serializing_if = "Option::is_none")]
     pub mapping_rule_id: Option<Box<models::StringFilterProperty>>,
     /// Defines a list of alternative filter groups combined using OR logic. Each object in the array is evaluated independently, and the filter matches if any one of them is satisfied.  Top-level fields and the `$or` clause are combined using AND logic — meaning: (top-level filters) AND (any of the `$or` filters) must match. <br> <em>Example:</em>  ```json {   \"$or\": [     { \"mappingRuleId\": \"rule-1\" },     { \"mappingRuleId\": \"rule-2\" }   ] } ``` This matches mapping rules whose <code>mappingRuleId</code> is <em>rule-1</em> or <em>rule-2</em>. <br> <p>Note: Using complex <code>$or</code> conditions may impact performance, use with caution in high-volume environments.
-    #[serde(rename = "$or", skip_serializing_if = "Option::is_none")]
-    pub dollar_or: Option<Vec<models::MappingRuleFilterFields>>,
+    #[serde(
+        rename = "$or",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub dollar_or: Option<Option<Vec<models::MappingRuleFilterFields>>>,
 }
 
 impl MappingRuleFilter {

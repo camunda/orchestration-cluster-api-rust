@@ -24,8 +24,8 @@ pub struct AgentInstanceUpdateRequest {
     #[serde(rename = "jobKey")]
     pub job_key: Box<models::JobKey>,
     /// Opaque lease token received from the job activation response. Disambiguates this activation from any other activation of the same job: if the job is later retried, history items submitted under a superseded lease are discarded rather than committed.
-    #[serde(rename = "jobLease")]
-    pub job_lease: String,
+    #[serde(rename = "jobLeaseToken")]
+    pub job_lease_token: models::JobLeaseToken,
     /// A batch of history items to append to the agent instance's conversation history, in request order. Each created item is echoed back in the response's createdHistory, positionally correlated.
     #[serde(
         rename = "history",
@@ -41,13 +41,13 @@ impl AgentInstanceUpdateRequest {
     pub fn new(
         element_instance_key: models::ElementInstanceKey,
         job_key: models::JobKey,
-        job_lease: String,
+        job_lease_token: models::JobLeaseToken,
     ) -> AgentInstanceUpdateRequest {
         AgentInstanceUpdateRequest {
             element_instance_key: Box::new(element_instance_key),
             status: None,
             job_key: Box::new(job_key),
-            job_lease,
+            job_lease_token,
             history: None,
         }
     }

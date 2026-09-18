@@ -535,7 +535,7 @@ pub async fn cancel_process_instance(
     }
 }
 
-/// Cancels multiple running process instances. Since only ACTIVE root instances can be cancelled, any given filters for state and parentProcessInstanceKey are ignored and overridden during this batch operation. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
+/// Cancels multiple active or suspended process instances. Since only ACTIVE and SUSPENDED root instances can be cancelled, any given filters for state and parentProcessInstanceKey are ignored and overridden during this batch operation. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
 pub async fn cancel_process_instances_batch_operation(
     configuration: &configuration::Configuration,
     params: CancelProcessInstancesBatchOperationParams,

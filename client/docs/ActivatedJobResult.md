@@ -26,7 +26,7 @@ Name | Type | Description | Notes
 **root_process_instance_key** | Option<**models::ProcessInstanceKey**> | The key of the root process instance. The root process instance is the top-level ancestor in the process instance hierarchy. This field is only present for data belonging to process instance hierarchies created in version 8.9 or later.  | 
 **business_id** | Option<**String**> | The business ID of the owning process instance, inherited when the job was created. This is `null` for jobs created before version 8.10 and for jobs whose owning process instance has no business ID.  | 
 **priority** | **i32** | The priority of the job. Higher values indicate higher priority. Jobs created before 8.10 have no stored priority; the API returns 0 for such jobs.  | 
-**lease_token** | Option<**String**> | The lease token identifying this activation. This is `null` when the job was activated without a lease.  | 
+**job_lease_token** | Option<**String**> | The lease token identifying this activation. This is `null` when the job was activated without a lease.  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

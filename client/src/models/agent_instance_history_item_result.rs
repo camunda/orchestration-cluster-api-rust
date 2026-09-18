@@ -30,8 +30,8 @@ pub struct AgentInstanceHistoryItemResult {
     #[serde(rename = "jobKey")]
     pub job_key: Box<models::JobKey>,
     /// The lease token of the activation that produced this item.
-    #[serde(rename = "jobLease")]
-    pub job_lease: String,
+    #[serde(rename = "jobLeaseToken")]
+    pub job_lease_token: models::JobLeaseToken,
     /// The loop iteration this item belongs to.
     #[serde(rename = "loopIteration")]
     pub loop_iteration: i32,
@@ -78,7 +78,7 @@ impl AgentInstanceHistoryItemResult {
         agent_instance_key: models::AgentInstanceKey,
         element_instance_key: models::ElementInstanceKey,
         job_key: models::JobKey,
-        job_lease: String,
+        job_lease_token: models::JobLeaseToken,
         loop_iteration: i32,
         role: models::AgentInstanceHistoryRoleEnum,
         content: Vec<models::AgentInstanceMessageContent>,
@@ -98,7 +98,7 @@ impl AgentInstanceHistoryItemResult {
             agent_instance_key: Box::new(agent_instance_key),
             element_instance_key: Box::new(element_instance_key),
             job_key: Box::new(job_key),
-            job_lease,
+            job_lease_token,
             loop_iteration,
             role,
             content,

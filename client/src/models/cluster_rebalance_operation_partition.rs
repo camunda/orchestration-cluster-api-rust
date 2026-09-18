@@ -111,6 +111,8 @@ pub enum Result {
     Cancelled,
     #[serde(rename = "PHYSICAL_TENANT_DISABLED")]
     PhysicalTenantDisabled,
+    #[serde(rename = "PHYSICAL_TENANT_RECOVERING")]
+    PhysicalTenantRecovering,
 }
 
 impl Default for Result {

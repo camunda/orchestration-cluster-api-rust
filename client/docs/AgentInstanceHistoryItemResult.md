@@ -9,7 +9,7 @@ Name | Type | Description | Notes
 **agent_instance_key** | **models::AgentInstanceKey** | The key of the agent instance this item belongs to. | 
 **element_instance_key** | **models::ElementInstanceKey** | The key of the AI Agent Task or ad-hoc sub-process element instance under which this item was produced. | 
 **job_key** | **models::JobKey** | The key of the job activation during which this item was produced. | 
-**job_lease** | **String** | The lease token of the activation that produced this item. | 
+**job_lease_token** | **String** | The lease token of the activation that produced this item. | 
 **loop_iteration** | **i32** | The loop iteration this item belongs to. | 
 **role** | [**models::AgentInstanceHistoryRoleEnum**](AgentInstanceHistoryRoleEnum.md) | The role of this history item in the conversation. | 
 **content** | [**Vec<models::AgentInstanceMessageContent>**](AgentInstanceMessageContent.md) | The content blocks of this history item. | 

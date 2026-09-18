@@ -22,7 +22,7 @@ pub struct AgentInstanceToolCall {
     pub tool_name: String,
     /// The BPMN element ID handling this tool.
     #[serde(rename = "elementId", deserialize_with = "Option::deserialize")]
-    pub element_id: Option<String>,
+    pub element_id: Option<models::ElementId>,
     /// The tool call arguments as provided by the LLM. May be null or populated on any item, including TOOL_RESULT.
     #[serde(rename = "arguments", deserialize_with = "Option::deserialize")]
     pub arguments: Option<std::collections::HashMap<String, serde_json::Value>>,
@@ -33,7 +33,7 @@ impl AgentInstanceToolCall {
     pub fn new(
         tool_call_id: String,
         tool_name: String,
-        element_id: Option<String>,
+        element_id: Option<models::ElementId>,
         arguments: Option<std::collections::HashMap<String, serde_json::Value>>,
     ) -> AgentInstanceToolCall {
         AgentInstanceToolCall {

@@ -24,7 +24,7 @@ pub struct CorrelatedMessageSubscriptionResult {
     pub correlation_time: chrono::DateTime<chrono::FixedOffset>,
     /// The element ID that received the message.
     #[serde(rename = "elementId")]
-    pub element_id: String,
+    pub element_id: models::ElementId,
     /// The element instance key that received the message. It is `null` for start event subscriptions.
     #[serde(
         rename = "elementInstanceKey",
@@ -68,7 +68,7 @@ impl CorrelatedMessageSubscriptionResult {
         business_id: Option<models::BusinessId>,
         correlation_key: Option<String>,
         correlation_time: chrono::DateTime<chrono::FixedOffset>,
-        element_id: String,
+        element_id: models::ElementId,
         element_instance_key: Option<models::ElementInstanceKey>,
         message_key: models::MessageKey,
         message_name: String,
