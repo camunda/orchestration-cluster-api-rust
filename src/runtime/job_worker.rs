@@ -636,7 +636,7 @@ async fn apply_action(client: &CamundaClient, job_key: &str, action: JobAction) 
             let request = variables.map(|v| models::JobCompletionRequest {
                 variables: Some(value_to_map(v)),
                 result: None,
-                lease_token: None,
+                job_lease_token: None,
                 business_id: None,
             });
             client.complete_job(job_key, request).await
@@ -652,7 +652,7 @@ async fn apply_action(client: &CamundaClient, job_key: &str, action: JobAction) 
                 error_message: Some(error_message),
                 retry_back_off: retry_backoff_ms,
                 variables: variables.and_then(value_to_map),
-                lease_token: None,
+                job_lease_token: None,
             };
             client.fail_job(job_key, Some(request)).await
         }
@@ -665,7 +665,7 @@ async fn apply_action(client: &CamundaClient, job_key: &str, action: JobAction) 
                 error_code,
                 error_message: Some(error_message),
                 variables: Some(value_to_map(variables.unwrap_or(Value::Null))),
-                lease_token: None,
+                job_lease_token: None,
             };
             client.throw_job_error(job_key, request).await
         }

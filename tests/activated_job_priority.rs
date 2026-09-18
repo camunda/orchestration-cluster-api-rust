@@ -3,7 +3,7 @@
 //! marks required but released/alpha servers do not all emit yet.
 //!
 //! The upstream `main` spec marks `priority`, `physicalTenantId`, `businessId`
-//! and `leaseToken` required, but released and alpha servers (8.9.x,
+//! and `jobLeaseToken` required, but released and alpha servers (8.9.x,
 //! 8.10.0-alpha*) omit them from `POST /v2/jobs/activation` responses. Without
 //! `#[serde(default)]` a single missing field made *every* activation with at
 //! least one job fail to deserialize with "missing field `<x>`", silently
@@ -36,7 +36,7 @@ fn job_json_without_priority() -> serde_json::Value {
         "userTask": null,
         "tags": [],
         "rootProcessInstanceKey": null
-        // note: no "priority", "physicalTenantId", "businessId" or "leaseToken"
+        // note: no "priority", "physicalTenantId", "businessId" or "jobLeaseToken"
     })
 }
 
@@ -73,7 +73,7 @@ fn deserializes_job_when_lease_and_tenant_fields_absent() {
         "absent businessId must default to None"
     );
     assert!(
-        job.lease_token.is_none(),
-        "absent leaseToken must default to None"
+        job.job_lease_token.is_none(),
+        "absent jobLeaseToken must default to None"
     );
 }
