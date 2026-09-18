@@ -22,12 +22,16 @@ pub struct AgentTool {
     pub description: Option<String>,
     /// The BPMN element ID of the tool element within the ad-hoc sub-process.
     #[serde(rename = "elementId", deserialize_with = "Option::deserialize")]
-    pub element_id: Option<String>,
+    pub element_id: Option<models::ElementId>,
 }
 
 impl AgentTool {
     /// A tool available to the agent.
-    pub fn new(name: String, description: Option<String>, element_id: Option<String>) -> AgentTool {
+    pub fn new(
+        name: String,
+        description: Option<String>,
+        element_id: Option<models::ElementId>,
+    ) -> AgentTool {
         AgentTool {
             name,
             description,

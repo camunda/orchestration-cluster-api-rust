@@ -3895,6 +3895,90 @@ impl FromStr for JobKeyExactMatch {
     }
 }
 
+/// An opaque, engine-minted fencing token identifying a single activation of a job. Returned by Activate Jobs as `ActivatedJobResult.jobLeaseToken` when the job is activated with a lease, and passed back under the same name on fenced job commands and on agent-instance creation/updates, to prove the caller holds the current lease. The token is opaque: clients may rely on its presence and equality only, and must never construct, parse, or otherwise interpret it beyond equality checks. It cannot be minted client-side; only the engine produces it, exactly once per leased activation, and clients must not depend on any particular internal format.
+///
+/// Example: `550e8400-e29b-41d4-a716-446655440000`
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct JobLeaseToken(String);
+
+impl JobLeaseToken {
+    /// Construct without validation. Use when side-loading values not received from an API call.
+    pub fn assume_exists(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Construct with constraint validation.
+    pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        let v = value.into();
+        check_constraints(<Self as CamundaKey>::SEMANTIC_TYPE, &v, None, Some(1), None)?;
+        Ok(Self(v))
+    }
+
+    /// Returns true if the value satisfies this type's constraints.
+    pub fn is_valid(value: &str) -> bool {
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            None,
+            Some(1),
+            None,
+        )
+        .is_ok()
+    }
+
+    /// The underlying string value.
+    pub fn value(&self) -> &str {
+        &self.0
+    }
+
+    /// Consume the newtype and return the underlying string value.
+    pub fn into_value(self) -> String {
+        self.0
+    }
+}
+
+impl CamundaKey for JobLeaseToken {
+    const SEMANTIC_TYPE: &'static str = "JobLeaseToken";
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
+}
+
+impl fmt::Display for JobLeaseToken {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<JobLeaseToken> for String {
+    fn from(v: JobLeaseToken) -> String {
+        v.0
+    }
+}
+
+impl AsRef<str> for JobLeaseToken {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl FromStr for JobLeaseToken {
+    type Err = CamundaKeyError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
+}
+
 /// The unique identifier of a mapping rule.
 ///
 /// Example: `my-mapping-rule`

@@ -20,53 +20,54 @@ from .common import Context
 NUMBER = 8
 NAME = "version-skew-tolerance"
 
-# (file under src/models, serde rename of the field, rust field declaration line)
+# (file under src/models, serde `rename` wire name of the field)
 #
 # All entries below sit on the job-activation hot path (`ActivatedJobResult`).
 # Upstream `main` marks them required, but released and alpha servers do not all
 # emit them yet, so without `#[serde(default)]` a single missing field makes the
 # whole activate-jobs response fail to deserialize and silently stalls workers.
-# `businessId` / `leaseToken` keep their `deserialize_with = "Option::deserialize"`
-# attribute; adding `default` only affects the absent-key case (absent -> None).
+# Adding `default` only affects the absent-key case (absent -> None/zero); fields
+# carrying `deserialize_with = "Option::deserialize"` keep that attribute.
+#
+# Entries key on the wire name alone. Matching the whole attribute line, or the
+# Rust field declaration, couples this hook to the field's Rust type — which the
+# domain-type hooks rewrite — and to the exact serde argument order.
 _DEFAULTABLE = [
-    (
-        "activated_job_result.rs",
-        '#[serde(rename = "priority")]',
-        "pub priority: i32,",
-    ),
-    (
-        "activated_job_result.rs",
-        '#[serde(rename = "physicalTenantId")]',
-        "pub physical_tenant_id: String,",
-    ),
-    (
-        "activated_job_result.rs",
-        '#[serde(rename = "businessId", deserialize_with = "Option::deserialize")]',
-        "pub business_id: Option<models::BusinessId>,",
-    ),
-    (
-        "activated_job_result.rs",
-        '#[serde(rename = "leaseToken", deserialize_with = "Option::deserialize")]',
-        "pub lease_token: Option<String>,",
-    ),
+    ("activated_job_result.rs", "priority"),
+    ("activated_job_result.rs", "physicalTenantId"),
+    ("activated_job_result.rs", "businessId"),
+    ("activated_job_result.rs", "jobLeaseToken"),
 ]
 
 
+def _serde_attr(wire_name: str) -> re.Pattern:
+    return re.compile(
+        r"#\[serde\((?P<args>[^)\]]*\brename = \"%s\"[^)\]]*)\)\]" % re.escape(wire_name)
+    )
+
+
 def run(ctx: Context) -> None:
-    for filename, serde_attr, field_decl in _DEFAULTABLE:
+    for filename, wire_name in _DEFAULTABLE:
         path = ctx.models_dir / filename
         if not path.exists():
-            continue
+            raise RuntimeError(
+                f"{NAME}: {filename} does not exist, so the version-skew default for "
+                f"{wire_name!r} was not applied. The model was renamed or removed "
+                f"upstream — update _DEFAULTABLE in {__name__}."
+            )
         text = path.read_text()
-        if serde_attr not in text:
+        match = _serde_attr(wire_name).search(text)
+        if match is None:
+            raise RuntimeError(
+                f"{NAME}: no serde field renamed {wire_name!r} in {filename}, so it "
+                f"would deserialize without #[serde(default)] and a server omitting "
+                f"the field would fail the whole response. Either the bundled spec "
+                f"predates the field (run `make bundle`), or upstream renamed it and "
+                f"_DEFAULTABLE in {__name__} needs updating."
+            )
+        args = match.group("args")
+        if re.search(r"\bdefault\b", args):
             continue
-        # already patched?
-        patched_attr = serde_attr.replace(
-            '#[serde(rename = "', '#[serde(default, rename = "'
-        )
-        if patched_attr in text:
-            continue
-        new_text = text.replace(serde_attr, patched_attr, 1)
-        if new_text != text:
-            path.write_text(new_text)
-            ctx.log(NAME, f"made {filename} {field_decl!r} serde(default)")
+        text = text[: match.start()] + f"#[serde(default, {args})]" + text[match.end() :]
+        path.write_text(text)
+        ctx.log(NAME, f"made {filename} {wire_name!r} serde(default)")

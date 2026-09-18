@@ -87,10 +87,10 @@ pub struct ActivatedJobResult {
     /// The lease token identifying this activation. This is `null` when the job was activated without a lease.
     #[serde(
         default,
-        rename = "leaseToken",
+        rename = "jobLeaseToken",
         deserialize_with = "Option::deserialize"
     )]
-    pub lease_token: Option<String>,
+    pub job_lease_token: Option<models::JobLeaseToken>,
 }
 
 impl ActivatedJobResult {
@@ -117,7 +117,7 @@ impl ActivatedJobResult {
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         business_id: Option<models::BusinessId>,
         priority: i32,
-        lease_token: Option<String>,
+        job_lease_token: Option<models::JobLeaseToken>,
     ) -> ActivatedJobResult {
         ActivatedJobResult {
             r#type,
@@ -150,7 +150,7 @@ impl ActivatedJobResult {
             },
             business_id,
             priority,
-            lease_token,
+            job_lease_token,
         }
     }
 }
