@@ -6,7 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **batch_operation_key** | **String** | Key or (Operate Legacy ID = UUID) of the batch operation. | 
 **state** | [**models::BatchOperationStateEnum**](BatchOperationStateEnum.md) |  | 
-**batch_operation_type** | [**models::BatchOperationTypeEnum**](BatchOperationTypeEnum.md) |  | 
+**batch_operation_type** | Option<[**models::BatchOperationTypeEnum**](BatchOperationTypeEnum.md)> | The type of the batch operation. This is `null` for batch operations whose type was never recorded in secondary storage, such as legacy Operate batch operations.  | 
 **start_date** | Option<**chrono::DateTime<chrono::FixedOffset>**> | The start date of the batch operation. This is `null` if the batch operation has not yet started.  | 
 **end_date** | Option<**chrono::DateTime<chrono::FixedOffset>**> | The end date of the batch operation. This is `null` if the batch operation is still running.  | 
 **actor_type** | Option<[**models::AuditLogActorTypeEnum**](AuditLogActorTypeEnum.md)> | The type of the actor who performed the operation. This is `null` if the batch operation was created before 8.9, or if the actor information is not available.  | 

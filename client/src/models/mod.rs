@@ -406,6 +406,8 @@ pub mod cluster_take_runtime_backup_response;
 pub use self::cluster_take_runtime_backup_response::ClusterTakeRuntimeBackupResponse;
 pub mod cluster_topology_response;
 pub use self::cluster_topology_response::ClusterTopologyResponse;
+pub mod cluster_upgrade_status_response;
+pub use self::cluster_upgrade_status_response::ClusterUpgradeStatusResponse;
 pub mod cluster_variable_kind_enum;
 pub use self::cluster_variable_kind_enum::ClusterVariableKindEnum;
 pub mod cluster_variable_kind_exact_match;

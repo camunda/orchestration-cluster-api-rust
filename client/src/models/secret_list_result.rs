@@ -11,7 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// SecretListResult : The secret references the caller is authorized to see.  Unbounded for now: the response carries the configured stores' full enumeration for the physical tenant. Pagination is expected to land here before GA. This is an alpha endpoint, so that is not yet a breaking-contract concern.
+/// SecretListResult : The secret references the caller is authorized to see.  Unbounded: the response carries the configured stores' full enumeration for the physical tenant.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SecretListResult {
     /// The secret references, each of the form `camunda.secrets.<name>`.
@@ -20,7 +20,7 @@ pub struct SecretListResult {
 }
 
 impl SecretListResult {
-    /// The secret references the caller is authorized to see.  Unbounded for now: the response carries the configured stores' full enumeration for the physical tenant. Pagination is expected to land here before GA. This is an alpha endpoint, so that is not yet a breaking-contract concern.
+    /// The secret references the caller is authorized to see.  Unbounded: the response carries the configured stores' full enumeration for the physical tenant.
     pub fn new(references: Vec<String>) -> SecretListResult {
         SecretListResult { references }
     }
