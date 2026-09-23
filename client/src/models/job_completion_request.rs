@@ -30,7 +30,7 @@ pub struct JobCompletionRequest {
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub job_lease_token: Option<Option<String>>,
+    pub job_lease_token: Option<Option<models::JobLeaseToken>>,
     /// An optional business id to assign to the process instance the job belongs to, as part of completing the job, letting a worker set the identifier from work it just performed. The business id can only be assigned to a root process instance: if the job belongs to a child process instance (one started by a call activity), the completion is rejected. An empty business id is likewise rejected. The assignment is single and irreversible and is only accepted while business id uniqueness is disabled. Only artifacts created after the assignment carry the business id; already-existing ones are not enriched. Completing with a business id that differs from one already assigned rejects the whole completion, leaving the job open; re-sending the identical business id is an idempotent no-op.
     #[serde(
         rename = "businessId",
@@ -38,7 +38,7 @@ pub struct JobCompletionRequest {
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub business_id: Option<Option<String>>,
+    pub business_id: Option<Option<models::BusinessId>>,
 }
 
 impl JobCompletionRequest {
