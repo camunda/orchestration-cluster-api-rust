@@ -25,8 +25,11 @@ NUMBER = 2
 NAME = "semantic-field-types"
 
 # The plain-String field shapes we rewrite, longest-first so the regexes don't overlap.
+# `Option<Option<..>>` is the shape the generator emits for a field that is both optional
+# and nullable; without it those fields silently drop out of the Domain Type System.
 # `{nt}` is substituted with the target newtype path (e.g. `models::ProcessDefinitionId`).
 _FIELD_SHAPES = [
+    ("Option<Option<String>>", "Option<Option<{nt}>>"),
     ("Option<Vec<String>>", "Option<Vec<{nt}>>"),
     ("Vec<String>", "Vec<{nt}>"),
     ("Option<String>", "Option<{nt}>"),

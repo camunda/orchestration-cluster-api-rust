@@ -39,7 +39,7 @@ pub struct JobErrorRequest {
         with = "::serde_with::rust::double_option",
         skip_serializing_if = "Option::is_none"
     )]
-    pub job_lease_token: Option<Option<String>>,
+    pub job_lease_token: Option<Option<models::JobLeaseToken>>,
 }
 
 impl JobErrorRequest {
