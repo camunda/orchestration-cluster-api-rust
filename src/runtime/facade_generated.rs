@@ -817,6 +817,20 @@ impl CamundaClient {
         .await
     }
 
+    /// Get the upgrade-readiness status of the whole cluster (`GET /cluster/v2/status/upgrade`).
+    pub async fn get_cluster_upgrade_status(&self) -> Result<models::ClusterUpgradeStatusResponse> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(
+                camunda_orchestration_api_client::apis::cluster_api::get_cluster_upgrade_status(
+                    &cfg,
+                )
+                .await?,
+            )
+        })
+        .await
+    }
+
     /// Get physical tenant status (`GET /status`).
     pub async fn get_status(&self) -> Result<()> {
         self.guarded(|| async {
@@ -3136,7 +3150,7 @@ impl CamundaClient {
         .await
     }
 
-    /// List secrets (alpha) (`POST /secrets/list`).
+    /// List secrets (`POST /secrets/list`).
     pub async fn list_secrets(
         &self,
         params: camunda_orchestration_api_client::apis::secret_api::ListSecretsParams,
@@ -3154,7 +3168,7 @@ impl CamundaClient {
         .await
     }
 
-    /// Resolve secrets (alpha) (`POST /secrets/resolve`).
+    /// Resolve secrets (`POST /secrets/resolve`).
     pub async fn resolve_secrets(
         &self,
         params: camunda_orchestration_api_client::apis::secret_api::ResolveSecretsParams,

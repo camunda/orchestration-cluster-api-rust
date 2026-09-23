@@ -94,6 +94,7 @@ Class | Method | HTTP request | Description
 *ClusterApi* | [**get_cluster_rebalance**](docs/ClusterApi.md#get_cluster_rebalance) | **GET** /cluster/v2/rebalance | Report the cluster's current leadership balance
 *ClusterApi* | [**get_cluster_status**](docs/ClusterApi.md#get_cluster_status) | **GET** /cluster/v2/status | Get the status of the whole cluster
 *ClusterApi* | [**get_cluster_topology**](docs/ClusterApi.md#get_cluster_topology) | **GET** /cluster/v2/topology | Get the topology of the whole cluster
+*ClusterApi* | [**get_cluster_upgrade_status**](docs/ClusterApi.md#get_cluster_upgrade_status) | **GET** /cluster/v2/status/upgrade | Get the upgrade-readiness status of the whole cluster
 *ClusterApi* | [**get_status**](docs/ClusterApi.md#get_status) | **GET** /status | Get physical tenant status
 *ClusterApi* | [**get_topology**](docs/ClusterApi.md#get_topology) | **GET** /topology | Get cluster topology
 *ClusterApi* | [**trigger_cluster_rebalance**](docs/ClusterApi.md#trigger_cluster_rebalance) | **POST** /cluster/v2/rebalance | Trigger a cluster-wide leadership rebalance
@@ -243,8 +244,8 @@ Class | Method | HTTP request | Description
 *RoleApi* | [**unassign_role_from_mapping_rule**](docs/RoleApi.md#unassign_role_from_mapping_rule) | **DELETE** /roles/{roleId}/mapping-rules/{mappingRuleId} | Unassign a role from a mapping rule
 *RoleApi* | [**unassign_role_from_user**](docs/RoleApi.md#unassign_role_from_user) | **DELETE** /roles/{roleId}/users/{username} | Unassign a role from a user
 *RoleApi* | [**update_role**](docs/RoleApi.md#update_role) | **PUT** /roles/{roleId} | Update role
-*SecretApi* | [**list_secrets**](docs/SecretApi.md#list_secrets) | **POST** /secrets/list | List secrets (alpha)
-*SecretApi* | [**resolve_secrets**](docs/SecretApi.md#resolve_secrets) | **POST** /secrets/resolve | Resolve secrets (alpha)
+*SecretApi* | [**list_secrets**](docs/SecretApi.md#list_secrets) | **POST** /secrets/list | List secrets
+*SecretApi* | [**resolve_secrets**](docs/SecretApi.md#resolve_secrets) | **POST** /secrets/resolve | Resolve secrets
 *SetupApi* | [**create_admin_user**](docs/SetupApi.md#create_admin_user) | **POST** /setup/user | Create admin user
 *SignalApi* | [**broadcast_signal**](docs/SignalApi.md#broadcast_signal) | **POST** /signals/broadcast | Broadcast signal
 *SystemApi* | [**get_system_configuration**](docs/SystemApi.md#get_system_configuration) | **GET** /system/configuration | System configuration (alpha)
@@ -498,6 +499,7 @@ Class | Method | HTTP request | Description
  - [ClusterTakeHistoryBackupResponse](docs/ClusterTakeHistoryBackupResponse.md)
  - [ClusterTakeRuntimeBackupResponse](docs/ClusterTakeRuntimeBackupResponse.md)
  - [ClusterTopologyResponse](docs/ClusterTopologyResponse.md)
+ - [ClusterUpgradeStatusResponse](docs/ClusterUpgradeStatusResponse.md)
  - [ClusterVariableKindEnum](docs/ClusterVariableKindEnum.md)
  - [ClusterVariableKindExactMatch](docs/ClusterVariableKindExactMatch.md)
  - [ClusterVariableKindFilterProperty](docs/ClusterVariableKindFilterProperty.md)

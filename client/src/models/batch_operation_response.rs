@@ -18,8 +18,12 @@ pub struct BatchOperationResponse {
     pub batch_operation_key: models::BatchOperationKey,
     #[serde(rename = "state")]
     pub state: models::BatchOperationStateEnum,
-    #[serde(rename = "batchOperationType")]
-    pub batch_operation_type: models::BatchOperationTypeEnum,
+    /// The type of the batch operation. This is `null` for batch operations whose type was never recorded in secondary storage, such as legacy Operate batch operations.
+    #[serde(
+        rename = "batchOperationType",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub batch_operation_type: Option<models::BatchOperationTypeEnum>,
     /// The start date of the batch operation. This is `null` if the batch operation has not yet started.
     #[serde(rename = "startDate", deserialize_with = "Option::deserialize")]
     pub start_date: Option<chrono::DateTime<chrono::FixedOffset>>,
@@ -50,7 +54,7 @@ impl BatchOperationResponse {
     pub fn new(
         batch_operation_key: models::BatchOperationKey,
         state: models::BatchOperationStateEnum,
-        batch_operation_type: models::BatchOperationTypeEnum,
+        batch_operation_type: Option<models::BatchOperationTypeEnum>,
         start_date: Option<chrono::DateTime<chrono::FixedOffset>>,
         end_date: Option<chrono::DateTime<chrono::FixedOffset>>,
         actor_type: Option<models::AuditLogActorTypeEnum>,

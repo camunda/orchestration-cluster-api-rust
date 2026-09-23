@@ -8,6 +8,7 @@ Method | HTTP request | Description
 [**get_cluster_rebalance**](ClusterApi.md#get_cluster_rebalance) | **GET** /cluster/v2/rebalance | Report the cluster's current leadership balance
 [**get_cluster_status**](ClusterApi.md#get_cluster_status) | **GET** /cluster/v2/status | Get the status of the whole cluster
 [**get_cluster_topology**](ClusterApi.md#get_cluster_topology) | **GET** /cluster/v2/topology | Get the topology of the whole cluster
+[**get_cluster_upgrade_status**](ClusterApi.md#get_cluster_upgrade_status) | **GET** /cluster/v2/status/upgrade | Get the upgrade-readiness status of the whole cluster
 [**get_status**](ClusterApi.md#get_status) | **GET** /status | Get physical tenant status
 [**get_topology**](ClusterApi.md#get_topology) | **GET** /topology | Get cluster topology
 [**trigger_cluster_rebalance**](ClusterApi.md#trigger_cluster_rebalance) | **POST** /cluster/v2/rebalance | Trigger a cluster-wide leadership rebalance
@@ -113,6 +114,33 @@ This endpoint does not need any parameter.
 ### Authorization
 
 [basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_cluster_upgrade_status
+
+> models::ClusterUpgradeStatusResponse get_cluster_upgrade_status()
+Get the upgrade-readiness status of the whole cluster
+
+Reports one overall upgrade-readiness status for the whole cluster, folded over every physical tenant and condition. `MIGRATED` only once every known condition has migrated for every known physical tenant; `MIGRATION_IN_PROGRESS` when at least one is confirmed not yet migrated; `UNKNOWN` otherwise (including before anything has been reported yet). No per-tenant or per-condition detail is reported here; see the `upgradeReadiness` actuator endpoint for that.
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**models::ClusterUpgradeStatusResponse**](ClusterUpgradeStatusResponse.md)
+
+### Authorization
+
+No authorization required
 
 ### HTTP request headers
 
