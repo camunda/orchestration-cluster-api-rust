@@ -19,10 +19,12 @@ single instance that prompted it.
 from __future__ import annotations
 
 import ast
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
+from scripts.hooks import hook_02_semantic_field_types
 from scripts.hooks import hook_08_version_skew_tolerance
 from scripts.hooks import hook_11_optional_body_json
 from scripts.hooks import hook_12_strip_variant_discriminators
@@ -604,6 +606,85 @@ class VersionSkewToleranceTest(unittest.TestCase):
         # The other fields are unpatched and legitimately change; this one must not.
         self.assertIn(patched_attr, out)
         self.assertEqual(out.count("default"), len(self._all_fields()))
+
+
+class SemanticFieldTypesTest(unittest.TestCase):
+    """`hook_02` rewrites a collapsed `String` field back to its semantic newtype,
+    in every optionality shape the generator emits — including the nested
+    `Option<Option<String>>` it uses for a field that is both optional and nullable."""
+
+    def _rewrite(self, content: str) -> str:
+        out, _ = hook_02_semantic_field_types._rewrite_field(
+            content, "job_lease_token", "models::JobLeaseToken", is_array=False
+        )
+        return out
+
+    def test_rewrites_every_emitted_optionality_shape(self):
+        for shape, expected in (
+            ("String", "models::JobLeaseToken"),
+            ("Option<String>", "Option<models::JobLeaseToken>"),
+            ("Option<Option<String>>", "Option<Option<models::JobLeaseToken>>"),
+        ):
+            with self.subTest(shape=shape):
+                out = self._rewrite(
+                    f"    pub job_lease_token: {shape},\n"
+                    f"    pub fn new(job_lease_token: {shape}) -> Self {{}}\n"
+                )
+                self.assertIn(f"pub job_lease_token: {expected},", out)
+                self.assertIn(f"new(job_lease_token: {expected})", out)
+
+    def test_leaves_a_nested_optional_of_another_type_alone(self):
+        content = "    pub job_lease_token: Option<Option<i64>>,\n"
+        self.assertEqual(self._rewrite(content), content)
+
+
+class NoSemanticFieldLeftAsStringTest(unittest.TestCase):
+    """Class-scoped regression guard over the *real* generated client: no field whose
+    spec property resolves to a semantic type may survive as a bare `String`.
+
+    This is the invariant issue #45 restores. It is deliberately not pinned to the
+    nested-optional shape that prompted it — a field the generator wraps in some other
+    shape `hook_02`'s table does not know about would drop out of the Domain Type
+    System just as silently, and must be caught here.
+    """
+
+    _SPEC = _REPO_ROOT / "external-spec" / "bundled" / "rest-api.bundle.json"
+
+    def _real_field_map(self) -> dict:
+        ctx = Context.build(
+            client_dir=_REPO_ROOT / "client", spec_path=self._SPEC, metadata_path=None
+        )
+        return hook_02_semantic_field_types._build_field_map(ctx)
+
+    def test_no_semantic_field_is_generated_as_a_bare_string(self):
+        if not _MODELS_DIR.exists() or not self._SPEC.exists():
+            self.skipTest("generated client models or bundled spec are not present")
+        field_map = self._real_field_map()
+        self.assertTrue(field_map, "expected the spec to mark at least one semantic field")
+
+        offenders = []
+        checked = 0
+        for path in sorted(_MODELS_DIR.glob("*.rs")):
+            if path.name in ("mod.rs", "camunda_keys.rs"):
+                continue
+            text = path.read_text(encoding="utf-8")
+            m = hook_12_strip_variant_discriminators._STRUCT_RE.search(text)
+            if not m:
+                continue
+            fields = field_map.get(m.group(1))
+            if not fields:
+                continue
+            for snake in fields:
+                decl = re.search(r"pub %s: (?P<ty>[^,\n]+)," % re.escape(snake), text)
+                if decl is None:
+                    continue
+                checked += 1
+                # `\b` on both sides so a branded filter type (`models::StringFilterProperty`)
+                # is not mistaken for an unbranded `String`.
+                if re.search(r"\bString\b", decl.group("ty")):
+                    offenders.append(f"{path.name}: `{snake}: {decl.group('ty')}`")
+        self.assertTrue(checked, "guard resolved no semantic fields in the generated models")
+        self.assertEqual(offenders, [])
 
 
 if __name__ == "__main__":
