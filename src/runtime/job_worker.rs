@@ -46,6 +46,11 @@ pub type JobHandler =
 pub type ReadyCallback = Arc<dyn Fn() + Send + Sync>;
 
 /// Configuration for a [`JobWorker`].
+///
+/// Build with [`JobWorkerConfig::new`] and the builder methods rather than a struct
+/// literal: the type is `#[non_exhaustive]`, so new fields are added without breaking
+/// callers.
+#[non_exhaustive]
 #[derive(Clone)]
 pub struct JobWorkerConfig {
     /// The job type to poll for (required).
@@ -67,6 +72,16 @@ pub struct JobWorkerConfig {
     /// Maximum random startup delay before the first poll, in seconds. Spreads the initial
     /// activate-jobs stampede when many workers start at once.
     pub startup_jitter_max_seconds: u64,
+    /// Activate jobs with a lease. Each job then carries a lease token that the worker
+    /// sends back on complete, fail, and throw-error, so the engine can fence the command
+    /// against a superseded activation (for example after the job timed out and another
+    /// worker picked it up). Off by default, matching the engine.
+    ///
+    /// Requires a server that supports job leases: rather than degrade to unfenced
+    /// commands, a worker that asked for a lease and is handed a job without a token stops
+    /// with [`CamundaError::LeaseNotHonored`]. Has no effect on jobs delivered over the
+    /// Falcon command stream, which activates them outside the REST activation API.
+    pub with_lease: bool,
     /// Optional callback fired once when the worker becomes ready to receive jobs
     /// (Falcon subscription established, or REST poll loop entered). Set via
     /// [`JobWorkerConfig::on_ready`]. Excluded from [`Debug`] output.
@@ -88,6 +103,7 @@ impl std::fmt::Debug for JobWorkerConfig {
                 "startup_jitter_max_seconds",
                 &self.startup_jitter_max_seconds,
             )
+            .field("with_lease", &self.with_lease)
             .field("on_ready", &self.on_ready.as_ref().map(|_| "<callback>"))
             .finish()
     }
@@ -106,6 +122,7 @@ impl JobWorkerConfig {
             fetch_variables: None,
             tenant_ids: None,
             startup_jitter_max_seconds: 0,
+            with_lease: false,
             on_ready: None,
         }
     }
@@ -123,6 +140,7 @@ impl JobWorkerConfig {
             fetch_variables: None,
             tenant_ids: None,
             startup_jitter_max_seconds: defaults.startup_jitter_max_seconds,
+            with_lease: false,
             on_ready: None,
         }
     }
@@ -168,6 +186,16 @@ impl JobWorkerConfig {
     /// Set the maximum random startup delay (seconds) applied before the first poll.
     pub fn startup_jitter_max_seconds(mut self, seconds: u64) -> Self {
         self.startup_jitter_max_seconds = seconds;
+        self
+    }
+
+    /// Activate jobs with a lease (off by default). Each job then carries a lease token the
+    /// worker sends back on complete, fail, and throw-error, so the engine can fence the
+    /// command against a superseded activation. Requires a server that supports job leases;
+    /// see [`JobWorkerConfig::with_lease`](Self::with_lease) for the fail-loud behaviour
+    /// against one that does not.
+    pub fn with_lease(mut self, enabled: bool) -> Self {
+        self.with_lease = enabled;
         self
     }
 
@@ -234,6 +262,15 @@ impl Job {
     /// The job custom headers.
     pub fn custom_headers(&self) -> &HashMap<String, Value> {
         &self.inner.custom_headers
+    }
+
+    /// The lease token for this job, or `None` if it was not activated with a lease.
+    ///
+    /// Present exactly when the worker set [`JobWorkerConfig::with_lease`]; the worker
+    /// threads it back onto the fenced commands automatically, so a handler rarely needs
+    /// to read it directly.
+    pub fn lease_token(&self) -> Option<&str> {
+        self.inner.job_lease_token.as_ref().map(|t| t.value())
     }
 
     /// The clock this job's worker resolves cadence through. Handlers that need to wait
@@ -493,8 +530,11 @@ impl JobWorker {
                 let handler = handler.clone();
                 tasks.push(tokio::spawn(async move {
                     let key = job.key().to_string();
+                    // Capture the lease token before the handler consumes the job, so the
+                    // fenced command can present it back and be accepted for a leased job.
+                    let lease_token = job.lease_token().map(str::to_owned);
                     let action = handler(job).await;
-                    apply_action(&client, &key, action).await
+                    apply_action(&client, &key, lease_token.as_deref(), action).await
                 }));
             }
             for task in tasks {
@@ -508,6 +548,15 @@ impl JobWorker {
     }
 
     async fn poll(&self) -> Result<Vec<models::ActivatedJobResult>> {
+        let request = self.build_activation_request();
+        let result = self.client.activate_jobs(request).await?;
+        enforce_lease_presence(self.config.with_lease, &result.jobs)?;
+        Ok(result.jobs)
+    }
+
+    /// Build the activate-jobs request from the worker config. Split out so the request
+    /// shape — notably the lease flag — is unit-testable without a live server.
+    fn build_activation_request(&self) -> models::JobActivationRequest {
         // Fall back to the SDK's configured default tenant when none is set on the worker.
         let tenant_ids = self.config.tenant_ids.clone().or_else(|| {
             self.client
@@ -516,7 +565,7 @@ impl JobWorker {
                 .clone()
                 .map(|id| vec![id])
         });
-        let request = models::JobActivationRequest {
+        models::JobActivationRequest {
             r#type: self.config.job_type.clone(),
             worker: Some(self.config.worker_name.clone()),
             timeout: self.config.job_timeout_ms,
@@ -529,10 +578,12 @@ impl JobWorker {
                     .collect()
             }),
             tenant_filter: None,
-            with_lease: None,
-        };
-        let result = self.client.activate_jobs(request).await?;
-        Ok(result.jobs)
+            with_lease: if self.config.with_lease {
+                Some(Some(true))
+            } else {
+                None
+            },
+        }
     }
 
     /// Attempt to run the falcon push-based worker loop. Returns a
@@ -629,16 +680,16 @@ fn value_to_obj(value: Value) -> Option<serde_json::Map<String, Value>> {
     }
 }
 
-async fn apply_action(client: &CamundaClient, job_key: &str, action: JobAction) -> Result<()> {
+async fn apply_action(
+    client: &CamundaClient,
+    job_key: &str,
+    lease_token: Option<&str>,
+    action: JobAction,
+) -> Result<()> {
     match action {
         JobAction::Leave => Ok(()),
         JobAction::Complete { variables } => {
-            let request = variables.map(|v| models::JobCompletionRequest {
-                variables: Some(value_to_map(v)),
-                result: None,
-                job_lease_token: None,
-                business_id: None,
-            });
+            let request = build_completion_request(variables, lease_token);
             client.complete_job(job_key, request).await
         }
         JobAction::Fail {
@@ -647,13 +698,13 @@ async fn apply_action(client: &CamundaClient, job_key: &str, action: JobAction) 
             retry_backoff_ms,
             variables,
         } => {
-            let request = models::JobFailRequest {
+            let request = build_fail_request(
+                error_message,
                 retries,
-                error_message: Some(error_message),
-                retry_back_off: retry_backoff_ms,
-                variables: variables.and_then(value_to_map),
-                job_lease_token: None,
-            };
+                retry_backoff_ms,
+                variables,
+                lease_token,
+            );
             client.fail_job(job_key, Some(request)).await
         }
         JobAction::Error {
@@ -661,14 +712,78 @@ async fn apply_action(client: &CamundaClient, job_key: &str, action: JobAction) 
             error_message,
             variables,
         } => {
-            let request = models::JobErrorRequest {
-                error_code,
-                error_message: Some(error_message),
-                variables: Some(value_to_map(variables.unwrap_or(Value::Null))),
-                job_lease_token: None,
-            };
+            let request = build_error_request(error_code, error_message, variables, lease_token);
             client.throw_job_error(job_key, request).await
         }
+    }
+}
+
+/// Brand a lease token for a generated request's `Option<Option<JobLeaseToken>>` field:
+/// `Some(Some(token))` when leased, `None` otherwise.
+fn lease_token_field(lease_token: Option<&str>) -> Option<Option<models::JobLeaseToken>> {
+    lease_token.map(|t| Some(models::JobLeaseToken::assume_exists(t.to_string())))
+}
+
+/// Reject a whole activation when a requested lease was not honoured for any job, on the
+/// existing error path — before any job reaches a handler that would finish it unfenced.
+fn enforce_lease_presence(with_lease: bool, jobs: &[models::ActivatedJobResult]) -> Result<()> {
+    for job in jobs {
+        super::present_when::require_lease_presence(
+            with_lease,
+            job.job_key.value(),
+            job.job_lease_token.as_ref().map(|t| t.value()),
+        )?;
+    }
+    Ok(())
+}
+
+/// Build the optional completion body. A completion needs a body only when it carries
+/// output variables or a lease token to present back; without either, `None` lets the
+/// worker complete with an empty request.
+fn build_completion_request(
+    variables: Option<Value>,
+    lease_token: Option<&str>,
+) -> Option<models::JobCompletionRequest> {
+    if variables.is_none() && lease_token.is_none() {
+        return None;
+    }
+    Some(models::JobCompletionRequest {
+        variables: variables.map(value_to_map),
+        result: None,
+        job_lease_token: lease_token_field(lease_token),
+        business_id: None,
+    })
+}
+
+/// Build a fail-job request, threading the lease token so the engine can fence it.
+fn build_fail_request(
+    error_message: String,
+    retries: Option<i32>,
+    retry_backoff_ms: Option<i64>,
+    variables: Option<Value>,
+    lease_token: Option<&str>,
+) -> models::JobFailRequest {
+    models::JobFailRequest {
+        retries,
+        error_message: Some(error_message),
+        retry_back_off: retry_backoff_ms,
+        variables: variables.and_then(value_to_map),
+        job_lease_token: lease_token_field(lease_token),
+    }
+}
+
+/// Build a throw-BPMN-error request, threading the lease token so the engine can fence it.
+fn build_error_request(
+    error_code: String,
+    error_message: Option<String>,
+    variables: Option<Value>,
+    lease_token: Option<&str>,
+) -> models::JobErrorRequest {
+    models::JobErrorRequest {
+        error_code,
+        error_message: Some(error_message),
+        variables: Some(value_to_map(variables.unwrap_or(Value::Null))),
+        job_lease_token: lease_token_field(lease_token),
     }
 }
 
@@ -699,6 +814,16 @@ impl CamundaError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A client pointed at a local address, enough to construct workers for building and
+    /// inspecting requests without any network I/O.
+    fn test_client() -> super::super::client::CamundaClient {
+        super::super::client::CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", "http://localhost:8080"),
+        )
+        .expect("client should build from an address alone")
+    }
 
     #[test]
     fn config_defaults_are_sensible() {
@@ -747,6 +872,63 @@ mod tests {
     }
 
     #[test]
+    fn with_lease_defaults_off_and_builder_sets_it() {
+        assert!(!JobWorkerConfig::new("t").with_lease);
+        assert!(JobWorkerConfig::new("t").with_lease(true).with_lease);
+        assert!(!JobWorkerConfig::new("t").with_lease(false).with_lease);
+    }
+
+    #[test]
+    fn activation_request_opts_into_lease_only_when_asked() {
+        let client = test_client();
+        let unleased = client
+            .create_job_worker(JobWorkerConfig::new("t"))
+            .build_activation_request();
+        assert_eq!(unleased.with_lease, None);
+
+        let leased = client
+            .create_job_worker(JobWorkerConfig::new("t").with_lease(true))
+            .build_activation_request();
+        assert_eq!(leased.with_lease, Some(Some(true)));
+    }
+
+    #[test]
+    fn lease_token_is_threaded_into_every_fenced_command() {
+        let expected = Some(Some(models::JobLeaseToken::assume_exists("tok")));
+
+        // Complete: a body is built for the token alone, even with no variables.
+        let complete = build_completion_request(None, Some("tok"));
+        assert_eq!(complete.and_then(|r| r.job_lease_token), expected);
+
+        // Fail: the token rides the fail request.
+        let fail = build_fail_request("boom".into(), None, None, None, Some("tok"));
+        assert_eq!(fail.job_lease_token, expected);
+
+        // Error: the token rides the throw-error request.
+        let error = build_error_request("E1".into(), None, None, Some("tok"));
+        assert_eq!(error.job_lease_token, expected);
+    }
+
+    #[test]
+    fn no_lease_token_leaves_commands_unbranded() {
+        // No variables and no token => no completion body at all (unchanged behaviour).
+        assert!(build_completion_request(None, None).is_none());
+        assert_eq!(lease_token_field(None), None);
+        // Variables but no token => body present, token field empty.
+        let complete = build_completion_request(Some(serde_json::json!({ "k": 1 })), None);
+        assert_eq!(complete.and_then(|r| r.job_lease_token), None);
+        // Fail and error unbranded when no lease.
+        assert_eq!(
+            build_fail_request("boom".into(), None, None, None, None).job_lease_token,
+            None
+        );
+        assert_eq!(
+            build_error_request("E1".into(), None, None, None).job_lease_token,
+            None
+        );
+    }
+
+    #[test]
     fn on_ready_builder_stores_callback() {
         let c = JobWorkerConfig::new("t");
         assert!(c.on_ready.is_none());
@@ -778,6 +960,12 @@ mod tests {
     /// Build an activated job. Only the clock wiring is under test, so the field values
     /// are arbitrary.
     fn fake_activated() -> models::ActivatedJobResult {
+        fake_activated_with_lease(None)
+    }
+
+    /// Build an activated job carrying the given lease token (or none), for exercising the
+    /// activation-boundary lease guard.
+    fn fake_activated_with_lease(token: Option<&str>) -> models::ActivatedJobResult {
         models::ActivatedJobResult::new(
             "test-type".to_string(),
             models::ProcessDefinitionId::assume_exists("proc".to_string()),
@@ -801,8 +989,31 @@ mod tests {
             None,
             None,
             0,
-            None,
+            token.map(models::JobLeaseToken::assume_exists),
         )
+    }
+
+    #[test]
+    fn enforce_lease_presence_rejects_only_an_unhonored_lease() {
+        let leased = [fake_activated_with_lease(Some("tok"))];
+        let unleased = [fake_activated_with_lease(None)];
+
+        // Not requested: neither shape is rejected.
+        assert!(enforce_lease_presence(false, &unleased).is_ok());
+        assert!(enforce_lease_presence(false, &leased).is_ok());
+        // Requested and honoured: accepted.
+        assert!(enforce_lease_presence(true, &leased).is_ok());
+        // Requested but a tokenless job is present: the whole activation is rejected.
+        assert!(matches!(
+            enforce_lease_presence(true, &unleased),
+            Err(CamundaError::LeaseNotHonored { .. })
+        ));
+        // A single unhonoured job in an otherwise-leased batch still fails.
+        let mixed = [
+            fake_activated_with_lease(Some("tok")),
+            fake_activated_with_lease(None),
+        ];
+        assert!(enforce_lease_presence(true, &mixed).is_err());
     }
 
     /// A handler that waits must be controllable by an injected clock. That only holds if
