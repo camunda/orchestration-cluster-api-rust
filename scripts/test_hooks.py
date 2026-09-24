@@ -28,6 +28,7 @@ from scripts.hooks import hook_02_semantic_field_types
 from scripts.hooks import hook_08_version_skew_tolerance
 from scripts.hooks import hook_11_optional_body_json
 from scripts.hooks import hook_12_strip_variant_discriminators
+from scripts.hooks import hook_13_present_when
 from scripts.hooks.common import Context
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -685,6 +686,88 @@ class NoSemanticFieldLeftAsStringTest(unittest.TestCase):
                     offenders.append(f"{path.name}: `{snake}: {decl.group('ty')}`")
         self.assertTrue(checked, "guard resolved no semantic fields in the generated models")
         self.assertEqual(offenders, [])
+
+
+class PresentWhenHookTest(unittest.TestCase):
+    """`hook_13` derives the `x-present-when` couplings the runtime enforces. These tests
+    execute the hook itself — the runtime guard only compares the committed table with the
+    spec, so without them a regression in multi-marker emission, malformed-marker rejection,
+    escaping, or idempotency would pass until regeneration drift is noticed."""
+
+    @staticmethod
+    def _schema_with_marker(marker) -> dict:
+        return {"Resp": {"properties": {"tok": {"type": "string", "x-present-when": marker}}}}
+
+    def test_derives_multiple_markers_sorted(self):
+        schemas = {
+            "Beta": {"properties": {"b": {"x-present-when": {"request": "flagB", "equals": True}}}},
+            "Alpha": {
+                "properties": {
+                    "z": {"x-present-when": {"request": "flagZ", "equals": True}},
+                    "a": {"x-present-when": {"request": "flagA", "equals": True}},
+                }
+            },
+        }
+        # Sorted by schema then field, so the emitted table is stable across regenerations.
+        self.assertEqual(
+            hook_13_present_when.derive_couplings(schemas),
+            [("Alpha", "a", "flagA"), ("Alpha", "z", "flagZ"), ("Beta", "b", "flagB")],
+        )
+
+    def test_ignores_fields_without_a_marker(self):
+        schemas = {
+            "Resp": {
+                "properties": {
+                    "plain": {"type": "string"},
+                    "tok": {"x-present-when": {"request": "withLease", "equals": True}},
+                }
+            }
+        }
+        self.assertEqual(
+            hook_13_present_when.derive_couplings(schemas), [("Resp", "tok", "withLease")]
+        )
+
+    def test_rejects_every_malformed_marker_shape(self):
+        # Each shape is a different way the marker can be wrong; all must fail loudly rather
+        # than be silently dropped (which would retire the runtime guard for that field).
+        for label, marker in (
+            ("explicit null", None),
+            ("not an object", "withLease"),
+            ("missing request", {"equals": True}),
+            ("empty request", {"request": "", "equals": True}),
+            ("non-string request", {"request": 1, "equals": True}),
+            ("equals not true", {"request": "withLease", "equals": False}),
+            ("equals missing", {"request": "withLease"}),
+        ):
+            with self.subTest(shape=label):
+                with self.assertRaises(SystemExit):
+                    hook_13_present_when.derive_couplings(self._schema_with_marker(marker))
+
+    def test_empty_result_is_an_error(self):
+        # A spec with no markers at all must fail rather than emit an empty table, which
+        # would silently retire the guards built on it.
+        with self.assertRaises(SystemExit):
+            hook_13_present_when.derive_couplings({"Resp": {"properties": {"x": {"type": "string"}}}})
+
+    def test_render_escapes_quotes_and_backslashes(self):
+        out = hook_13_present_when.render([("Sch", 'fie"ld', "fl\\ag")])
+        self.assertIn(r'response_field: "fie\"ld",', out)
+        self.assertIn(r'request_flag: "fl\\ag",', out)
+
+    def test_run_is_idempotent(self):
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "src" / "runtime").mkdir(parents=True)
+        ctx = Context(
+            client_dir=tmp / "client",
+            spec={},
+            schemas=self._schema_with_marker({"request": "withLease", "equals": True}),
+        )
+        hook_13_present_when.run(ctx)
+        first = (tmp / "src" / "runtime" / "present_when_generated.rs").read_bytes()
+        hook_13_present_when.run(ctx)
+        second = (tmp / "src" / "runtime" / "present_when_generated.rs").read_bytes()
+        self.assertEqual(first, second)
+        self.assertIn(b'response_schema: "Resp"', first)
 
 
 if __name__ == "__main__":

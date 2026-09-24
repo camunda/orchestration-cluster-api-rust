@@ -6,6 +6,10 @@ use std::fmt;
 pub type Result<T> = std::result::Result<T, CamundaError>;
 
 /// Errors returned by the Camunda SDK.
+///
+/// Non-exhaustive: match with a wildcard arm. New variants are added as the SDK grows and
+/// are not a breaking change.
+#[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum CamundaError {
     /// Configuration was invalid or incomplete (e.g. missing OAuth credentials).
@@ -51,6 +55,24 @@ pub enum CamundaError {
     EventualConsistencyTimeout {
         /// How long polling ran before giving up, in milliseconds.
         elapsed_ms: u64,
+    },
+
+    /// A worker activated jobs with a lease but the server returned a job carrying no
+    /// lease token.
+    ///
+    /// The specification declares the token present exactly when the activation sets the
+    /// lease flag (see `present_when.rs`). A server that predates job leases, or one that
+    /// ignores the flag, breaks that quietly: the worker would go on to complete, fail, or
+    /// throw an error for the job with no token, so the engine could not fence the command
+    /// against a superseded activation. The caller asked for fencing and would not be
+    /// getting it, which is worth failing over rather than proceeding.
+    #[error("lease not honored: activation for job {job_key} set `{request_flag}` but the server returned no lease token")]
+    LeaseNotHonored {
+        /// The key of the job that arrived without a lease token.
+        job_key: String,
+        /// The activation flag the specification couples the token to (`withLease`), read
+        /// from the generated coupling table rather than hardcoded.
+        request_flag: &'static str,
     },
 }
 
