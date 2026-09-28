@@ -571,7 +571,19 @@ impl JobWorker {
             }
             let want = permits.len() as i32;
 
-            let jobs = self.poll(want).await?;
+            let jobs = match self.poll(want).await {
+                Ok(jobs) => jobs,
+                Err(e) => {
+                    // A poll failure must not abort jobs we already dispatched. Release
+                    // the credits we speculatively held and drain the in-flight handlers
+                    // (letting them finish and report their actions) before propagating,
+                    // exactly as the stop path does — otherwise dropping `tasks` here
+                    // would cancel running handlers and leave activated jobs uncompleted.
+                    drop(permits);
+                    Self::drain_all(&mut tasks).await;
+                    return Err(e);
+                }
+            };
             if jobs.is_empty() {
                 // Release the credits we speculatively held and back off before retrying.
                 drop(permits);
@@ -614,12 +626,19 @@ impl JobWorker {
 
         // Graceful drain: stop polling but wait for every in-flight handler (and its
         // follow-up command) to finish before the worker task returns.
+        Self::drain_all(&mut tasks).await;
+        Ok(())
+    }
+
+    /// Await every in-flight handler task in `tasks` to completion, logging any that
+    /// panicked. Used both on graceful shutdown and before propagating a poll error, so
+    /// dispatched jobs are never aborted by the worker task returning.
+    async fn drain_all(tasks: &mut tokio::task::JoinSet<()>) {
         while let Some(res) = tasks.join_next().await {
             if let Err(e) = res {
                 tracing::warn!(error = %e, "job handler task panicked");
             }
         }
-        Ok(())
     }
 
     /// Drain the already-finished handler tasks from `tasks` without blocking, logging any
