@@ -476,6 +476,18 @@ impl JobWorker {
     }
 
     async fn run_boxed(self, handler: JobHandler) -> Result<()> {
+        // `max_jobs_to_activate` is the in-flight cap and the activation batch size. A
+        // non-positive value is invalid — silently rewriting it to 1 would violate the
+        // documented maximum and make an explicitly disabled/misconfigured worker
+        // activate jobs anyway. Reject it up front (covers both the Falcon and REST
+        // paths) rather than papering over it.
+        if self.config.max_jobs_to_activate <= 0 {
+            return Err(CamundaError::worker(format!(
+                "max_jobs_to_activate must be positive, got {}",
+                self.config.max_jobs_to_activate
+            )));
+        }
+
         // Spread the initial activate-jobs stampede when many workers start together.
         if self.config.startup_jitter_max_seconds > 0 {
             let max_ms = self.config.startup_jitter_max_seconds.saturating_mul(1000);
@@ -521,14 +533,21 @@ impl JobWorker {
         // mirroring the credit window the Falcon (push) transport already uses. A single
         // slow handler no longer blocks the next `activate_jobs` call, it only occupies
         // one of the credits.
-        let capacity = self.config.max_jobs_to_activate.max(0) as usize;
-        // A zero cap would deadlock the acquire below and never poll; a worker that
-        // activates no jobs is meaningless, so floor the credit window at one.
-        let semaphore = Arc::new(tokio::sync::Semaphore::new(capacity.max(1)));
+        let capacity = self.config.max_jobs_to_activate as usize;
+        // `run_boxed` rejects a non-positive `max_jobs_to_activate`, so `capacity` is
+        // always >= 1 here and the semaphore always hands out at least one credit.
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(capacity));
+
+        // In-flight handler tasks. We spawn dispatched jobs here instead of dropping the
+        // handles so shutdown can drain them: on `stop` we stop polling but still await
+        // every running handler + follow-up command, honouring the documented graceful
+        // drain of `JobWorkerHandle::shutdown`/`stop_all_workers`. Reaping the set also
+        // preserves the panic reporting a plain `tokio::spawn` would swallow.
+        let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
 
         loop {
             if self.stop.load(Ordering::SeqCst) {
-                return Ok(());
+                break;
             }
 
             // Block until at least one credit is free, then take every other free credit
@@ -539,6 +558,13 @@ impl JobWorker {
                 .acquire_owned()
                 .await
                 .expect("job-worker semaphore is never closed");
+            // Shutdown may have been requested while we were parked waiting for a credit.
+            // Recheck before building an activation request so we never activate and
+            // dispatch a fresh job after `shutdown()` was called.
+            if self.stop.load(Ordering::SeqCst) {
+                drop(first);
+                break;
+            }
             let mut permits = vec![first];
             while let Ok(permit) = semaphore.clone().try_acquire_owned() {
                 permits.push(permit);
@@ -549,6 +575,9 @@ impl JobWorker {
             if jobs.is_empty() {
                 // Release the credits we speculatively held and back off before retrying.
                 drop(permits);
+                // Reap any finished handlers so panics are reported and the set stays
+                // bounded during idle stretches.
+                Self::reap_finished(&mut tasks);
                 self.client.clock().sleep(poll_interval).await;
                 continue;
             }
@@ -562,7 +591,7 @@ impl JobWorker {
                 let job = self.wrap_job(activated);
                 let client = self.client.clone();
                 let handler = handler.clone();
-                tokio::spawn(async move {
+                tasks.spawn(async move {
                     // Hold the credit for the whole job lifetime; releasing it on drop
                     // frees the slot back to the poller.
                     let _permit = permit;
@@ -577,6 +606,28 @@ impl JobWorker {
                         tracing::warn!(error = %e, "failed to apply job action");
                     }
                 });
+            }
+            // Reap already-finished handlers without blocking, so a fast, steady stream
+            // of jobs doesn't accumulate completed handles between polls.
+            Self::reap_finished(&mut tasks);
+        }
+
+        // Graceful drain: stop polling but wait for every in-flight handler (and its
+        // follow-up command) to finish before the worker task returns.
+        while let Some(res) = tasks.join_next().await {
+            if let Err(e) = res {
+                tracing::warn!(error = %e, "job handler task panicked");
+            }
+        }
+        Ok(())
+    }
+
+    /// Drain the already-finished handler tasks from `tasks` without blocking, logging any
+    /// that panicked. Keeps the in-flight set bounded and preserves panic reporting.
+    fn reap_finished(tasks: &mut tokio::task::JoinSet<()>) {
+        while let Some(res) = tasks.try_join_next() {
+            if let Err(e) = res {
+                tracing::warn!(error = %e, "job handler task panicked");
             }
         }
     }
@@ -936,6 +987,25 @@ mod tests {
         let worker = client.create_job_worker(JobWorkerConfig::new("t").max_jobs_to_activate(10));
         assert_eq!(worker.build_activation_request(3).max_jobs_to_activate, 3);
         assert_eq!(worker.build_activation_request(10).max_jobs_to_activate, 10);
+    }
+
+    #[tokio::test]
+    async fn run_rejects_non_positive_max_jobs_to_activate() {
+        // A zero or negative in-flight cap is a misconfiguration: rather than silently
+        // running as a one-job worker, the run should fail fast with a clear error.
+        let client = test_client();
+        for bad in [0, -1] {
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("t").max_jobs_to_activate(bad));
+            let err = worker
+                .run(|_job| async { JobAction::Leave })
+                .await
+                .expect_err("non-positive max_jobs_to_activate should be rejected");
+            assert!(
+                err.to_string().contains("max_jobs_to_activate"),
+                "unexpected error: {err}"
+            );
+        }
     }
 
     #[test]
