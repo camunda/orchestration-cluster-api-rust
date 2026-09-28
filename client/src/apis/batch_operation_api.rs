@@ -57,10 +57,10 @@ pub struct SuspendBatchOperationParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CancelBatchOperationError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -70,7 +70,7 @@ pub enum CancelBatchOperationError {
 pub enum GetBatchOperationError {
     Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -78,11 +78,11 @@ pub enum GetBatchOperationError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ResumeBatchOperationError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -91,7 +91,7 @@ pub enum ResumeBatchOperationError {
 #[serde(untagged)]
 pub enum SearchBatchOperationItemsError {
     Status400(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -100,7 +100,7 @@ pub enum SearchBatchOperationItemsError {
 #[serde(untagged)]
 pub enum SearchBatchOperationsError {
     Status400(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -108,11 +108,11 @@ pub enum SearchBatchOperationsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SuspendBatchOperationError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

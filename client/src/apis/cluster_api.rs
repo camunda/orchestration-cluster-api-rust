@@ -25,8 +25,8 @@ pub struct TriggerClusterRebalanceParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CancelClusterRebalanceError {
-    Status401(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     Status502(models::ProblemDetail),
     Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
@@ -37,8 +37,8 @@ pub enum CancelClusterRebalanceError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetClusterRebalanceError {
-    Status401(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     Status502(models::ProblemDetail),
     Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
@@ -57,9 +57,9 @@ pub enum GetClusterStatusError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetClusterTopologyError {
-    Status401(),
-    Status403(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -82,8 +82,8 @@ pub enum GetStatusError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetTopologyError {
-    Status401(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -91,10 +91,10 @@ pub enum GetTopologyError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TriggerClusterRebalanceError {
-    Status400(),
-    Status401(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     Status502(models::ProblemDetail),
     Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),

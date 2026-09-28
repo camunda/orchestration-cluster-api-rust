@@ -43,10 +43,10 @@ pub struct SearchDecisionDefinitionsParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum EvaluateDecisionError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -54,11 +54,11 @@ pub enum EvaluateDecisionError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetDecisionDefinitionError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -66,11 +66,11 @@ pub enum GetDecisionDefinitionError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetDecisionDefinitionXmlError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -78,10 +78,10 @@ pub enum GetDecisionDefinitionXmlError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchDecisionDefinitionsError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

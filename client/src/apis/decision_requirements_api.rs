@@ -37,11 +37,11 @@ pub struct SearchDecisionRequirementsParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetDecisionRequirementsError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -49,11 +49,11 @@ pub enum GetDecisionRequirementsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetDecisionRequirementsXmlError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -61,10 +61,10 @@ pub enum GetDecisionRequirementsXmlError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchDecisionRequirementsError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

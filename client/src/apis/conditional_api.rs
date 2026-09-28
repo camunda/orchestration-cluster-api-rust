@@ -23,11 +23,11 @@ pub struct EvaluateConditionalsParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum EvaluateConditionalsError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

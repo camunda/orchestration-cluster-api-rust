@@ -17,7 +17,7 @@ use serde::{de::Error as _, Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetLicenseError {
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

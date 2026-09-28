@@ -137,12 +137,12 @@ pub struct UpdateGroupParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AssignClientToGroupError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -150,12 +150,12 @@ pub enum AssignClientToGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AssignMappingRuleToGroupError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -163,12 +163,12 @@ pub enum AssignMappingRuleToGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AssignUserToGroupError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -176,12 +176,12 @@ pub enum AssignUserToGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateGroupError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -189,10 +189,10 @@ pub enum CreateGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteGroupError {
-    Status401(),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -200,10 +200,10 @@ pub enum DeleteGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetGroupError {
-    Status401(),
-    Status403(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -211,11 +211,11 @@ pub enum GetGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchClientsForGroupError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -223,10 +223,10 @@ pub enum SearchClientsForGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchGroupsError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -234,11 +234,11 @@ pub enum SearchGroupsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchMappingRulesForGroupError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -246,11 +246,11 @@ pub enum SearchMappingRulesForGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchRolesForGroupError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -258,11 +258,11 @@ pub enum SearchRolesForGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchUsersForGroupError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -270,11 +270,11 @@ pub enum SearchUsersForGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UnassignClientFromGroupError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -282,11 +282,11 @@ pub enum UnassignClientFromGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UnassignMappingRuleFromGroupError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -294,11 +294,11 @@ pub enum UnassignMappingRuleFromGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UnassignUserFromGroupError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -306,11 +306,11 @@ pub enum UnassignUserFromGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UpdateGroupError {
-    Status400(),
-    Status401(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

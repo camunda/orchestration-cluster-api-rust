@@ -73,7 +73,7 @@ pub struct GetDocumentParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateDocumentError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status415(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
@@ -82,7 +82,7 @@ pub enum CreateDocumentError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateDocumentLinkError {
-    Status400(),
+    Status400(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -90,8 +90,8 @@ pub enum CreateDocumentLinkError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateDocumentsError {
-    Status400(),
-    Status415(),
+    Status400(models::ProblemDetail),
+    Status415(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -100,7 +100,7 @@ pub enum CreateDocumentsError {
 #[serde(untagged)]
 pub enum DeleteDocumentError {
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -109,7 +109,7 @@ pub enum DeleteDocumentError {
 #[serde(untagged)]
 pub enum GetDocumentError {
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

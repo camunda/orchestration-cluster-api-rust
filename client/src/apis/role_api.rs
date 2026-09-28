@@ -155,12 +155,12 @@ pub struct UpdateRoleParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AssignRoleToClientError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -168,12 +168,12 @@ pub enum AssignRoleToClientError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AssignRoleToGroupError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -181,12 +181,12 @@ pub enum AssignRoleToGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AssignRoleToMappingRuleError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -194,12 +194,12 @@ pub enum AssignRoleToMappingRuleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AssignRoleToUserError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -207,12 +207,12 @@ pub enum AssignRoleToUserError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateRoleError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -220,10 +220,10 @@ pub enum CreateRoleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteRoleError {
-    Status401(),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -231,10 +231,10 @@ pub enum DeleteRoleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetRoleError {
-    Status401(),
-    Status403(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -242,11 +242,11 @@ pub enum GetRoleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchClientsForRoleError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -254,11 +254,11 @@ pub enum SearchClientsForRoleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchGroupsForRoleError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -266,11 +266,11 @@ pub enum SearchGroupsForRoleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchMappingRulesForRoleError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -278,10 +278,10 @@ pub enum SearchMappingRulesForRoleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchRolesError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -289,11 +289,11 @@ pub enum SearchRolesError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchUsersForRoleError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -301,11 +301,11 @@ pub enum SearchUsersForRoleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UnassignRoleFromClientError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -313,11 +313,11 @@ pub enum UnassignRoleFromClientError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UnassignRoleFromGroupError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -325,11 +325,11 @@ pub enum UnassignRoleFromGroupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UnassignRoleFromMappingRuleError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -337,11 +337,11 @@ pub enum UnassignRoleFromMappingRuleError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UnassignRoleFromUserError {
-    Status400(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -349,11 +349,11 @@ pub enum UnassignRoleFromUserError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UpdateRoleError {
-    Status400(),
-    Status401(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

@@ -98,12 +98,12 @@ pub struct UpdateUserTaskParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AssignUserTaskError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
-    Status504(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
+    Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -111,12 +111,12 @@ pub enum AssignUserTaskError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CompleteUserTaskError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
-    Status504(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
+    Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -124,11 +124,11 @@ pub enum CompleteUserTaskError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetUserTaskError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -136,11 +136,11 @@ pub enum GetUserTaskError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetUserTaskFormError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -148,8 +148,8 @@ pub enum GetUserTaskFormError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchUserTaskAuditLogsError {
-    Status400(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -157,8 +157,8 @@ pub enum SearchUserTaskAuditLogsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchUserTaskEffectiveVariablesError {
-    Status400(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -166,8 +166,8 @@ pub enum SearchUserTaskEffectiveVariablesError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchUserTaskVariablesError {
-    Status400(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -175,10 +175,10 @@ pub enum SearchUserTaskVariablesError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchUserTasksError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -186,12 +186,12 @@ pub enum SearchUserTasksError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UnassignUserTaskError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
-    Status504(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
+    Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -199,11 +199,11 @@ pub enum UnassignUserTaskError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum UpdateUserTaskError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }

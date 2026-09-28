@@ -29,10 +29,10 @@ pub struct ResolveSecretsParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListSecretsError {
-    Status400(),
-    Status401(),
-    Status500(),
-    Status503(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -40,10 +40,10 @@ pub enum ListSecretsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ResolveSecretsError {
-    Status400(),
-    Status401(),
-    Status500(),
-    Status503(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
