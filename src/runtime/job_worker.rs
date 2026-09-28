@@ -513,42 +513,76 @@ impl JobWorker {
         // failed Falcon subscribe.
         self.fire_ready();
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
+
+        // Credit-based dispatch: a semaphore whose permit count is the in-flight job
+        // cap (`max_jobs_to_activate`). Each dispatched job holds one permit until its
+        // handler and the follow-up command finish, so the poller never has more jobs
+        // running than the cap — but it keeps polling instead of waiting for the batch,
+        // mirroring the credit window the Falcon (push) transport already uses. A single
+        // slow handler no longer blocks the next `activate_jobs` call, it only occupies
+        // one of the credits.
+        let capacity = self.config.max_jobs_to_activate.max(0) as usize;
+        // A zero cap would deadlock the acquire below and never poll; a worker that
+        // activates no jobs is meaningless, so floor the credit window at one.
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(capacity.max(1)));
+
         loop {
             if self.stop.load(Ordering::SeqCst) {
                 return Ok(());
             }
-            let jobs = self.poll().await?;
+
+            // Block until at least one credit is free, then take every other free credit
+            // without blocking. We request exactly as many jobs as we have credits for,
+            // so the activation never over-fetches beyond the in-flight cap.
+            let first = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("job-worker semaphore is never closed");
+            let mut permits = vec![first];
+            while let Ok(permit) = semaphore.clone().try_acquire_owned() {
+                permits.push(permit);
+            }
+            let want = permits.len() as i32;
+
+            let jobs = self.poll(want).await?;
             if jobs.is_empty() {
+                // Release the credits we speculatively held and back off before retrying.
+                drop(permits);
                 self.client.clock().sleep(poll_interval).await;
                 continue;
             }
 
-            let mut tasks = Vec::with_capacity(jobs.len());
+            // Pair each activated job with a credit and dispatch it without waiting.
+            // Any surplus credits (fewer jobs returned than requested) are dropped here,
+            // returning them to the window for the next poll.
+            let mut permits = permits.into_iter();
             for activated in jobs {
+                let permit = permits.next();
                 let job = self.wrap_job(activated);
                 let client = self.client.clone();
                 let handler = handler.clone();
-                tasks.push(tokio::spawn(async move {
+                tokio::spawn(async move {
+                    // Hold the credit for the whole job lifetime; releasing it on drop
+                    // frees the slot back to the poller.
+                    let _permit = permit;
                     let key = job.key().to_string();
                     // Capture the lease token before the handler consumes the job, so the
                     // fenced command can present it back and be accepted for a leased job.
                     let lease_token = job.lease_token().map(str::to_owned);
                     let action = handler(job).await;
-                    apply_action(&client, &key, lease_token.as_deref(), action).await
-                }));
-            }
-            for task in tasks {
-                match task.await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(e)) => tracing::warn!(error = %e, "failed to apply job action"),
-                    Err(e) => tracing::warn!(error = %e, "job handler task panicked"),
-                }
+                    if let Err(e) =
+                        apply_action(&client, &key, lease_token.as_deref(), action).await
+                    {
+                        tracing::warn!(error = %e, "failed to apply job action");
+                    }
+                });
             }
         }
     }
 
-    async fn poll(&self) -> Result<Vec<models::ActivatedJobResult>> {
-        let request = self.build_activation_request();
+    async fn poll(&self, max_jobs_to_activate: i32) -> Result<Vec<models::ActivatedJobResult>> {
+        let request = self.build_activation_request(max_jobs_to_activate);
         let result = self.client.activate_jobs(request).await?;
         enforce_lease_presence(self.config.with_lease, &result.jobs)?;
         Ok(result.jobs)
@@ -556,7 +590,7 @@ impl JobWorker {
 
     /// Build the activate-jobs request from the worker config. Split out so the request
     /// shape — notably the lease flag — is unit-testable without a live server.
-    fn build_activation_request(&self) -> models::JobActivationRequest {
+    fn build_activation_request(&self, max_jobs_to_activate: i32) -> models::JobActivationRequest {
         // Fall back to the SDK's configured default tenant when none is set on the worker.
         let tenant_ids = self.config.tenant_ids.clone().or_else(|| {
             self.client
@@ -569,7 +603,7 @@ impl JobWorker {
             r#type: self.config.job_type.clone(),
             worker: Some(self.config.worker_name.clone()),
             timeout: self.config.job_timeout_ms,
-            max_jobs_to_activate: self.config.max_jobs_to_activate,
+            max_jobs_to_activate,
             fetch_variable: self.config.fetch_variables.clone(),
             request_timeout: Some(self.config.request_timeout_ms),
             tenant_ids: tenant_ids.map(|ids| {
@@ -883,13 +917,25 @@ mod tests {
         let client = test_client();
         let unleased = client
             .create_job_worker(JobWorkerConfig::new("t"))
-            .build_activation_request();
+            .build_activation_request(10);
         assert_eq!(unleased.with_lease, None);
 
         let leased = client
             .create_job_worker(JobWorkerConfig::new("t").with_lease(true))
-            .build_activation_request();
+            .build_activation_request(10);
         assert_eq!(leased.with_lease, Some(Some(true)));
+    }
+
+    #[test]
+    fn activation_request_asks_only_for_the_free_credits() {
+        // The REST poller passes the number of currently-free in-flight credits, not the
+        // configured cap, so a partially-busy worker never over-fetches beyond its
+        // `max_jobs_to_activate` window. A worker configured for 10 with 7 in flight polls
+        // for the 3 free slots.
+        let client = test_client();
+        let worker = client.create_job_worker(JobWorkerConfig::new("t").max_jobs_to_activate(10));
+        assert_eq!(worker.build_activation_request(3).max_jobs_to_activate, 3);
+        assert_eq!(worker.build_activation_request(10).max_jobs_to_activate, 10);
     }
 
     #[test]
