@@ -63,8 +63,8 @@ pub struct SearchResourcesParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateDeploymentError {
-    Status400(),
-    Status503(),
+    Status400(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -72,10 +72,10 @@ pub enum CreateDeploymentError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteResourceError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -84,7 +84,7 @@ pub enum DeleteResourceError {
 #[serde(untagged)]
 pub enum GetResourceError {
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -94,7 +94,7 @@ pub enum GetResourceError {
 pub enum GetResourceContentError {
     Status404(models::ProblemDetail),
     Status406(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -103,7 +103,7 @@ pub enum GetResourceContentError {
 #[serde(untagged)]
 pub enum GetResourceContentBinaryError {
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -111,10 +111,10 @@ pub enum GetResourceContentBinaryError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchResourcesError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

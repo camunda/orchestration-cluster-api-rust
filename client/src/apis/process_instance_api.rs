@@ -185,11 +185,11 @@ pub struct SuspendProcessInstancesBatchOperationParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AssignProcessInstanceBusinessIdError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -197,11 +197,11 @@ pub enum AssignProcessInstanceBusinessIdError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CancelProcessInstanceError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
-    Status504(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
+    Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -210,9 +210,9 @@ pub enum CancelProcessInstanceError {
 #[serde(untagged)]
 pub enum CancelProcessInstancesBatchOperationError {
     Status400(models::ProblemDetail),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -220,10 +220,10 @@ pub enum CancelProcessInstancesBatchOperationError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateProcessInstanceError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
@@ -232,12 +232,12 @@ pub enum CreateProcessInstanceError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteProcessInstanceError {
-    Status401(),
-    Status403(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -246,9 +246,9 @@ pub enum DeleteProcessInstanceError {
 #[serde(untagged)]
 pub enum DeleteProcessInstancesBatchOperationError {
     Status400(models::ProblemDetail),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -256,11 +256,11 @@ pub enum DeleteProcessInstancesBatchOperationError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetProcessInstanceError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -268,11 +268,11 @@ pub enum GetProcessInstanceError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetProcessInstanceCallHierarchyError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -280,10 +280,10 @@ pub enum GetProcessInstanceCallHierarchyError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetProcessInstanceSequenceFlowsError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -291,10 +291,10 @@ pub enum GetProcessInstanceSequenceFlowsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetProcessInstanceStatisticsError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -302,10 +302,10 @@ pub enum GetProcessInstanceStatisticsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetProcessInstanceWaitStateStatisticsError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -313,11 +313,11 @@ pub enum GetProcessInstanceWaitStateStatisticsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum MigrateProcessInstanceError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -326,9 +326,9 @@ pub enum MigrateProcessInstanceError {
 #[serde(untagged)]
 pub enum MigrateProcessInstancesBatchOperationError {
     Status400(models::ProblemDetail),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -336,10 +336,10 @@ pub enum MigrateProcessInstancesBatchOperationError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ModifyProcessInstanceError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -348,9 +348,9 @@ pub enum ModifyProcessInstanceError {
 #[serde(untagged)]
 pub enum ModifyProcessInstancesBatchOperationError {
     Status400(models::ProblemDetail),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -359,9 +359,9 @@ pub enum ModifyProcessInstancesBatchOperationError {
 #[serde(untagged)]
 pub enum ResolveIncidentsBatchOperationError {
     Status400(models::ProblemDetail),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -369,11 +369,11 @@ pub enum ResolveIncidentsBatchOperationError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ResolveProcessInstanceIncidentsError {
-    Status400(),
-    Status401(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -381,11 +381,11 @@ pub enum ResolveProcessInstanceIncidentsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ResumeProcessInstanceError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -394,9 +394,9 @@ pub enum ResumeProcessInstanceError {
 #[serde(untagged)]
 pub enum ResumeProcessInstancesBatchOperationError {
     Status400(models::ProblemDetail),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -404,11 +404,11 @@ pub enum ResumeProcessInstancesBatchOperationError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchProcessInstanceIncidentsError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -416,10 +416,10 @@ pub enum SearchProcessInstanceIncidentsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchProcessInstancesError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -427,11 +427,11 @@ pub enum SearchProcessInstancesError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SuspendProcessInstanceError {
-    Status400(),
+    Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -440,9 +440,9 @@ pub enum SuspendProcessInstanceError {
 #[serde(untagged)]
 pub enum SuspendProcessInstancesBatchOperationError {
     Status400(models::ProblemDetail),
-    Status401(),
-    Status403(),
-    Status500(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

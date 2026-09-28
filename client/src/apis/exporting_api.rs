@@ -31,10 +31,10 @@ pub struct PauseExportingParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetClusterExportingStatusError {
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -42,10 +42,10 @@ pub enum GetClusterExportingStatusError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetExportingStatusError {
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -53,10 +53,10 @@ pub enum GetExportingStatusError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PauseClusterExportingError {
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -64,10 +64,10 @@ pub enum PauseClusterExportingError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PauseExportingError {
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -75,10 +75,10 @@ pub enum PauseExportingError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ResumeClusterExportingError {
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -86,10 +86,10 @@ pub enum ResumeClusterExportingError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ResumeExportingError {
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 

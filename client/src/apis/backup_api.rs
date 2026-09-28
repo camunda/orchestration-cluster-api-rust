@@ -166,11 +166,11 @@ pub struct TakeRuntimeBackupAsClusterAdminParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteHistoryBackupError {
-    Status401(),
-    Status403(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -178,12 +178,12 @@ pub enum DeleteHistoryBackupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteHistoryBackupAsClusterAdminError {
-    Status400(),
-    Status401(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
     Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
-    Status503(),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -191,10 +191,10 @@ pub enum DeleteHistoryBackupAsClusterAdminError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteRuntimeBackupError {
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -202,11 +202,11 @@ pub enum DeleteRuntimeBackupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteRuntimeBackupAsClusterAdminError {
-    Status400(),
-    Status401(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
-    Status503(),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -214,10 +214,10 @@ pub enum DeleteRuntimeBackupAsClusterAdminError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteRuntimeBackupStateError {
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -225,10 +225,10 @@ pub enum DeleteRuntimeBackupStateError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteRuntimeBackupStateAsClusterAdminError {
-    Status401(),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
-    Status503(),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -236,11 +236,11 @@ pub enum DeleteRuntimeBackupStateAsClusterAdminError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetHistoryBackupError {
-    Status401(),
-    Status403(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -248,12 +248,12 @@ pub enum GetHistoryBackupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetHistoryBackupAsClusterAdminError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -261,11 +261,11 @@ pub enum GetHistoryBackupAsClusterAdminError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetRuntimeBackupError {
-    Status401(),
-    Status403(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -273,11 +273,11 @@ pub enum GetRuntimeBackupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetRuntimeBackupAsClusterAdminError {
-    Status400(),
-    Status401(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -285,10 +285,10 @@ pub enum GetRuntimeBackupAsClusterAdminError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetRuntimeBackupStateError {
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -296,10 +296,10 @@ pub enum GetRuntimeBackupStateError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetRuntimeBackupStateAsClusterAdminError {
-    Status401(),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -307,11 +307,11 @@ pub enum GetRuntimeBackupStateAsClusterAdminError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListHistoryBackupsError {
-    Status400(),
-    Status401(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
     Status403(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -319,12 +319,12 @@ pub enum ListHistoryBackupsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListHistoryBackupsAsClusterAdminError {
-    Status400(),
-    Status401(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
     Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -332,11 +332,11 @@ pub enum ListHistoryBackupsAsClusterAdminError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListRuntimeBackupsError {
-    Status400(),
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -344,11 +344,11 @@ pub enum ListRuntimeBackupsError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListRuntimeBackupsAsClusterAdminError {
-    Status400(),
-    Status401(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -356,10 +356,10 @@ pub enum ListRuntimeBackupsAsClusterAdminError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SyncRuntimeBackupStateError {
-    Status401(),
-    Status403(),
-    Status500(),
-    Status503(),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
@@ -368,10 +368,10 @@ pub enum SyncRuntimeBackupStateError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SyncRuntimeBackupStateAsClusterAdminError {
-    Status401(),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
@@ -380,12 +380,12 @@ pub enum SyncRuntimeBackupStateAsClusterAdminError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TakeHistoryBackupError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -393,13 +393,13 @@ pub enum TakeHistoryBackupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TakeHistoryBackupAsClusterAdminError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ProblemDetail),
     Status500(models::ProblemDetail),
-    Status503(),
+    Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
 
@@ -407,12 +407,12 @@ pub enum TakeHistoryBackupAsClusterAdminError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TakeRuntimeBackupError {
-    Status400(),
-    Status401(),
-    Status403(),
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
     Status409(models::ProblemDetail),
-    Status500(),
-    Status503(),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
 }
@@ -422,7 +422,7 @@ pub enum TakeRuntimeBackupError {
 #[serde(untagged)]
 pub enum TakeRuntimeBackupAsClusterAdminError {
     Status400(models::ProblemDetail),
-    Status401(),
+    Status401(models::ProblemDetail),
     Status404(models::ProblemDetail),
     Status409(models::ClusterTakeRuntimeBackupResponse),
     Status500(models::ClusterTakeRuntimeBackupResponse),
