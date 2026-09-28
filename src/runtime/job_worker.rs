@@ -34,6 +34,15 @@ use super::clock::Clock;
 use super::config::WorkerDefaults;
 use super::errors::{CamundaError, Result};
 
+/// Upper bound on how many credits the REST poller materializes — and jobs it asks
+/// for — in a single `activate_jobs` request. `max_jobs_to_activate` is a positive
+/// `i32`, so a pathological value (e.g. `i32::MAX`) would otherwise make the poll
+/// loop eagerly build one `OwnedSemaphorePermit` per credit, spending enormous memory
+/// before the first activation ever fires. Capping the per-poll batch keeps that in
+/// check: the full in-flight window is still honoured — it just fills over successive
+/// polls instead of in one giant grab.
+const MAX_ACTIVATE_BATCH: usize = 1024;
+
 /// Boxed, shareable job handler. You normally pass a closure to [`JobWorker::run`]
 /// rather than constructing this directly.
 pub type JobHandler =
@@ -550,9 +559,13 @@ impl JobWorker {
                 break;
             }
 
-            // Block until at least one credit is free, then take every other free credit
-            // without blocking. We request exactly as many jobs as we have credits for,
-            // so the activation never over-fetches beyond the in-flight cap.
+            // Block until at least one credit is free, then take up to a bounded batch
+            // of the other free credits without blocking. We request exactly as many
+            // jobs as we hold credits for, so activation never over-fetches beyond the
+            // in-flight cap. The batch is capped at `MAX_ACTIVATE_BATCH` so a huge
+            // configured `max_jobs_to_activate` cannot make this loop materialize a vast
+            // Vec of permits (memory exhaustion) before the first activation — the full
+            // window still fills over successive polls.
             let first = semaphore
                 .clone()
                 .acquire_owned()
@@ -566,8 +579,11 @@ impl JobWorker {
                 break;
             }
             let mut permits = vec![first];
-            while let Ok(permit) = semaphore.clone().try_acquire_owned() {
-                permits.push(permit);
+            while permits.len() < MAX_ACTIVATE_BATCH {
+                match semaphore.clone().try_acquire_owned() {
+                    Ok(permit) => permits.push(permit),
+                    Err(_) => break,
+                }
             }
             let want = permits.len() as i32;
 
