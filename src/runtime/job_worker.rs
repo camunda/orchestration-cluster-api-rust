@@ -1043,6 +1043,135 @@ mod tests {
         }
     }
 
+    /// The REST poller must not block on the slowest handler: a job whose handler is
+    /// still running may not stall the next `activate_jobs` call, and a graceful shutdown
+    /// must still drain that in-flight handler. This exercises `run_rest_poll` end to end
+    /// against a controllable activation endpoint (rather than only `build_activation_request`),
+    /// so the regression fix cannot silently revert to batch-joining without a failing test.
+    #[tokio::test]
+    async fn poller_overlaps_slow_handlers_and_shutdown_drains_them() {
+        use std::sync::atomic::AtomicUsize;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        // A minimal HTTP/1.1 activation endpoint: every request returns exactly one job
+        // and pings `act_tx`, so the test can observe how many `activate_jobs` calls the
+        // poller issues. Kept dependency-free (no mock-server crate) — it speaks just
+        // enough HTTP for reqwest and closes each connection after responding.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let body = serde_json::to_string(&models::JobActivationResult::new(vec![fake_activated()]))
+            .unwrap();
+        let (act_tx, mut act_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+
+        tokio::spawn(async move {
+            loop {
+                let (mut sock, _) = match listener.accept().await {
+                    Ok(pair) => pair,
+                    Err(_) => break,
+                };
+                let body = body.clone();
+                let act_tx = act_tx.clone();
+                tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    let mut tmp = [0u8; 1024];
+                    // Read until the end of the request headers.
+                    let header_end = loop {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) => return,
+                            Ok(n) => {
+                                buf.extend_from_slice(&tmp[..n]);
+                                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                                    break pos + 4;
+                                }
+                            }
+                            Err(_) => return,
+                        }
+                    };
+                    // Drain the request body (Content-Length) so reqwest sees a clean
+                    // exchange before we close the connection.
+                    let content_len = String::from_utf8_lossy(&buf[..header_end])
+                        .lines()
+                        .find_map(|l| {
+                            l.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                        })
+                        .unwrap_or(0);
+                    while buf.len() < header_end + content_len {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) => break,
+                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                            Err(_) => break,
+                        }
+                    }
+                    let _ = act_tx.send(());
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                    let _ = sock.flush().await;
+                });
+            }
+        });
+
+        // Handlers block until released, so the first dispatched job is still in flight
+        // while the poller decides whether to activate again.
+        let (release_tx, release_rx) = tokio::sync::watch::channel(false);
+        let completed = Arc::new(AtomicUsize::new(0));
+
+        let client = CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", format!("http://{addr}"))
+                .with("CAMUNDA_FALCON", "false"),
+        )
+        .expect("client should build from an address alone");
+
+        // Cap the in-flight window at 2 so the poller issues a bounded, deterministic
+        // number of activations (one per free credit) before parking.
+        let worker =
+            client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
+        let handle = {
+            let completed = completed.clone();
+            worker.spawn(move |_job| {
+                let mut rx = release_rx.clone();
+                let completed = completed.clone();
+                async move {
+                    while !*rx.borrow_and_update() {
+                        if rx.changed().await.is_err() {
+                            break;
+                        }
+                    }
+                    completed.fetch_add(1, Ordering::SeqCst);
+                    JobAction::Leave
+                }
+            })
+        };
+
+        // The poller dispatched the first job (its handler is now blocked) and, crucially,
+        // issued a *second* activation without waiting for that handler to finish.
+        act_rx.recv().await.expect("first activate_jobs call");
+        act_rx.recv().await.expect("second activate_jobs call");
+        assert_eq!(
+            completed.load(Ordering::SeqCst),
+            0,
+            "the poller must issue a subsequent activate_jobs before the first handler completes",
+        );
+
+        // Stop polling *before* releasing the handlers so no further activation races in,
+        // then release the in-flight handlers and confirm graceful shutdown drains them.
+        handle.stop();
+        release_tx.send(true).unwrap();
+        handle.shutdown().await.expect("worker shuts down cleanly");
+        assert_eq!(
+            completed.load(Ordering::SeqCst),
+            2,
+            "shutdown must drain both in-flight handlers to completion",
+        );
+    }
+
     #[test]
     fn lease_token_is_threaded_into_every_fenced_command() {
         let expected = Some(Some(models::JobLeaseToken::assume_exists("tok")));
