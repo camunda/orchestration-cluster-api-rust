@@ -34,6 +34,15 @@ use super::clock::Clock;
 use super::config::WorkerDefaults;
 use super::errors::{CamundaError, Result};
 
+/// Upper bound on how many credits the REST poller materializes — and jobs it asks
+/// for — in a single `activate_jobs` request. `max_jobs_to_activate` is a positive
+/// `i32`, so a pathological value (e.g. `i32::MAX`) would otherwise make the poll
+/// loop eagerly build one `OwnedSemaphorePermit` per credit, spending enormous memory
+/// before the first activation ever fires. Capping the per-poll batch keeps that in
+/// check: the full in-flight window is still honoured — it just fills over successive
+/// polls instead of in one giant grab.
+const MAX_ACTIVATE_BATCH: usize = 1024;
+
 /// Boxed, shareable job handler. You normally pass a closure to [`JobWorker::run`]
 /// rather than constructing this directly.
 pub type JobHandler =
@@ -476,6 +485,18 @@ impl JobWorker {
     }
 
     async fn run_boxed(self, handler: JobHandler) -> Result<()> {
+        // `max_jobs_to_activate` is the in-flight cap and the activation batch size. A
+        // non-positive value is invalid — silently rewriting it to 1 would violate the
+        // documented maximum and make an explicitly disabled/misconfigured worker
+        // activate jobs anyway. Reject it up front (covers both the Falcon and REST
+        // paths) rather than papering over it.
+        if self.config.max_jobs_to_activate <= 0 {
+            return Err(CamundaError::worker(format!(
+                "max_jobs_to_activate must be positive, got {}",
+                self.config.max_jobs_to_activate
+            )));
+        }
+
         // Spread the initial activate-jobs stampede when many workers start together.
         if self.config.startup_jitter_max_seconds > 0 {
             let max_ms = self.config.startup_jitter_max_seconds.saturating_mul(1000);
@@ -513,42 +534,141 @@ impl JobWorker {
         // failed Falcon subscribe.
         self.fire_ready();
         let poll_interval = Duration::from_millis(self.config.poll_interval_ms);
+
+        // Credit-based dispatch: a semaphore whose permit count is the in-flight job
+        // cap (`max_jobs_to_activate`). Each dispatched job holds one permit until its
+        // handler and the follow-up command finish, so the poller never has more jobs
+        // running than the cap — but it keeps polling instead of waiting for the batch,
+        // mirroring the credit window the Falcon (push) transport already uses. A single
+        // slow handler no longer blocks the next `activate_jobs` call, it only occupies
+        // one of the credits.
+        let capacity = self.config.max_jobs_to_activate as usize;
+        // `run_boxed` rejects a non-positive `max_jobs_to_activate`, so `capacity` is
+        // always >= 1 here and the semaphore always hands out at least one credit.
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(capacity));
+
+        // In-flight handler tasks. We spawn dispatched jobs here instead of dropping the
+        // handles so shutdown can drain them: on `stop` we stop polling but still await
+        // every running handler + follow-up command, honouring the documented graceful
+        // drain of `JobWorkerHandle::shutdown`/`stop_all_workers`. Reaping the set also
+        // preserves the panic reporting a plain `tokio::spawn` would swallow.
+        let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
+
         loop {
             if self.stop.load(Ordering::SeqCst) {
-                return Ok(());
+                break;
             }
-            let jobs = self.poll().await?;
+
+            // Block until at least one credit is free, then take up to a bounded batch
+            // of the other free credits without blocking. We request exactly as many
+            // jobs as we hold credits for, so activation never over-fetches beyond the
+            // in-flight cap. The batch is capped at `MAX_ACTIVATE_BATCH` so a huge
+            // configured `max_jobs_to_activate` cannot make this loop materialize a vast
+            // Vec of permits (memory exhaustion) before the first activation — the full
+            // window still fills over successive polls.
+            let first = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("job-worker semaphore is never closed");
+            // Shutdown may have been requested while we were parked waiting for a credit.
+            // Recheck before building an activation request so we never activate and
+            // dispatch a fresh job after `shutdown()` was called.
+            if self.stop.load(Ordering::SeqCst) {
+                drop(first);
+                break;
+            }
+            let mut permits = vec![first];
+            while permits.len() < MAX_ACTIVATE_BATCH {
+                match semaphore.clone().try_acquire_owned() {
+                    Ok(permit) => permits.push(permit),
+                    Err(_) => break,
+                }
+            }
+            let want = permits.len() as i32;
+
+            let jobs = match self.poll(want).await {
+                Ok(jobs) => jobs,
+                Err(e) => {
+                    // A poll failure must not abort jobs we already dispatched. Release
+                    // the credits we speculatively held and drain the in-flight handlers
+                    // (letting them finish and report their actions) before propagating,
+                    // exactly as the stop path does — otherwise dropping `tasks` here
+                    // would cancel running handlers and leave activated jobs uncompleted.
+                    drop(permits);
+                    Self::drain_all(&mut tasks).await;
+                    return Err(e);
+                }
+            };
             if jobs.is_empty() {
+                // Release the credits we speculatively held and back off before retrying.
+                drop(permits);
+                // Reap any finished handlers so panics are reported and the set stays
+                // bounded during idle stretches.
+                Self::reap_finished(&mut tasks);
                 self.client.clock().sleep(poll_interval).await;
                 continue;
             }
 
-            let mut tasks = Vec::with_capacity(jobs.len());
+            // Pair each activated job with a credit and dispatch it without waiting.
+            // Any surplus credits (fewer jobs returned than requested) are dropped here,
+            // returning them to the window for the next poll.
+            let mut permits = permits.into_iter();
             for activated in jobs {
+                let permit = permits.next();
                 let job = self.wrap_job(activated);
                 let client = self.client.clone();
                 let handler = handler.clone();
-                tasks.push(tokio::spawn(async move {
+                tasks.spawn(async move {
+                    // Hold the credit for the whole job lifetime; releasing it on drop
+                    // frees the slot back to the poller.
+                    let _permit = permit;
                     let key = job.key().to_string();
                     // Capture the lease token before the handler consumes the job, so the
                     // fenced command can present it back and be accepted for a leased job.
                     let lease_token = job.lease_token().map(str::to_owned);
                     let action = handler(job).await;
-                    apply_action(&client, &key, lease_token.as_deref(), action).await
-                }));
+                    if let Err(e) =
+                        apply_action(&client, &key, lease_token.as_deref(), action).await
+                    {
+                        tracing::warn!(error = %e, "failed to apply job action");
+                    }
+                });
             }
-            for task in tasks {
-                match task.await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(e)) => tracing::warn!(error = %e, "failed to apply job action"),
-                    Err(e) => tracing::warn!(error = %e, "job handler task panicked"),
-                }
+            // Reap already-finished handlers without blocking, so a fast, steady stream
+            // of jobs doesn't accumulate completed handles between polls.
+            Self::reap_finished(&mut tasks);
+        }
+
+        // Graceful drain: stop polling but wait for every in-flight handler (and its
+        // follow-up command) to finish before the worker task returns.
+        Self::drain_all(&mut tasks).await;
+        Ok(())
+    }
+
+    /// Await every in-flight handler task in `tasks` to completion, logging any that
+    /// panicked. Used both on graceful shutdown and before propagating a poll error, so
+    /// dispatched jobs are never aborted by the worker task returning.
+    async fn drain_all(tasks: &mut tokio::task::JoinSet<()>) {
+        while let Some(res) = tasks.join_next().await {
+            if let Err(e) = res {
+                tracing::warn!(error = %e, "job handler task panicked");
             }
         }
     }
 
-    async fn poll(&self) -> Result<Vec<models::ActivatedJobResult>> {
-        let request = self.build_activation_request();
+    /// Drain the already-finished handler tasks from `tasks` without blocking, logging any
+    /// that panicked. Keeps the in-flight set bounded and preserves panic reporting.
+    fn reap_finished(tasks: &mut tokio::task::JoinSet<()>) {
+        while let Some(res) = tasks.try_join_next() {
+            if let Err(e) = res {
+                tracing::warn!(error = %e, "job handler task panicked");
+            }
+        }
+    }
+
+    async fn poll(&self, max_jobs_to_activate: i32) -> Result<Vec<models::ActivatedJobResult>> {
+        let request = self.build_activation_request(max_jobs_to_activate);
         let result = self.client.activate_jobs(request).await?;
         enforce_lease_presence(self.config.with_lease, &result.jobs)?;
         Ok(result.jobs)
@@ -556,7 +676,7 @@ impl JobWorker {
 
     /// Build the activate-jobs request from the worker config. Split out so the request
     /// shape — notably the lease flag — is unit-testable without a live server.
-    fn build_activation_request(&self) -> models::JobActivationRequest {
+    fn build_activation_request(&self, max_jobs_to_activate: i32) -> models::JobActivationRequest {
         // Fall back to the SDK's configured default tenant when none is set on the worker.
         let tenant_ids = self.config.tenant_ids.clone().or_else(|| {
             self.client
@@ -569,7 +689,7 @@ impl JobWorker {
             r#type: self.config.job_type.clone(),
             worker: Some(self.config.worker_name.clone()),
             timeout: self.config.job_timeout_ms,
-            max_jobs_to_activate: self.config.max_jobs_to_activate,
+            max_jobs_to_activate,
             fetch_variable: self.config.fetch_variables.clone(),
             request_timeout: Some(self.config.request_timeout_ms),
             tenant_ids: tenant_ids.map(|ids| {
@@ -883,13 +1003,173 @@ mod tests {
         let client = test_client();
         let unleased = client
             .create_job_worker(JobWorkerConfig::new("t"))
-            .build_activation_request();
+            .build_activation_request(10);
         assert_eq!(unleased.with_lease, None);
 
         let leased = client
             .create_job_worker(JobWorkerConfig::new("t").with_lease(true))
-            .build_activation_request();
+            .build_activation_request(10);
         assert_eq!(leased.with_lease, Some(Some(true)));
+    }
+
+    #[test]
+    fn activation_request_asks_only_for_the_free_credits() {
+        // The REST poller passes the number of currently-free in-flight credits, not the
+        // configured cap, so a partially-busy worker never over-fetches beyond its
+        // `max_jobs_to_activate` window. A worker configured for 10 with 7 in flight polls
+        // for the 3 free slots.
+        let client = test_client();
+        let worker = client.create_job_worker(JobWorkerConfig::new("t").max_jobs_to_activate(10));
+        assert_eq!(worker.build_activation_request(3).max_jobs_to_activate, 3);
+        assert_eq!(worker.build_activation_request(10).max_jobs_to_activate, 10);
+    }
+
+    #[tokio::test]
+    async fn run_rejects_non_positive_max_jobs_to_activate() {
+        // A zero or negative in-flight cap is a misconfiguration: rather than silently
+        // running as a one-job worker, the run should fail fast with a clear error.
+        let client = test_client();
+        for bad in [0, -1] {
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("t").max_jobs_to_activate(bad));
+            let err = worker
+                .run(|_job| async { JobAction::Leave })
+                .await
+                .expect_err("non-positive max_jobs_to_activate should be rejected");
+            assert!(
+                err.to_string().contains("max_jobs_to_activate"),
+                "unexpected error: {err}"
+            );
+        }
+    }
+
+    /// The REST poller must not block on the slowest handler: a job whose handler is
+    /// still running may not stall the next `activate_jobs` call, and a graceful shutdown
+    /// must still drain that in-flight handler. This exercises `run_rest_poll` end to end
+    /// against a controllable activation endpoint (rather than only `build_activation_request`),
+    /// so the regression fix cannot silently revert to batch-joining without a failing test.
+    #[tokio::test]
+    async fn poller_overlaps_slow_handlers_and_shutdown_drains_them() {
+        use std::sync::atomic::AtomicUsize;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        // A minimal HTTP/1.1 activation endpoint: every request returns exactly one job
+        // and pings `act_tx`, so the test can observe how many `activate_jobs` calls the
+        // poller issues. Kept dependency-free (no mock-server crate) — it speaks just
+        // enough HTTP for reqwest and closes each connection after responding.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let body = serde_json::to_string(&models::JobActivationResult::new(vec![fake_activated()]))
+            .unwrap();
+        let (act_tx, mut act_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+
+        tokio::spawn(async move {
+            loop {
+                let (mut sock, _) = match listener.accept().await {
+                    Ok(pair) => pair,
+                    Err(_) => break,
+                };
+                let body = body.clone();
+                let act_tx = act_tx.clone();
+                tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    let mut tmp = [0u8; 1024];
+                    // Read until the end of the request headers.
+                    let header_end = loop {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) => return,
+                            Ok(n) => {
+                                buf.extend_from_slice(&tmp[..n]);
+                                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                                    break pos + 4;
+                                }
+                            }
+                            Err(_) => return,
+                        }
+                    };
+                    // Drain the request body (Content-Length) so reqwest sees a clean
+                    // exchange before we close the connection.
+                    let content_len = String::from_utf8_lossy(&buf[..header_end])
+                        .lines()
+                        .find_map(|l| {
+                            l.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                        })
+                        .unwrap_or(0);
+                    while buf.len() < header_end + content_len {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) => break,
+                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                            Err(_) => break,
+                        }
+                    }
+                    let _ = act_tx.send(());
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                    let _ = sock.flush().await;
+                });
+            }
+        });
+
+        // Handlers block until released, so the first dispatched job is still in flight
+        // while the poller decides whether to activate again.
+        let (release_tx, release_rx) = tokio::sync::watch::channel(false);
+        let completed = Arc::new(AtomicUsize::new(0));
+
+        let client = CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", format!("http://{addr}"))
+                .with("CAMUNDA_FALCON", "false"),
+        )
+        .expect("client should build from an address alone");
+
+        // Cap the in-flight window at 2 so the poller issues a bounded, deterministic
+        // number of activations (one per free credit) before parking.
+        let worker =
+            client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
+        let handle = {
+            let completed = completed.clone();
+            worker.spawn(move |_job| {
+                let mut rx = release_rx.clone();
+                let completed = completed.clone();
+                async move {
+                    while !*rx.borrow_and_update() {
+                        if rx.changed().await.is_err() {
+                            break;
+                        }
+                    }
+                    completed.fetch_add(1, Ordering::SeqCst);
+                    JobAction::Leave
+                }
+            })
+        };
+
+        // The poller dispatched the first job (its handler is now blocked) and, crucially,
+        // issued a *second* activation without waiting for that handler to finish.
+        act_rx.recv().await.expect("first activate_jobs call");
+        act_rx.recv().await.expect("second activate_jobs call");
+        assert_eq!(
+            completed.load(Ordering::SeqCst),
+            0,
+            "the poller must issue a subsequent activate_jobs before the first handler completes",
+        );
+
+        // Stop polling *before* releasing the handlers so no further activation races in,
+        // then release the in-flight handlers and confirm graceful shutdown drains them.
+        handle.stop();
+        release_tx.send(true).unwrap();
+        handle.shutdown().await.expect("worker shuts down cleanly");
+        assert_eq!(
+            completed.load(Ordering::SeqCst),
+            2,
+            "shutdown must drain both in-flight handlers to completion",
+        );
     }
 
     #[test]
