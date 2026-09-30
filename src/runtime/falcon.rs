@@ -170,11 +170,34 @@ fn host_of(address: &str) -> Option<String> {
 
 /// Derive the command-stream WebSocket URL from the REST address.
 ///
-/// `rest_address` is normalised to `<scheme>://host:port/v2`; the command stream lives
-/// at `ws://host:port<path>` (the `/v2` prefix is stripped and `http`→`ws`).
+/// `rest_address` is normalised to `<scheme>://host:port/v2` by default; the command
+/// stream lives at `ws://host:port<path>` (the `/v2` prefix is stripped and `http`→`ws`).
+///
+/// When `CAMUNDA_REST_ADDRESS_EXACT` opted out of the `/v2` suffix, `rest_address` may
+/// carry an arbitrary gateway base path (e.g. `http://host/custom`). That path is a
+/// *REST* prefix owned by the reverse proxy — the command stream is not served under it —
+/// so exact-mode base paths are reduced to the bare origin as well: with
+/// `http://host/custom` and an advertised `/falcon` path this yields
+/// `ws://host/falcon`, not `ws://host/custom/falcon`.
 pub fn ws_url(rest_address: &str, path: &str) -> String {
     let trimmed = rest_address.trim_end_matches('/');
-    let origin = trimmed.strip_suffix("/v2").unwrap_or(trimmed);
+    // Strip the REST base path: the well-known `/v2` suffix, or — in exact mode — any
+    // non-root path (which can only be a gateway REST prefix; see the doc comment).
+    let origin: &str = match trimmed.strip_suffix("/v2") {
+        Some(o) => o,
+        None => match trimmed.split_once("://") {
+            Some((scheme, rest)) => {
+                let authority = rest.split(['/', '?']).next().unwrap_or(rest);
+                if authority.len() == rest.len() {
+                    // No path/query after the authority: nothing to strip.
+                    trimmed
+                } else {
+                    &trimmed[..scheme.len() + "://".len() + authority.len()]
+                }
+            }
+            None => trimmed,
+        },
+    };
     let ws_origin = if let Some(rest) = origin.strip_prefix("https://") {
         format!("wss://{rest}")
     } else if let Some(rest) = origin.strip_prefix("http://") {
@@ -892,6 +915,26 @@ mod tests {
         assert_eq!(ws_url("http://h:1/v2", "falcon"), "ws://h:1/falcon");
         // No /v2 suffix: origin used as-is.
         assert_eq!(ws_url("http://h:1", "/falcon"), "ws://h:1/falcon");
+    }
+
+    #[test]
+    fn ws_url_strips_exact_mode_base_path() {
+        // With CAMUNDA_REST_ADDRESS_EXACT the REST base path may be an arbitrary
+        // gateway prefix; the command stream is not served under it, so the WS URL
+        // is built from the bare origin.
+        assert_eq!(ws_url("http://host/custom", "/falcon"), "ws://host/falcon");
+        assert_eq!(
+            ws_url("http://host:8080/api/camunda/", "/falcon"),
+            "ws://host:8080/falcon"
+        );
+        assert_eq!(
+            ws_url("https://gw.example.com/custom", "/falcon"),
+            "wss://gw.example.com/falcon"
+        );
+        // Root path ("/") is trimmed to the bare origin by the caller's trim.
+        assert_eq!(ws_url("http://h:1/", "/falcon"), "ws://h:1/falcon");
+        // An address without scheme is left untouched except for the path join.
+        assert_eq!(ws_url("h:1", "/falcon"), "h:1/falcon");
     }
 
     #[test]

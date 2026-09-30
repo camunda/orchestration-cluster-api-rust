@@ -17,7 +17,8 @@ const DEFAULT_REST_ADDRESS: &str = "http://localhost:8080";
 #[derive(Debug, Clone)]
 pub struct CamundaConfig {
     /// Base REST address of the Orchestration Cluster, including the `/v2` suffix
-    /// (unless `CAMUNDA_REST_ADDRESS_EXACT` is set, in which case it is used verbatim).
+    /// (unless `CAMUNDA_REST_ADDRESS_EXACT` is truthy, in which case the configured
+    /// address is used as-is, with only trailing slashes trimmed — no `/v2` appended).
     pub rest_address: String,
     /// Authentication strategy.
     pub auth_strategy: AuthStrategy,
@@ -218,7 +219,7 @@ impl CamundaConfig {
         let raw_address = get("CAMUNDA_REST_ADDRESS")
             .or_else(|| get("ZEEBE_REST_ADDRESS"))
             .unwrap_or_else(|| DEFAULT_REST_ADDRESS.to_string());
-        // When set, use the configured address verbatim (no `/v2` suffix appended).
+        // When truthy, use the configured address as-is (no `/v2` suffix appended).
         let rest_address_exact = parse_bool(&get, "CAMUNDA_REST_ADDRESS_EXACT", false);
         let rest_address = if rest_address_exact {
             raw_address.trim_end_matches('/').to_string()
