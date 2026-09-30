@@ -137,6 +137,7 @@ before expiry.
 | Variable | Purpose |
 | --- | --- |
 | `CAMUNDA_REST_ADDRESS` | Base cluster address. `/v2` is appended automatically. |
+| `CAMUNDA_REST_ADDRESS_EXACT` | When truthy (`true`/`1`), use `CAMUNDA_REST_ADDRESS` verbatim — no `/v2` suffix. For gateway/reverse-proxy setups. |
 | `ZEEBE_REST_ADDRESS` | Alias for `CAMUNDA_REST_ADDRESS`. |
 | `CAMUNDA_AUTH_STRATEGY` | `OAUTH` \| `BASIC` \| `NONE`. |
 | `CAMUNDA_CLIENT_ID` / `CAMUNDA_CLIENT_SECRET` | OAuth client credentials. |

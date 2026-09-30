@@ -16,7 +16,8 @@ const DEFAULT_REST_ADDRESS: &str = "http://localhost:8080";
 /// Resolved SDK configuration.
 #[derive(Debug, Clone)]
 pub struct CamundaConfig {
-    /// Base REST address of the Orchestration Cluster, including the `/v2` suffix.
+    /// Base REST address of the Orchestration Cluster, including the `/v2` suffix
+    /// (unless `CAMUNDA_REST_ADDRESS_EXACT` is set, in which case it is used verbatim).
     pub rest_address: String,
     /// Authentication strategy.
     pub auth_strategy: AuthStrategy,
@@ -217,7 +218,13 @@ impl CamundaConfig {
         let raw_address = get("CAMUNDA_REST_ADDRESS")
             .or_else(|| get("ZEEBE_REST_ADDRESS"))
             .unwrap_or_else(|| DEFAULT_REST_ADDRESS.to_string());
-        let rest_address = normalize_rest_address(&raw_address);
+        // When set, use the configured address verbatim (no `/v2` suffix appended).
+        let rest_address_exact = parse_bool(&get, "CAMUNDA_REST_ADDRESS_EXACT", false);
+        let rest_address = if rest_address_exact {
+            raw_address.trim_end_matches('/').to_string()
+        } else {
+            normalize_rest_address(&raw_address)
+        };
 
         let client_id = get("CAMUNDA_CLIENT_ID").or_else(|| get("CAMUNDA_CLIENT_AUTH_CLIENTID"));
         let client_secret =
@@ -341,6 +348,18 @@ fn parse_u64(get: &dyn Fn(&str) -> Option<String>, key: &str, default: u64) -> R
     }
 }
 
+/// Parse a boolean env var (`1/true/yes/on` → true, `0/false/no/off` → false),
+/// falling back to `default` when unset or empty.
+fn parse_bool(get: &dyn Fn(&str) -> Option<String>, key: &str, default: bool) -> bool {
+    match get(key) {
+        Some(v) => matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+        None => default,
+    }
+}
+
 /// Normalize a configured base address into a REST base path ending in `/v2`.
 ///
 /// * trims a trailing slash
@@ -389,6 +408,39 @@ mod tests {
     fn zeebe_rest_address_alias() {
         let c = cfg(&[("ZEEBE_REST_ADDRESS", "https://z.example")]).unwrap();
         assert_eq!(c.rest_address, "https://z.example/v2");
+    }
+
+    #[test]
+    fn rest_address_exact_skips_v2_suffix() {
+        let c = cfg(&[
+            (
+                "CAMUNDA_REST_ADDRESS",
+                "https://gateway.example/api/camunda",
+            ),
+            ("CAMUNDA_REST_ADDRESS_EXACT", "true"),
+        ])
+        .unwrap();
+        assert_eq!(c.rest_address, "https://gateway.example/api/camunda");
+    }
+
+    #[test]
+    fn rest_address_exact_trims_trailing_slash_but_keeps_path() {
+        let c = cfg(&[
+            ("CAMUNDA_REST_ADDRESS", "https://gateway.example/custom/"),
+            ("CAMUNDA_REST_ADDRESS_EXACT", "1"),
+        ])
+        .unwrap();
+        assert_eq!(c.rest_address, "https://gateway.example/custom");
+    }
+
+    #[test]
+    fn rest_address_exact_false_still_appends_v2() {
+        let c = cfg(&[
+            ("CAMUNDA_REST_ADDRESS", "https://x.io"),
+            ("CAMUNDA_REST_ADDRESS_EXACT", "false"),
+        ])
+        .unwrap();
+        assert_eq!(c.rest_address, "https://x.io/v2");
     }
 
     #[test]
