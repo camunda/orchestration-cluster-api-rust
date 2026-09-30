@@ -83,11 +83,7 @@ pub fn command_stream_enabled() -> bool {
 /// disabled by config, when the gateway is not reachable over plaintext `ws://`, or on
 /// any error — in every case the caller falls back to REST, so detection never fails a
 /// request.
-pub async fn detect(
-    rest_address: &str,
-    exact: bool,
-    http: &reqwest::Client,
-) -> Option<FalconCaps> {
+pub async fn detect(rest_address: &str, exact: bool, http: &reqwest::Client) -> Option<FalconCaps> {
     if !command_stream_enabled() {
         return None;
     }
