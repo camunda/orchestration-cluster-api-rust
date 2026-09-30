@@ -83,7 +83,11 @@ pub fn command_stream_enabled() -> bool {
 /// disabled by config, when the gateway is not reachable over plaintext `ws://`, or on
 /// any error — in every case the caller falls back to REST, so detection never fails a
 /// request.
-pub async fn detect(rest_address: &str, http: &reqwest::Client) -> Option<FalconCaps> {
+pub async fn detect(
+    rest_address: &str,
+    exact: bool,
+    http: &reqwest::Client,
+) -> Option<FalconCaps> {
     if !command_stream_enabled() {
         return None;
     }
@@ -106,7 +110,7 @@ pub async fn detect(rest_address: &str, http: &reqwest::Client) -> Option<Falcon
         .and_then(Value::as_str)
         .unwrap_or(DEFAULT_COMMAND_STREAM_PATH)
         .to_string();
-    let endpoints = endpoints_from_topology(rest_address, &command_stream_path, &body);
+    let endpoints = endpoints_from_topology(rest_address, exact, &command_stream_path, &body);
     Some(FalconCaps { endpoints })
 }
 
@@ -117,7 +121,12 @@ pub async fn detect(rest_address: &str, http: &reqwest::Client) -> Option<Falcon
 /// we actually reached the gateway on, so the directory is dialable from the client. The
 /// address we connected to is always included as a fallback, and the list is de-duplicated.
 /// A single-node gateway yields a one-element directory (today's behaviour).
-fn endpoints_from_topology(rest_address: &str, path: &str, body: &Value) -> Vec<String> {
+fn endpoints_from_topology(
+    rest_address: &str,
+    exact: bool,
+    path: &str,
+    body: &Value,
+) -> Vec<String> {
     let connect_host = host_of(rest_address);
     let mut out: Vec<String> = Vec::new();
     let mut push = |url: String| {
@@ -127,7 +136,7 @@ fn endpoints_from_topology(rest_address: &str, path: &str, body: &Value) -> Vec<
     };
 
     // The address the client was configured with is always a valid entry.
-    push(ws_url(rest_address, path));
+    push(ws_url(rest_address, exact, path));
 
     if let Some(brokers) = body.get("brokers").and_then(Value::as_array) {
         for b in brokers {
@@ -168,35 +177,46 @@ fn host_of(address: &str) -> Option<String> {
     }
 }
 
+/// Reduce a `scheme://authority[/path][?query]` address to its `scheme://authority`
+/// origin. An address without a `://` scheme (or without a path/query after the
+/// authority) is returned unchanged.
+fn origin_of(address: &str) -> &str {
+    match address.split_once("://") {
+        Some((scheme, rest)) => {
+            let authority = rest.split(['/', '?']).next().unwrap_or(rest);
+            if authority.len() == rest.len() {
+                // No path/query after the authority: nothing to strip.
+                address
+            } else {
+                &address[..scheme.len() + "://".len() + authority.len()]
+            }
+        }
+        None => address,
+    }
+}
+
 /// Derive the command-stream WebSocket URL from the REST address.
 ///
 /// `rest_address` is normalised to `<scheme>://host:port/v2` by default; the command
 /// stream lives at `ws://host:port<path>` (the `/v2` prefix is stripped and `http`→`ws`).
 ///
-/// When `CAMUNDA_REST_ADDRESS_EXACT` opted out of the `/v2` suffix, `rest_address` may
-/// carry an arbitrary gateway base path (e.g. `http://host/custom`). That path is a
+/// When `CAMUNDA_REST_ADDRESS_EXACT` opted out of the `/v2` suffix (`exact` is `true`),
+/// `rest_address` may carry an arbitrary gateway base path (e.g. `http://host/custom`,
+/// or even one that itself ends in `/v2` like `http://host/custom/v2`). That path is a
 /// *REST* prefix owned by the reverse proxy — the command stream is not served under it —
-/// so exact-mode base paths are reduced to the bare origin as well: with
-/// `http://host/custom` and an advertised `/falcon` path this yields
-/// `ws://host/falcon`, not `ws://host/custom/falcon`.
-pub fn ws_url(rest_address: &str, path: &str) -> String {
+/// so in exact mode the address is reduced to the bare origin regardless of its path:
+/// with `http://host/custom` and an advertised `/falcon` path this yields
+/// `ws://host/falcon`, not `ws://host/custom/falcon`. The `/v2`-suffix stripping is used
+/// only when `exact` is `false`, so an exact path ending in `/v2` is not misclassified.
+pub fn ws_url(rest_address: &str, exact: bool, path: &str) -> String {
     let trimmed = rest_address.trim_end_matches('/');
-    // Strip the REST base path: the well-known `/v2` suffix, or — in exact mode — any
-    // non-root path (which can only be a gateway REST prefix; see the doc comment).
-    let origin: &str = match trimmed.strip_suffix("/v2") {
-        Some(o) => o,
-        None => match trimmed.split_once("://") {
-            Some((scheme, rest)) => {
-                let authority = rest.split(['/', '?']).next().unwrap_or(rest);
-                if authority.len() == rest.len() {
-                    // No path/query after the authority: nothing to strip.
-                    trimmed
-                } else {
-                    &trimmed[..scheme.len() + "://".len() + authority.len()]
-                }
-            }
-            None => trimmed,
-        },
+    // Strip the REST base path. In exact mode the entire non-root path is a gateway REST
+    // prefix, so reduce to the bare origin; otherwise strip only the well-known `/v2`
+    // suffix (keying on the suffix alone would misclassify an exact path ending in `/v2`).
+    let origin: &str = if exact {
+        origin_of(trimmed)
+    } else {
+        trimmed.strip_suffix("/v2").unwrap_or(trimmed)
     };
     let ws_origin = if let Some(rest) = origin.strip_prefix("https://") {
         format!("wss://{rest}")
@@ -900,21 +920,21 @@ mod tests {
     #[test]
     fn ws_url_strips_v2_and_swaps_scheme() {
         assert_eq!(
-            ws_url("http://localhost:8080/v2", "/falcon"),
+            ws_url("http://localhost:8080/v2", false, "/falcon"),
             "ws://localhost:8080/falcon"
         );
         assert_eq!(
-            ws_url("http://localhost:8080/v2/", "/falcon"),
+            ws_url("http://localhost:8080/v2/", false, "/falcon"),
             "ws://localhost:8080/falcon"
         );
         assert_eq!(
-            ws_url("https://gw.example.com/v2", "/falcon"),
+            ws_url("https://gw.example.com/v2", false, "/falcon"),
             "wss://gw.example.com/falcon"
         );
         // Path without leading slash is normalised.
-        assert_eq!(ws_url("http://h:1/v2", "falcon"), "ws://h:1/falcon");
+        assert_eq!(ws_url("http://h:1/v2", false, "falcon"), "ws://h:1/falcon");
         // No /v2 suffix: origin used as-is.
-        assert_eq!(ws_url("http://h:1", "/falcon"), "ws://h:1/falcon");
+        assert_eq!(ws_url("http://h:1", false, "/falcon"), "ws://h:1/falcon");
     }
 
     #[test]
@@ -922,19 +942,42 @@ mod tests {
         // With CAMUNDA_REST_ADDRESS_EXACT the REST base path may be an arbitrary
         // gateway prefix; the command stream is not served under it, so the WS URL
         // is built from the bare origin.
-        assert_eq!(ws_url("http://host/custom", "/falcon"), "ws://host/falcon");
         assert_eq!(
-            ws_url("http://host:8080/api/camunda/", "/falcon"),
+            ws_url("http://host/custom", true, "/falcon"),
+            "ws://host/falcon"
+        );
+        assert_eq!(
+            ws_url("http://host:8080/api/camunda/", true, "/falcon"),
             "ws://host:8080/falcon"
         );
         assert_eq!(
-            ws_url("https://gw.example.com/custom", "/falcon"),
+            ws_url("https://gw.example.com/custom", true, "/falcon"),
             "wss://gw.example.com/falcon"
         );
         // Root path ("/") is trimmed to the bare origin by the caller's trim.
-        assert_eq!(ws_url("http://h:1/", "/falcon"), "ws://h:1/falcon");
+        assert_eq!(ws_url("http://h:1/", true, "/falcon"), "ws://h:1/falcon");
         // An address without scheme is left untouched except for the path join.
-        assert_eq!(ws_url("h:1", "/falcon"), "h:1/falcon");
+        assert_eq!(ws_url("h:1", true, "/falcon"), "h:1/falcon");
+    }
+
+    #[test]
+    fn ws_url_exact_mode_strips_nested_path_ending_in_v2() {
+        // An exact-mode gateway prefix that itself ends in `/v2` must still be reduced
+        // to the bare origin — not misclassified as a conventionally normalised address
+        // and stripped of only the trailing `/v2` (issue: nested exact `/v2` path).
+        assert_eq!(
+            ws_url("http://host/custom/v2", true, "/falcon"),
+            "ws://host/falcon"
+        );
+        assert_eq!(
+            ws_url("https://gw.example.com/api/v2", true, "/falcon"),
+            "wss://gw.example.com/falcon"
+        );
+        // The same address in default (non-exact) mode strips only the `/v2` suffix.
+        assert_eq!(
+            ws_url("http://host/custom/v2", false, "/falcon"),
+            "ws://host/custom/falcon"
+        );
     }
 
     #[test]
@@ -997,7 +1040,7 @@ mod tests {
                 { "nodeId": 1, "host": "127.0.0.1", "port": 8081 }
             ]
         });
-        let eps = endpoints_from_topology("http://127.0.0.1:8080/v2", "/falcon", &body);
+        let eps = endpoints_from_topology("http://127.0.0.1:8080/v2", false, "/falcon", &body);
         assert!(eps.contains(&"ws://127.0.0.1:8080/falcon".to_string()));
         assert!(eps.contains(&"ws://127.0.0.1:8081/falcon".to_string()));
         // De-duplicated: the configured address coincides with node 0.
@@ -1008,7 +1051,7 @@ mod tests {
     fn endpoints_from_topology_single_node_fallback() {
         // No brokers array → just the configured address.
         let body = serde_json::json!({ "nano": { "falconPath": "/falcon" } });
-        let eps = endpoints_from_topology("http://localhost:8080/v2", "/falcon", &body);
+        let eps = endpoints_from_topology("http://localhost:8080/v2", false, "/falcon", &body);
         assert_eq!(eps, vec!["ws://localhost:8080/falcon".to_string()]);
     }
 

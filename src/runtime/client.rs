@@ -236,7 +236,12 @@ impl CamundaClient {
         self.falcon
             .caps
             .get_or_init(|| async {
-                super::falcon::detect(&self.config.rest_address, &self.http).await
+                super::falcon::detect(
+                    &self.config.rest_address,
+                    self.config.rest_address_exact,
+                    &self.http,
+                )
+                .await
             })
             .await
             .as_ref()

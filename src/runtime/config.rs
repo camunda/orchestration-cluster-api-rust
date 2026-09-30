@@ -20,6 +20,10 @@ pub struct CamundaConfig {
     /// (unless `CAMUNDA_REST_ADDRESS_EXACT` is truthy, in which case the configured
     /// address is used as-is, with only trailing slashes trimmed — no `/v2` appended).
     pub rest_address: String,
+    /// Whether `CAMUNDA_REST_ADDRESS_EXACT` opted the REST address out of the `/v2`
+    /// suffix. Threaded into Falcon command-stream URL construction so an exact base
+    /// path is reduced to the bare origin — even when that path itself ends in `/v2`.
+    pub rest_address_exact: bool,
     /// Authentication strategy.
     pub auth_strategy: AuthStrategy,
     /// OAuth 2.0 client id (client-credentials grant).
@@ -246,6 +250,7 @@ impl CamundaConfig {
 
         let config = CamundaConfig {
             rest_address,
+            rest_address_exact,
             auth_strategy,
             client_id,
             client_secret,
