@@ -25,7 +25,9 @@ BUNDLED_META="external-spec/bundled/spec-metadata.json"
 
 if [[ "${1:-}" == "--bundle" || "${1:-}" == "--bundle-only" ]]; then
   echo "==> Bundling upstream spec (ref: ${SPEC_REF}) via camunda-schema-bundler..."
-  npx --yes camunda-schema-bundler@^2.4.3 --ref "$SPEC_REF" \
+  # Without --deref-path-local, shared error responses stay as #/paths refs and
+  # openapi-generator emits empty error variants instead of ProblemDetail.
+  npx --yes camunda-schema-bundler@^2.4.3 --ref "$SPEC_REF" --deref-path-local \
     --output-spec "$BUNDLED_SPEC" \
     --output-metadata "$BUNDLED_META"
 fi
