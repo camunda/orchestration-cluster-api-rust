@@ -6,7 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **process_definition_id** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The process definition ID associated to this incident. | [optional]
 **error_type** | Option<[**models::IncidentErrorTypeFilterProperty**](IncidentErrorTypeFilterProperty.md)> | Incident error type with a defined set of values. | [optional]
-**error_message** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The error message of this incident. | [optional]
+**error_message** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The error message of this incident. For `$eq`, `$neq`, `$in`, and `$notIn`, matching is case-insensitive and matches if the incident's error message contains the given value as a phrase, not necessarily the entire error message. `$like` matches on individual words of the error message and does not support multi-word patterns.  | [optional]
 **element_id** | Option<[**models::StringFilterProperty**](StringFilterProperty.md)> | The element ID associated to this incident. | [optional]
 **creation_time** | Option<[**models::DateTimeFilterProperty**](DateTimeFilterProperty.md)> | Date of incident creation. | [optional]
 **state** | Option<[**models::IncidentStateFilterProperty**](IncidentStateFilterProperty.md)> | State of this incident with a defined set of values. | [optional]

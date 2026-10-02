@@ -23,7 +23,7 @@ pub struct IncidentFilter {
     /// Incident error type with a defined set of values.
     #[serde(rename = "errorType", skip_serializing_if = "Option::is_none")]
     pub error_type: Option<Box<models::IncidentErrorTypeFilterProperty>>,
-    /// The error message of this incident.
+    /// The error message of this incident. For `$eq`, `$neq`, `$in`, and `$notIn`, matching is case-insensitive and matches if the incident's error message contains the given value as a phrase, not necessarily the entire error message. `$like` matches on individual words of the error message and does not support multi-word patterns.
     #[serde(rename = "errorMessage", skip_serializing_if = "Option::is_none")]
     pub error_message: Option<Box<models::StringFilterProperty>>,
     /// The element ID associated to this incident.
