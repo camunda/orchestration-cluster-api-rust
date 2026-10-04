@@ -59,6 +59,23 @@ pub enum CreateElementInstanceVariablesError {
     UnknownValue(serde_json::Value),
 }
 
+impl CreateElementInstanceVariablesError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_element_instance`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -69,6 +86,24 @@ pub enum GetElementInstanceError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetElementInstanceError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_element_instance_incidents`]
@@ -83,6 +118,24 @@ pub enum SearchElementInstanceIncidentsError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchElementInstanceIncidentsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_element_instance_wait_states`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -94,6 +147,23 @@ pub enum SearchElementInstanceWaitStatesError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchElementInstanceWaitStatesError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_element_instances`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -103,6 +173,23 @@ pub enum SearchElementInstancesError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchElementInstancesError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Updates all the variables of a particular scope (for example, process instance, element instance) with the given variable data. Specify the element instance in the `elementInstanceKey` parameter. Variable updates can be delayed by listener-related processing; if processing exceeds the request timeout, this endpoint can return 504. Other gateway timeout causes are also possible. Retry with backoff and inspect listener worker availability and logs when this repeats.
@@ -138,7 +225,7 @@ pub async fn create_element_instance_variables(
     } else {
         let content = resp.text().await?;
         let entity: Option<CreateElementInstanceVariablesError> =
-            serde_json::from_str(&content).ok();
+            CreateElementInstanceVariablesError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -189,7 +276,8 @@ pub async fn get_element_instance(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetElementInstanceError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetElementInstanceError> =
+            GetElementInstanceError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -244,7 +332,7 @@ pub async fn search_element_instance_incidents(
     } else {
         let content = resp.text().await?;
         let entity: Option<SearchElementInstanceIncidentsError> =
-            serde_json::from_str(&content).ok();
+            SearchElementInstanceIncidentsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -301,7 +389,7 @@ pub async fn search_element_instance_wait_states(
     } else {
         let content = resp.text().await?;
         let entity: Option<SearchElementInstanceWaitStatesError> =
-            serde_json::from_str(&content).ok();
+            SearchElementInstanceWaitStatesError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -353,7 +441,8 @@ pub async fn search_element_instances(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchElementInstancesError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchElementInstancesError> =
+            SearchElementInstancesError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

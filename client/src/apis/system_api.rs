@@ -35,6 +35,21 @@ pub enum GetSystemConfigurationError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetSystemConfigurationError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_usage_metrics`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -44,6 +59,23 @@ pub enum GetUsageMetricsError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetUsageMetricsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Returns the current system configuration. The response is an envelope that groups settings by feature area.  This endpoint is an alpha feature and may be subject to change in future releases.
@@ -83,7 +115,8 @@ pub async fn get_system_configuration(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetSystemConfigurationError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetSystemConfigurationError> =
+            GetSystemConfigurationError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -138,7 +171,8 @@ pub async fn get_usage_metrics(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetUsageMetricsError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetUsageMetricsError> =
+            GetUsageMetricsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

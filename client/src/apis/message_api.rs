@@ -37,6 +37,24 @@ pub enum CorrelateMessageError {
     UnknownValue(serde_json::Value),
 }
 
+impl CorrelateMessageError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`publish_message`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -45,6 +63,22 @@ pub enum PublishMessageError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl PublishMessageError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Publishes a message and correlates it to a subscription. If correlation is successful it will return the first process instance key the message correlated with. The message is not buffered. Use the publish message endpoint to send messages that can be buffered.
@@ -88,7 +122,8 @@ pub async fn correlate_message(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CorrelateMessageError> = serde_json::from_str(&content).ok();
+        let entity: Option<CorrelateMessageError> =
+            CorrelateMessageError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -138,7 +173,8 @@ pub async fn publish_message(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<PublishMessageError> = serde_json::from_str(&content).ok();
+        let entity: Option<PublishMessageError> =
+            PublishMessageError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

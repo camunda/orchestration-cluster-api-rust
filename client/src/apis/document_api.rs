@@ -78,12 +78,41 @@ pub enum CreateDocumentError {
     UnknownValue(serde_json::Value),
 }
 
+impl CreateDocumentError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            415 => serde_json::from_str(content).ok().map(Self::Status415),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`create_document_link`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CreateDocumentLinkError {
     Status400(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl CreateDocumentLinkError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`create_documents`]
@@ -95,6 +124,21 @@ pub enum CreateDocumentsError {
     UnknownValue(serde_json::Value),
 }
 
+impl CreateDocumentsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            415 => serde_json::from_str(content).ok().map(Self::Status415),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_document`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -104,6 +148,21 @@ pub enum DeleteDocumentError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteDocumentError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_document`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -111,6 +170,21 @@ pub enum GetDocumentError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetDocumentError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Upload a document to the Camunda 8 cluster.  Note that this is currently supported for document stores of type: AWS, Azure, GCP, in-memory (non-production), local (non-production)
@@ -174,7 +248,8 @@ pub async fn create_document(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateDocumentError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateDocumentError> =
+            CreateDocumentError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -236,7 +311,8 @@ pub async fn create_document_link(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateDocumentLinkError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateDocumentLinkError> =
+            CreateDocumentLinkError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -304,7 +380,8 @@ pub async fn create_documents(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateDocumentsError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateDocumentsError> =
+            CreateDocumentsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -349,7 +426,8 @@ pub async fn delete_document(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteDocumentError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteDocumentError> =
+            DeleteDocumentError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -395,7 +473,8 @@ pub async fn get_document(
         Ok(resp)
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetDocumentError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetDocumentError> =
+            GetDocumentError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

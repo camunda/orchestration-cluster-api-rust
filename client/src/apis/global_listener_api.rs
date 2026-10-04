@@ -61,6 +61,25 @@ pub enum CreateGlobalTaskListenerError {
     UnknownValue(serde_json::Value),
 }
 
+impl CreateGlobalTaskListenerError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_global_task_listener`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -74,6 +93,25 @@ pub enum DeleteGlobalTaskListenerError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteGlobalTaskListenerError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_global_task_listener`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -83,6 +121,23 @@ pub enum GetGlobalTaskListenerError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetGlobalTaskListenerError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_global_task_listeners`]
@@ -96,6 +151,23 @@ pub enum SearchGlobalTaskListenersError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchGlobalTaskListenersError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`update_global_task_listener`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -107,6 +179,25 @@ pub enum UpdateGlobalTaskListenerError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl UpdateGlobalTaskListenerError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Create a new global user task listener.
@@ -150,7 +241,8 @@ pub async fn create_global_task_listener(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateGlobalTaskListenerError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateGlobalTaskListenerError> =
+            CreateGlobalTaskListenerError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -192,7 +284,8 @@ pub async fn delete_global_task_listener(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteGlobalTaskListenerError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteGlobalTaskListenerError> =
+            DeleteGlobalTaskListenerError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -243,7 +336,8 @@ pub async fn get_global_task_listener(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetGlobalTaskListenerError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetGlobalTaskListenerError> =
+            GetGlobalTaskListenerError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -295,7 +389,8 @@ pub async fn search_global_task_listeners(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchGlobalTaskListenersError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchGlobalTaskListenersError> =
+            SearchGlobalTaskListenersError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -347,7 +442,8 @@ pub async fn update_global_task_listener(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<UpdateGlobalTaskListenerError> = serde_json::from_str(&content).ok();
+        let entity: Option<UpdateGlobalTaskListenerError> =
+            UpdateGlobalTaskListenerError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

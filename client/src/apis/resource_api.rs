@@ -68,6 +68,21 @@ pub enum CreateDeploymentError {
     UnknownValue(serde_json::Value),
 }
 
+impl CreateDeploymentError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_resource`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -79,6 +94,23 @@ pub enum DeleteResourceError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteResourceError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_resource`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -86,6 +118,21 @@ pub enum GetResourceError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetResourceError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_resource_content`]
@@ -98,6 +145,22 @@ pub enum GetResourceContentError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetResourceContentError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            406 => serde_json::from_str(content).ok().map(Self::Status406),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_resource_content_binary`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -105,6 +168,21 @@ pub enum GetResourceContentBinaryError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetResourceContentBinaryError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_resources`]
@@ -116,6 +194,23 @@ pub enum SearchResourcesError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchResourcesError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Deploys one or more resources, including BPMN processes, DMN decision models, forms, RPA resources, and generic files. A deployment can contain any file type. Files that are not interpreted as BPMN, DMN, form, or RPA resources are stored as deployable generic resources in the engine. This is an atomic call, i.e. either all resources are deployed or none of them are.
@@ -174,7 +269,8 @@ pub async fn create_deployment(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateDeploymentError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateDeploymentError> =
+            CreateDeploymentError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -230,7 +326,8 @@ pub async fn delete_resource(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteResourceError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteResourceError> =
+            DeleteResourceError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -281,7 +378,8 @@ pub async fn get_resource(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetResourceError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetResourceError> =
+            GetResourceError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -333,7 +431,8 @@ pub async fn get_resource_content(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetResourceContentError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetResourceContentError> =
+            GetResourceContentError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -373,7 +472,8 @@ pub async fn get_resource_content_binary(
         Ok(resp)
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetResourceContentBinaryError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetResourceContentBinaryError> =
+            GetResourceContentBinaryError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -425,7 +525,8 @@ pub async fn search_resources(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchResourcesError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchResourcesError> =
+            SearchResourcesError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

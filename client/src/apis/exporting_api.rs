@@ -38,6 +38,23 @@ pub enum GetClusterExportingStatusError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetClusterExportingStatusError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_exporting_status`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -47,6 +64,23 @@ pub enum GetExportingStatusError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetExportingStatusError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`pause_cluster_exporting`]
@@ -60,6 +94,23 @@ pub enum PauseClusterExportingError {
     UnknownValue(serde_json::Value),
 }
 
+impl PauseClusterExportingError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`pause_exporting`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -69,6 +120,23 @@ pub enum PauseExportingError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl PauseExportingError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`resume_cluster_exporting`]
@@ -82,6 +150,23 @@ pub enum ResumeClusterExportingError {
     UnknownValue(serde_json::Value),
 }
 
+impl ResumeClusterExportingError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`resume_exporting`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -91,6 +176,23 @@ pub enum ResumeExportingError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl ResumeExportingError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Returns the exporting status of the whole cluster, folded over the exporting status of every physical tenant. Only `PAUSED` and `SOFT_PAUSED` confirm that exporting is paused cluster-wide; every other value means at least one physical tenant is not paused, so callers should keep polling. A physical tenant that itself reports `MIXED` makes the whole cluster `MIXED`.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here.
@@ -130,7 +232,8 @@ pub async fn get_cluster_exporting_status(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetClusterExportingStatusError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetClusterExportingStatusError> =
+            GetClusterExportingStatusError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -176,7 +279,8 @@ pub async fn get_exporting_status(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetExportingStatusError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetExportingStatusError> =
+            GetExportingStatusError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -217,7 +321,8 @@ pub async fn pause_cluster_exporting(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<PauseClusterExportingError> = serde_json::from_str(&content).ok();
+        let entity: Option<PauseClusterExportingError> =
+            PauseClusterExportingError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -258,7 +363,8 @@ pub async fn pause_exporting(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<PauseExportingError> = serde_json::from_str(&content).ok();
+        let entity: Option<PauseExportingError> =
+            PauseExportingError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -295,7 +401,8 @@ pub async fn resume_cluster_exporting(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<ResumeClusterExportingError> = serde_json::from_str(&content).ok();
+        let entity: Option<ResumeClusterExportingError> =
+            ResumeClusterExportingError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -332,7 +439,8 @@ pub async fn resume_exporting(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<ResumeExportingError> = serde_json::from_str(&content).ok();
+        let entity: Option<ResumeExportingError> =
+            ResumeExportingError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

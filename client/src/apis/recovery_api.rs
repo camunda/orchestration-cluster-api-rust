@@ -62,6 +62,23 @@ pub enum ChangeClusterModeError {
     UnknownValue(serde_json::Value),
 }
 
+impl ChangeClusterModeError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`change_cluster_mode_as_cluster_admin`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -74,6 +91,24 @@ pub enum ChangeClusterModeAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl ChangeClusterModeAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => Some(Self::Status409()),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_restore_status`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -83,6 +118,23 @@ pub enum GetRestoreStatusError {
     Status404(),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetRestoreStatusError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => Some(Self::Status404()),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`restore`]
@@ -97,6 +149,24 @@ pub enum RestoreError {
     UnknownValue(serde_json::Value),
 }
 
+impl RestoreError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            409 => Some(Self::Status409()),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`restore_as_cluster_admin`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -107,6 +177,24 @@ pub enum RestoreAsClusterAdminError {
     Status409(),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl RestoreAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => Some(Self::Status409()),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Transitions the cluster between processing and recovery mode. This is a non-blocking operation: the request is acknowledged once the change has been accepted, before the transition itself has completed. Entering recovery mode deactivates all partitions so that only a restricted set of read-only operations remains available; exiting recovery mode returns the cluster to normal processing. Returns the planned cluster change so its progress can be monitored via the topology.
@@ -153,7 +241,8 @@ pub async fn change_cluster_mode(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<ChangeClusterModeError> = serde_json::from_str(&content).ok();
+        let entity: Option<ChangeClusterModeError> =
+            ChangeClusterModeError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -210,7 +299,7 @@ pub async fn change_cluster_mode_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<ChangeClusterModeAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            ChangeClusterModeAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -256,7 +345,8 @@ pub async fn get_restore_status(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetRestoreStatusError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetRestoreStatusError> =
+            GetRestoreStatusError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -309,7 +399,7 @@ pub async fn restore(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<RestoreError> = serde_json::from_str(&content).ok();
+        let entity: Option<RestoreError> = RestoreError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -365,7 +455,8 @@ pub async fn restore_as_cluster_admin(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<RestoreAsClusterAdminError> = serde_json::from_str(&content).ok();
+        let entity: Option<RestoreAsClusterAdminError> =
+            RestoreAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

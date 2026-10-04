@@ -59,6 +59,24 @@ pub enum CreateMappingRuleError {
     UnknownValue(serde_json::Value),
 }
 
+impl CreateMappingRuleError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_mapping_rule`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -70,6 +88,23 @@ pub enum DeleteMappingRuleError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteMappingRuleError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_mapping_rule`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -78,6 +113,22 @@ pub enum GetMappingRuleError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetMappingRuleError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_mapping_rule`]
@@ -91,6 +142,23 @@ pub enum SearchMappingRuleError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchMappingRuleError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`update_mapping_rule`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -101,6 +169,24 @@ pub enum UpdateMappingRuleError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl UpdateMappingRuleError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Create a new mapping rule
@@ -146,7 +232,8 @@ pub async fn create_mapping_rule(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateMappingRuleError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateMappingRuleError> =
+            CreateMappingRuleError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -188,7 +275,8 @@ pub async fn delete_mapping_rule(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteMappingRuleError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteMappingRuleError> =
+            DeleteMappingRuleError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -239,7 +327,8 @@ pub async fn get_mapping_rule(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetMappingRuleError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetMappingRuleError> =
+            GetMappingRuleError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -291,7 +380,8 @@ pub async fn search_mapping_rule(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchMappingRuleError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchMappingRuleError> =
+            SearchMappingRuleError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -345,7 +435,8 @@ pub async fn update_mapping_rule(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<UpdateMappingRuleError> = serde_json::from_str(&content).ok();
+        let entity: Option<UpdateMappingRuleError> =
+            UpdateMappingRuleError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

@@ -30,6 +30,23 @@ pub enum EvaluateExpressionError {
     UnknownValue(serde_json::Value),
 }
 
+impl EvaluateExpressionError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// Evaluates a FEEL expression and returns the result. Supports references to tenant scoped cluster variables when a tenant ID is provided. Optionally, provide a `scopeKey` to make the variables of a specific process instance or element instance visible while evaluating the expression.
 pub async fn evaluate_expression(
     configuration: &configuration::Configuration,
@@ -71,7 +88,8 @@ pub async fn evaluate_expression(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<EvaluateExpressionError> = serde_json::from_str(&content).ok();
+        let entity: Option<EvaluateExpressionError> =
+            EvaluateExpressionError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

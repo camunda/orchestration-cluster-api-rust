@@ -33,6 +33,24 @@ pub enum CancelClusterRebalanceError {
     UnknownValue(serde_json::Value),
 }
 
+impl CancelClusterRebalanceError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            502 => serde_json::from_str(content).ok().map(Self::Status502),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_cluster_rebalance`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -45,12 +63,44 @@ pub enum GetClusterRebalanceError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetClusterRebalanceError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            502 => serde_json::from_str(content).ok().map(Self::Status502),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_cluster_status`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetClusterStatusError {
     Status503(models::ClusterStatusResponse),
     UnknownValue(serde_json::Value),
+}
+
+impl GetClusterStatusError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_cluster_topology`]
@@ -63,11 +113,40 @@ pub enum GetClusterTopologyError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetClusterTopologyError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_cluster_upgrade_status`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetClusterUpgradeStatusError {
     UnknownValue(serde_json::Value),
+}
+
+impl GetClusterUpgradeStatusError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_status`]
@@ -78,6 +157,20 @@ pub enum GetStatusError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetStatusError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            503 => Some(Self::Status503()),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_topology`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -85,6 +178,21 @@ pub enum GetTopologyError {
     Status401(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetTopologyError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`trigger_cluster_rebalance`]
@@ -99,6 +207,26 @@ pub enum TriggerClusterRebalanceError {
     Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl TriggerClusterRebalanceError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            502 => serde_json::from_str(content).ok().map(Self::Status502),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Asks the running rebalance to stop once the transfer in flight has finished. Partitions already transferred keep their new leaders, and those the rebalance had not yet reached keep their current ones.  Cancellation requests are idempotent and always accepted. The `wasRunning` response field can be used to distinguish a cancellation that found a running rebalance from one that did not.  Requires the cluster-admin security chain. Although this operation lists `bearerAuth` / `basicAuth` like the rest of the Orchestration Cluster API, it does not accept an Orchestration Cluster user's credentials — only the separate cluster-admin credentials are valid here.
@@ -140,7 +268,8 @@ pub async fn cancel_cluster_rebalance(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CancelClusterRebalanceError> = serde_json::from_str(&content).ok();
+        let entity: Option<CancelClusterRebalanceError> =
+            CancelClusterRebalanceError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -186,7 +315,8 @@ pub async fn get_cluster_rebalance(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetClusterRebalanceError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetClusterRebalanceError> =
+            GetClusterRebalanceError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -226,7 +356,8 @@ pub async fn get_cluster_status(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetClusterStatusError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetClusterStatusError> =
+            GetClusterStatusError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -272,7 +403,8 @@ pub async fn get_cluster_topology(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetClusterTopologyError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetClusterTopologyError> =
+            GetClusterTopologyError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -312,7 +444,8 @@ pub async fn get_cluster_upgrade_status(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetClusterUpgradeStatusError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetClusterUpgradeStatusError> =
+            GetClusterUpgradeStatusError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -341,7 +474,8 @@ pub async fn get_status(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetStatusError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetStatusError> =
+            GetStatusError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -387,7 +521,8 @@ pub async fn get_topology(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetTopologyError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetTopologyError> =
+            GetTopologyError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -442,7 +577,8 @@ pub async fn trigger_cluster_rebalance(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<TriggerClusterRebalanceError> = serde_json::from_str(&content).ok();
+        let entity: Option<TriggerClusterRebalanceError> =
+            TriggerClusterRebalanceError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
