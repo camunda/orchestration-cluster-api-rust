@@ -29,6 +29,7 @@ from scripts.hooks import hook_08_version_skew_tolerance
 from scripts.hooks import hook_11_optional_body_json
 from scripts.hooks import hook_12_strip_variant_discriminators
 from scripts.hooks import hook_13_present_when
+from scripts.hooks import hook_14_error_status_dispatch
 from scripts.hooks.common import Context
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -768,6 +769,128 @@ class PresentWhenHookTest(unittest.TestCase):
         second = (tmp / "src" / "runtime" / "present_when_generated.rs").read_bytes()
         self.assertEqual(first, second)
         self.assertIn(b'response_schema: "Resp"', first)
+
+
+_APIS_DIR = _REPO_ROOT / "client" / "src" / "apis"
+
+_ERROR_API_FIXTURE = (
+    "/// struct for typed errors of method [`cancel`]\n"
+    "#[derive(Debug, Clone, Serialize, Deserialize)]\n"
+    "#[serde(untagged)]\n"
+    "pub enum CancelError {\n"
+    "    Status400(models::ProblemDetail),\n"
+    "    Status409(models::ProblemDetail),\n"
+    "    Status500(),\n"
+    "    UnknownValue(serde_json::Value),\n"
+    "}\n"
+    "\n"
+    "pub async fn cancel() -> Result<(), Error<CancelError>> {\n"
+    "    let status = resp.status();\n"
+    "    let content = resp.text().await?;\n"
+    # The rustfmt-wrapped shape: the committed tree is formatted, fresh output is not.
+    "    let entity: Option<CancelError> =\n"
+    "        serde_json::from_str(&content).ok();\n"
+    "}\n"
+)
+
+
+class ErrorStatusDispatchTest(unittest.TestCase):
+    """`hook_14` makes every error enum decode by HTTP status instead of payload shape."""
+
+    def _run_hook(self, source: str) -> tuple[Path, Context]:
+        tmp = Path(tempfile.mkdtemp())
+        apis = tmp / "src" / "apis"
+        apis.mkdir(parents=True)
+        (apis / "x_api.rs").write_bytes(source.encode("utf-8"))
+        ctx = Context(client_dir=tmp, spec={}, schemas={})
+        hook_14_error_status_dispatch.run(ctx)
+        return apis / "x_api.rs", ctx
+
+    def test_maps_each_status_to_its_variant_and_rewrites_the_decode(self):
+        path, _ = self._run_hook(_ERROR_API_FIXTURE)
+        out = path.read_text(encoding="utf-8")
+        self.assertIn("400 => serde_json::from_str(content).ok().map(Self::Status400),", out)
+        self.assertIn("409 => serde_json::from_str(content).ok().map(Self::Status409),", out)
+        self.assertIn("500 => Some(Self::Status500()),", out)
+        self.assertIn(
+            "let entity: Option<CancelError> = "
+            "CancelError::from_response(status.as_u16(), &content);",
+            out,
+        )
+        self.assertNotIn("serde_json::from_str(&content).ok()", out)
+
+    def test_is_idempotent(self):
+        path, ctx = self._run_hook(_ERROR_API_FIXTURE)
+        once = path.read_bytes()
+        hook_14_error_status_dispatch.run(ctx)
+        self.assertEqual(path.read_bytes(), once)
+
+    def test_preserves_lf_line_endings(self):
+        path, _ = self._run_hook(_ERROR_API_FIXTURE)
+        self.assertNotIn(b"\r\n", path.read_bytes())
+
+    def test_rejects_unsupported_variant_shapes(self):
+        for label, variant in (
+            ("status range", "    Status4XX(models::ProblemDetail),\n"),
+            ("default response", "    DefaultResponse(models::ProblemDetail),\n"),
+        ):
+            with self.subTest(shape=label), self.assertRaises(SystemExit):
+                self._run_hook(
+                    _ERROR_API_FIXTURE.replace("    Status500(),\n", variant)
+                )
+
+    def test_rejects_an_enum_without_an_unknown_value_fallback(self):
+        with self.assertRaises(SystemExit):
+            self._run_hook(
+                _ERROR_API_FIXTURE.replace("    UnknownValue(serde_json::Value),\n", "")
+            )
+
+
+class EveryErrorEnumDecodesByStatusTest(unittest.TestCase):
+    """Class-scoped regression guard over the *real* generated client for issue #59:
+    every operation error enum must decode by HTTP status, mapping each declared
+    `StatusNNN` to arm `NNN`, and its decode site must go through that mapping.
+
+    Parses the tree independently of `hook_14`'s regexes so a hook that silently stops
+    matching cannot also blind the guard.
+    """
+
+    _ENUM = re.compile(r"^pub enum (\w+Error) \{\n(.*?)^\}", re.M | re.S)
+    _SIGNATURE = "pub fn from_response(status: u16, content: &str) -> Option<Self>"
+
+    def test_every_error_enum_decodes_by_status(self):
+        if not _APIS_DIR.exists():
+            self.skipTest("generated client apis are not present")
+        offenders = []
+        enums = 0
+        for path in sorted(_APIS_DIR.glob("*.rs")):
+            text = path.read_text(encoding="utf-8")
+            names = set()
+            for m in self._ENUM.finditer(text):
+                name, body = m.group(1), m.group(2)
+                names.add(name)
+                enums += 1
+                declared = sorted(re.findall(r"^\s+Status(\d+)\(", body, re.M))
+                impl = re.search(r"^impl %s \{\n(.*?)^\}" % name, text, re.M | re.S)
+                if impl is None or self._SIGNATURE not in impl.group(1):
+                    offenders.append(f"{path.name}: {name} has no from_response")
+                    continue
+                arms = re.findall(r"^\s+(\d+) => .*?Self::Status(\d+)\b", impl.group(1), re.M)
+                if any(code != variant for code, variant in arms):
+                    offenders.append(f"{path.name}: {name} maps a status to another variant")
+                if sorted(code for code, _ in arms) != declared:
+                    offenders.append(f"{path.name}: {name} arms do not match its variants")
+                sites = [
+                    re.sub(r"\s+", "", s).replace(",)", ")")
+                    for s in re.findall(r"let entity: Option<%s> =(.*?);" % name, text, re.S)
+                ]
+                if sites != [f"{name}::from_response(status.as_u16(),&content)"]:
+                    offenders.append(f"{path.name}: {name} decode sites {sites}")
+            for site in re.findall(r"let entity: Option<(\w+)>", text):
+                if site not in names:
+                    offenders.append(f"{path.name}: decode site for unparsed enum {site}")
+        self.assertGreater(enums, 0, "guard found no error enums in the generated apis")
+        self.assertEqual(offenders, [])
 
 
 if __name__ == "__main__":

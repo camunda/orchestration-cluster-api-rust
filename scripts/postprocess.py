@@ -20,6 +20,7 @@ Hooks (in order):
   10 dedupe-hoisted-enums        drop hoisted dead top-level enums from tagged-union model files
   11 guard-optional-json-body    only attach optional request bodies when `Some`, avoiding an unconditional literal JSON `null`
   12 strip-variant-discriminators  drop the re-declared discriminator field from tagged-union variant structs
+  14 error-status-dispatch       decode typed error responses into the variant named by the HTTP status
 
 Usage:
     python3 scripts/postprocess.py --client-dir client \\
