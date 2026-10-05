@@ -146,6 +146,25 @@ pub enum AssignClientToGroupError {
     UnknownValue(serde_json::Value),
 }
 
+impl AssignClientToGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`assign_mapping_rule_to_group`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -157,6 +176,25 @@ pub enum AssignMappingRuleToGroupError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl AssignMappingRuleToGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`assign_user_to_group`]
@@ -172,6 +210,25 @@ pub enum AssignUserToGroupError {
     UnknownValue(serde_json::Value),
 }
 
+impl AssignUserToGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`create_group`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -185,6 +242,25 @@ pub enum CreateGroupError {
     UnknownValue(serde_json::Value),
 }
 
+impl CreateGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_group`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -196,6 +272,23 @@ pub enum DeleteGroupError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_group`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -205,6 +298,23 @@ pub enum GetGroupError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_clients_for_group`]
@@ -219,6 +329,24 @@ pub enum SearchClientsForGroupError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchClientsForGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_groups`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -228,6 +356,23 @@ pub enum SearchGroupsError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchGroupsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_mapping_rules_for_group`]
@@ -242,6 +387,24 @@ pub enum SearchMappingRulesForGroupError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchMappingRulesForGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_roles_for_group`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -252,6 +415,24 @@ pub enum SearchRolesForGroupError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchRolesForGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_users_for_group`]
@@ -266,6 +447,24 @@ pub enum SearchUsersForGroupError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchUsersForGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`unassign_client_from_group`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -276,6 +475,24 @@ pub enum UnassignClientFromGroupError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl UnassignClientFromGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`unassign_mapping_rule_from_group`]
@@ -290,6 +507,24 @@ pub enum UnassignMappingRuleFromGroupError {
     UnknownValue(serde_json::Value),
 }
 
+impl UnassignMappingRuleFromGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`unassign_user_from_group`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -302,6 +537,24 @@ pub enum UnassignUserFromGroupError {
     UnknownValue(serde_json::Value),
 }
 
+impl UnassignUserFromGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`update_group`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -312,6 +565,24 @@ pub enum UpdateGroupError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl UpdateGroupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Assigns a client to a group, making it a member of the group. Members of the group inherit the group authorizations, roles, and tenant assignments.
@@ -346,7 +617,8 @@ pub async fn assign_client_to_group(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<AssignClientToGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<AssignClientToGroupError> =
+            AssignClientToGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -387,7 +659,8 @@ pub async fn assign_mapping_rule_to_group(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<AssignMappingRuleToGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<AssignMappingRuleToGroupError> =
+            AssignMappingRuleToGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -428,7 +701,8 @@ pub async fn assign_user_to_group(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<AssignUserToGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<AssignUserToGroupError> =
+            AssignUserToGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -480,7 +754,8 @@ pub async fn create_group(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateGroupError> =
+            CreateGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -522,7 +797,8 @@ pub async fn delete_group(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteGroupError> =
+            DeleteGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -573,7 +849,7 @@ pub async fn get_group(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetGroupError> = GetGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -629,7 +905,8 @@ pub async fn search_clients_for_group(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchClientsForGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchClientsForGroupError> =
+            SearchClientsForGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -681,7 +958,8 @@ pub async fn search_groups(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchGroupsError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchGroupsError> =
+            SearchGroupsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -737,7 +1015,8 @@ pub async fn search_mapping_rules_for_group(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchMappingRulesForGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchMappingRulesForGroupError> =
+            SearchMappingRulesForGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -793,7 +1072,8 @@ pub async fn search_roles_for_group(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchRolesForGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchRolesForGroupError> =
+            SearchRolesForGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -849,7 +1129,8 @@ pub async fn search_users_for_group(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchUsersForGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchUsersForGroupError> =
+            SearchUsersForGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -892,7 +1173,8 @@ pub async fn unassign_client_from_group(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<UnassignClientFromGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<UnassignClientFromGroupError> =
+            UnassignClientFromGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -935,7 +1217,8 @@ pub async fn unassign_mapping_rule_from_group(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<UnassignMappingRuleFromGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<UnassignMappingRuleFromGroupError> =
+            UnassignMappingRuleFromGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -978,7 +1261,8 @@ pub async fn unassign_user_from_group(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<UnassignUserFromGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<UnassignUserFromGroupError> =
+            UnassignUserFromGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1030,7 +1314,8 @@ pub async fn update_group(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<UpdateGroupError> = serde_json::from_str(&content).ok();
+        let entity: Option<UpdateGroupError> =
+            UpdateGroupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

@@ -31,6 +31,24 @@ pub enum EvaluateConditionalsError {
     UnknownValue(serde_json::Value),
 }
 
+impl EvaluateConditionalsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// Evaluates root-level conditional start events for process definitions. If the evaluation is successful, it will return the keys of all created process instances, along with their associated process definition key. Multiple root-level conditional start events of the same process definition can trigger if their conditions evaluate to true.
 pub async fn evaluate_conditionals(
     configuration: &configuration::Configuration,
@@ -72,7 +90,8 @@ pub async fn evaluate_conditionals(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<EvaluateConditionalsError> = serde_json::from_str(&content).ok();
+        let entity: Option<EvaluateConditionalsError> =
+            EvaluateConditionalsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

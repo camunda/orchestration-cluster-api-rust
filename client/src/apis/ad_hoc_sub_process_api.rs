@@ -35,6 +35,25 @@ pub enum ActivateAdHocSubProcessActivitiesError {
     UnknownValue(serde_json::Value),
 }
 
+impl ActivateAdHocSubProcessActivitiesError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// Activates selected activities within an ad-hoc sub-process identified by element ID. The provided element IDs must exist within the ad-hoc sub-process instance identified by the provided adHocSubProcessInstanceKey.
 pub async fn activate_ad_hoc_sub_process_activities(
     configuration: &configuration::Configuration,
@@ -70,7 +89,7 @@ pub async fn activate_ad_hoc_sub_process_activities(
     } else {
         let content = resp.text().await?;
         let entity: Option<ActivateAdHocSubProcessActivitiesError> =
-            serde_json::from_str(&content).ok();
+            ActivateAdHocSubProcessActivitiesError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

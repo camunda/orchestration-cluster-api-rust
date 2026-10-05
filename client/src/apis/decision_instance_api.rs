@@ -53,6 +53,24 @@ pub enum DeleteDecisionInstanceError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteDecisionInstanceError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_decision_instances_batch_operation`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -62,6 +80,23 @@ pub enum DeleteDecisionInstancesBatchOperationError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl DeleteDecisionInstancesBatchOperationError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_decision_instance`]
@@ -76,6 +111,24 @@ pub enum GetDecisionInstanceError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetDecisionInstanceError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_decision_instances`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -85,6 +138,23 @@ pub enum SearchDecisionInstancesError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchDecisionInstancesError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Delete all associated decision evaluations based on provided key.
@@ -123,7 +193,8 @@ pub async fn delete_decision_instance(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteDecisionInstanceError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteDecisionInstanceError> =
+            DeleteDecisionInstanceError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -175,7 +246,7 @@ pub async fn delete_decision_instances_batch_operation(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteDecisionInstancesBatchOperationError> =
-            serde_json::from_str(&content).ok();
+            DeleteDecisionInstancesBatchOperationError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -227,7 +298,8 @@ pub async fn get_decision_instance(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetDecisionInstanceError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetDecisionInstanceError> =
+            GetDecisionInstanceError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -279,7 +351,8 @@ pub async fn search_decision_instances(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchDecisionInstancesError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchDecisionInstancesError> =
+            SearchDecisionInstancesError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

@@ -64,6 +64,23 @@ pub enum CancelBatchOperationError {
     UnknownValue(serde_json::Value),
 }
 
+impl CancelBatchOperationError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_batch_operation`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -72,6 +89,22 @@ pub enum GetBatchOperationError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetBatchOperationError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`resume_batch_operation`]
@@ -86,6 +119,24 @@ pub enum ResumeBatchOperationError {
     UnknownValue(serde_json::Value),
 }
 
+impl ResumeBatchOperationError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_batch_operation_items`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -95,6 +146,21 @@ pub enum SearchBatchOperationItemsError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchBatchOperationItemsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_batch_operations`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -102,6 +168,21 @@ pub enum SearchBatchOperationsError {
     Status400(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchBatchOperationsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`suspend_batch_operation`]
@@ -114,6 +195,24 @@ pub enum SuspendBatchOperationError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SuspendBatchOperationError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Cancels a running batch operation. This is done asynchronously, the progress can be tracked using the batch operation status endpoint (/batch-operations/{batchOperationKey}).
@@ -149,7 +248,8 @@ pub async fn cancel_batch_operation(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<CancelBatchOperationError> = serde_json::from_str(&content).ok();
+        let entity: Option<CancelBatchOperationError> =
+            CancelBatchOperationError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -200,7 +300,8 @@ pub async fn get_batch_operation(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetBatchOperationError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetBatchOperationError> =
+            GetBatchOperationError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -242,7 +343,8 @@ pub async fn resume_batch_operation(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<ResumeBatchOperationError> = serde_json::from_str(&content).ok();
+        let entity: Option<ResumeBatchOperationError> =
+            ResumeBatchOperationError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -294,7 +396,8 @@ pub async fn search_batch_operation_items(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchBatchOperationItemsError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchBatchOperationItemsError> =
+            SearchBatchOperationItemsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -346,7 +449,8 @@ pub async fn search_batch_operations(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchBatchOperationsError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchBatchOperationsError> =
+            SearchBatchOperationsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -388,7 +492,8 @@ pub async fn suspend_batch_operation(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<SuspendBatchOperationError> = serde_json::from_str(&content).ok();
+        let entity: Option<SuspendBatchOperationError> =
+            SuspendBatchOperationError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

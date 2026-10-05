@@ -97,6 +97,24 @@ pub enum CreateGlobalClusterVariableError {
     UnknownValue(serde_json::Value),
 }
 
+impl CreateGlobalClusterVariableError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`create_tenant_cluster_variable`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -108,6 +126,25 @@ pub enum CreateTenantClusterVariableError {
     Status409(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl CreateTenantClusterVariableError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`delete_global_cluster_variable`]
@@ -122,6 +159,24 @@ pub enum DeleteGlobalClusterVariableError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteGlobalClusterVariableError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_tenant_cluster_variable`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -132,6 +187,24 @@ pub enum DeleteTenantClusterVariableError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl DeleteTenantClusterVariableError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_global_cluster_variable`]
@@ -146,6 +219,24 @@ pub enum GetGlobalClusterVariableError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetGlobalClusterVariableError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_tenant_cluster_variable`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -158,6 +249,24 @@ pub enum GetTenantClusterVariableError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetTenantClusterVariableError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_cluster_variables`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -167,6 +276,23 @@ pub enum SearchClusterVariablesError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchClusterVariablesError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`update_global_cluster_variable`]
@@ -181,6 +307,24 @@ pub enum UpdateGlobalClusterVariableError {
     UnknownValue(serde_json::Value),
 }
 
+impl UpdateGlobalClusterVariableError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`update_tenant_cluster_variable`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -191,6 +335,24 @@ pub enum UpdateTenantClusterVariableError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl UpdateTenantClusterVariableError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Create a global-scoped cluster variable.
@@ -234,7 +396,8 @@ pub async fn create_global_cluster_variable(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateGlobalClusterVariableError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateGlobalClusterVariableError> =
+            CreateGlobalClusterVariableError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -288,7 +451,8 @@ pub async fn create_tenant_cluster_variable(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateTenantClusterVariableError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateTenantClusterVariableError> =
+            CreateTenantClusterVariableError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -330,7 +494,8 @@ pub async fn delete_global_cluster_variable(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteGlobalClusterVariableError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteGlobalClusterVariableError> =
+            DeleteGlobalClusterVariableError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -373,7 +538,8 @@ pub async fn delete_tenant_cluster_variable(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteTenantClusterVariableError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteTenantClusterVariableError> =
+            DeleteTenantClusterVariableError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -424,7 +590,8 @@ pub async fn get_global_cluster_variable(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetGlobalClusterVariableError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetGlobalClusterVariableError> =
+            GetGlobalClusterVariableError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -476,7 +643,8 @@ pub async fn get_tenant_cluster_variable(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetTenantClusterVariableError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetTenantClusterVariableError> =
+            GetTenantClusterVariableError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -531,7 +699,8 @@ pub async fn search_cluster_variables(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchClusterVariablesError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchClusterVariablesError> =
+            SearchClusterVariablesError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -583,7 +752,8 @@ pub async fn update_global_cluster_variable(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<UpdateGlobalClusterVariableError> = serde_json::from_str(&content).ok();
+        let entity: Option<UpdateGlobalClusterVariableError> =
+            UpdateGlobalClusterVariableError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -636,7 +806,8 @@ pub async fn update_tenant_cluster_variable(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<UpdateTenantClusterVariableError> = serde_json::from_str(&content).ok();
+        let entity: Option<UpdateTenantClusterVariableError> =
+            UpdateTenantClusterVariableError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

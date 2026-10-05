@@ -32,6 +32,24 @@ pub enum GetFormByKeyError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetFormByKeyError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// Get a form by its unique form key.
 pub async fn get_form_by_key(
     configuration: &configuration::Configuration,
@@ -74,7 +92,8 @@ pub async fn get_form_by_key(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetFormByKeyError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetFormByKeyError> =
+            GetFormByKeyError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

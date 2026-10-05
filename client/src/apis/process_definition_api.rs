@@ -91,6 +91,24 @@ pub enum GetProcessDefinitionError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetProcessDefinitionError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_process_definition_instance_statistics`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -100,6 +118,23 @@ pub enum GetProcessDefinitionInstanceStatisticsError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetProcessDefinitionInstanceStatisticsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_process_definition_instance_version_statistics`]
@@ -113,6 +148,23 @@ pub enum GetProcessDefinitionInstanceVersionStatisticsError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetProcessDefinitionInstanceVersionStatisticsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_process_definition_message_subscription_statistics`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -124,6 +176,23 @@ pub enum GetProcessDefinitionMessageSubscriptionStatisticsError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetProcessDefinitionMessageSubscriptionStatisticsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_process_definition_statistics`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -133,6 +202,23 @@ pub enum GetProcessDefinitionStatisticsError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetProcessDefinitionStatisticsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_process_definition_xml`]
@@ -147,6 +233,24 @@ pub enum GetProcessDefinitionXmlError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetProcessDefinitionXmlError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_start_process_form`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -157,6 +261,24 @@ pub enum GetStartProcessFormError {
     Status404(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetStartProcessFormError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_process_definition_variable_names`]
@@ -170,6 +292,23 @@ pub enum SearchProcessDefinitionVariableNamesError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchProcessDefinitionVariableNamesError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_process_definitions`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -179,6 +318,23 @@ pub enum SearchProcessDefinitionsError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchProcessDefinitionsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Returns process definition as JSON.
@@ -223,7 +379,8 @@ pub async fn get_process_definition(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetProcessDefinitionError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetProcessDefinitionError> =
+            GetProcessDefinitionError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -282,7 +439,7 @@ pub async fn get_process_definition_instance_statistics(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetProcessDefinitionInstanceStatisticsError> =
-            serde_json::from_str(&content).ok();
+            GetProcessDefinitionInstanceStatisticsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -339,7 +496,10 @@ pub async fn get_process_definition_instance_version_statistics(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetProcessDefinitionInstanceVersionStatisticsError> =
-            serde_json::from_str(&content).ok();
+            GetProcessDefinitionInstanceVersionStatisticsError::from_response(
+                status.as_u16(),
+                &content,
+            );
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -398,7 +558,10 @@ pub async fn get_process_definition_message_subscription_statistics(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetProcessDefinitionMessageSubscriptionStatisticsError> =
-            serde_json::from_str(&content).ok();
+            GetProcessDefinitionMessageSubscriptionStatisticsError::from_response(
+                status.as_u16(),
+                &content,
+            );
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -458,7 +621,7 @@ pub async fn get_process_definition_statistics(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetProcessDefinitionStatisticsError> =
-            serde_json::from_str(&content).ok();
+            GetProcessDefinitionStatisticsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -509,7 +672,8 @@ pub async fn get_process_definition_xml(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetProcessDefinitionXmlError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetProcessDefinitionXmlError> =
+            GetProcessDefinitionXmlError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -560,7 +724,8 @@ pub async fn get_start_process_form(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetStartProcessFormError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetStartProcessFormError> =
+            GetStartProcessFormError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -620,7 +785,7 @@ pub async fn search_process_definition_variable_names(
     } else {
         let content = resp.text().await?;
         let entity: Option<SearchProcessDefinitionVariableNamesError> =
-            serde_json::from_str(&content).ok();
+            SearchProcessDefinitionVariableNamesError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -672,7 +837,8 @@ pub async fn search_process_definitions(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchProcessDefinitionsError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchProcessDefinitionsError> =
+            SearchProcessDefinitionsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

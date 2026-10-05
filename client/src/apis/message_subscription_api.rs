@@ -37,6 +37,23 @@ pub enum SearchCorrelatedMessageSubscriptionsError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchCorrelatedMessageSubscriptionsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_message_subscriptions`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -46,6 +63,23 @@ pub enum SearchMessageSubscriptionsError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchMessageSubscriptionsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Search correlated message subscriptions based on given criteria.
@@ -98,7 +132,7 @@ pub async fn search_correlated_message_subscriptions(
     } else {
         let content = resp.text().await?;
         let entity: Option<SearchCorrelatedMessageSubscriptionsError> =
-            serde_json::from_str(&content).ok();
+            SearchCorrelatedMessageSubscriptionsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -150,7 +184,8 @@ pub async fn search_message_subscriptions(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchMessageSubscriptionsError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchMessageSubscriptionsError> =
+            SearchMessageSubscriptionsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

@@ -189,6 +189,24 @@ pub enum AssignClientToTenantError {
     UnknownValue(serde_json::Value),
 }
 
+impl AssignClientToTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`assign_group_to_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -199,6 +217,24 @@ pub enum AssignGroupToTenantError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl AssignGroupToTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`assign_mapping_rule_to_tenant`]
@@ -213,6 +249,24 @@ pub enum AssignMappingRuleToTenantError {
     UnknownValue(serde_json::Value),
 }
 
+impl AssignMappingRuleToTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`assign_role_to_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -225,6 +279,24 @@ pub enum AssignRoleToTenantError {
     UnknownValue(serde_json::Value),
 }
 
+impl AssignRoleToTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`assign_user_to_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -235,6 +307,24 @@ pub enum AssignUserToTenantError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl AssignUserToTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`create_tenant`]
@@ -250,6 +340,25 @@ pub enum CreateTenantError {
     UnknownValue(serde_json::Value),
 }
 
+impl CreateTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -260,6 +369,24 @@ pub enum DeleteTenantError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl DeleteTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_tenant`]
@@ -274,11 +401,42 @@ pub enum GetTenantError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_clients_for_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchClientsForTenantError {
     UnknownValue(serde_json::Value),
+}
+
+impl SearchClientsForTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_group_ids_for_tenant`]
@@ -288,6 +446,19 @@ pub enum SearchGroupIdsForTenantError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchGroupIdsForTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_mapping_rules_for_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -295,11 +466,37 @@ pub enum SearchMappingRulesForTenantError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchMappingRulesForTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_roles_for_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchRolesForTenantError {
     UnknownValue(serde_json::Value),
+}
+
+impl SearchRolesForTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_tenants`]
@@ -314,11 +511,42 @@ pub enum SearchTenantsError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchTenantsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_users_for_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SearchUsersForTenantError {
     UnknownValue(serde_json::Value),
+}
+
+impl SearchUsersForTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`unassign_client_from_tenant`]
@@ -333,6 +561,24 @@ pub enum UnassignClientFromTenantError {
     UnknownValue(serde_json::Value),
 }
 
+impl UnassignClientFromTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`unassign_group_from_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -343,6 +589,24 @@ pub enum UnassignGroupFromTenantError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl UnassignGroupFromTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`unassign_mapping_rule_from_tenant`]
@@ -357,6 +621,24 @@ pub enum UnassignMappingRuleFromTenantError {
     UnknownValue(serde_json::Value),
 }
 
+impl UnassignMappingRuleFromTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`unassign_role_from_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -367,6 +649,24 @@ pub enum UnassignRoleFromTenantError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl UnassignRoleFromTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`unassign_user_from_tenant`]
@@ -381,6 +681,24 @@ pub enum UnassignUserFromTenantError {
     UnknownValue(serde_json::Value),
 }
 
+impl UnassignUserFromTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`update_tenant`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -391,6 +709,24 @@ pub enum UpdateTenantError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl UpdateTenantError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Assign the client to the specified tenant. The client can then access tenant data and perform authorized actions.
@@ -425,7 +761,8 @@ pub async fn assign_client_to_tenant(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<AssignClientToTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<AssignClientToTenantError> =
+            AssignClientToTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -466,7 +803,8 @@ pub async fn assign_group_to_tenant(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<AssignGroupToTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<AssignGroupToTenantError> =
+            AssignGroupToTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -507,7 +845,8 @@ pub async fn assign_mapping_rule_to_tenant(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<AssignMappingRuleToTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<AssignMappingRuleToTenantError> =
+            AssignMappingRuleToTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -548,7 +887,8 @@ pub async fn assign_role_to_tenant(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<AssignRoleToTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<AssignRoleToTenantError> =
+            AssignRoleToTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -589,7 +929,8 @@ pub async fn assign_user_to_tenant(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<AssignUserToTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<AssignUserToTenantError> =
+            AssignUserToTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -639,7 +980,8 @@ pub async fn create_tenant(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<CreateTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<CreateTenantError> =
+            CreateTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -681,7 +1023,8 @@ pub async fn delete_tenant(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteTenantError> =
+            DeleteTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -732,7 +1075,8 @@ pub async fn get_tenant(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetTenantError> =
+            GetTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -788,7 +1132,8 @@ pub async fn search_clients_for_tenant(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchClientsForTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchClientsForTenantError> =
+            SearchClientsForTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -844,7 +1189,8 @@ pub async fn search_group_ids_for_tenant(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchGroupIdsForTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchGroupIdsForTenantError> =
+            SearchGroupIdsForTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -900,7 +1246,8 @@ pub async fn search_mapping_rules_for_tenant(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchMappingRulesForTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchMappingRulesForTenantError> =
+            SearchMappingRulesForTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -956,7 +1303,8 @@ pub async fn search_roles_for_tenant(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchRolesForTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchRolesForTenantError> =
+            SearchRolesForTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1008,7 +1356,8 @@ pub async fn search_tenants(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchTenantsError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchTenantsError> =
+            SearchTenantsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1064,7 +1413,8 @@ pub async fn search_users_for_tenant(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchUsersForTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchUsersForTenantError> =
+            SearchUsersForTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1107,7 +1457,8 @@ pub async fn unassign_client_from_tenant(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<UnassignClientFromTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<UnassignClientFromTenantError> =
+            UnassignClientFromTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1150,7 +1501,8 @@ pub async fn unassign_group_from_tenant(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<UnassignGroupFromTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<UnassignGroupFromTenantError> =
+            UnassignGroupFromTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1194,7 +1546,7 @@ pub async fn unassign_mapping_rule_from_tenant(
     } else {
         let content = resp.text().await?;
         let entity: Option<UnassignMappingRuleFromTenantError> =
-            serde_json::from_str(&content).ok();
+            UnassignMappingRuleFromTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1237,7 +1589,8 @@ pub async fn unassign_role_from_tenant(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<UnassignRoleFromTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<UnassignRoleFromTenantError> =
+            UnassignRoleFromTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1280,7 +1633,8 @@ pub async fn unassign_user_from_tenant(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<UnassignUserFromTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<UnassignUserFromTenantError> =
+            UnassignUserFromTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1332,7 +1686,8 @@ pub async fn update_tenant(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<UpdateTenantError> = serde_json::from_str(&content).ok();
+        let entity: Option<UpdateTenantError> =
+            UpdateTenantError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

@@ -107,6 +107,25 @@ pub enum AssignUserTaskError {
     UnknownValue(serde_json::Value),
 }
 
+impl AssignUserTaskError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`complete_user_task`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -118,6 +137,25 @@ pub enum CompleteUserTaskError {
     Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl CompleteUserTaskError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_user_task`]
@@ -132,6 +170,24 @@ pub enum GetUserTaskError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetUserTaskError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_user_task_form`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -144,6 +200,24 @@ pub enum GetUserTaskFormError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetUserTaskFormError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_user_task_audit_logs`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -151,6 +225,21 @@ pub enum SearchUserTaskAuditLogsError {
     Status400(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchUserTaskAuditLogsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_user_task_effective_variables`]
@@ -162,6 +251,21 @@ pub enum SearchUserTaskEffectiveVariablesError {
     UnknownValue(serde_json::Value),
 }
 
+impl SearchUserTaskEffectiveVariablesError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_user_task_variables`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -169,6 +273,21 @@ pub enum SearchUserTaskVariablesError {
     Status400(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchUserTaskVariablesError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`search_user_tasks`]
@@ -180,6 +299,23 @@ pub enum SearchUserTasksError {
     Status403(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchUserTasksError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`unassign_user_task`]
@@ -195,6 +331,25 @@ pub enum UnassignUserTaskError {
     UnknownValue(serde_json::Value),
 }
 
+impl UnassignUserTaskError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`update_user_task`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -206,6 +361,25 @@ pub enum UpdateUserTaskError {
     Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl UpdateUserTaskError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Assigns a user task with the given key to the given assignee. Assignment waits for blocking task listeners on this lifecycle transition. If listener processing is delayed beyond the request timeout, this endpoint can return 504. Other gateway timeout causes are also possible. Retry with backoff and inspect listener worker availability and logs when this repeats.
@@ -242,7 +416,8 @@ pub async fn assign_user_task(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<AssignUserTaskError> = serde_json::from_str(&content).ok();
+        let entity: Option<AssignUserTaskError> =
+            AssignUserTaskError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -287,7 +462,8 @@ pub async fn complete_user_task(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<CompleteUserTaskError> = serde_json::from_str(&content).ok();
+        let entity: Option<CompleteUserTaskError> =
+            CompleteUserTaskError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -338,7 +514,8 @@ pub async fn get_user_task(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetUserTaskError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetUserTaskError> =
+            GetUserTaskError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -389,7 +566,8 @@ pub async fn get_user_task_form(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetUserTaskFormError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetUserTaskFormError> =
+            GetUserTaskFormError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -445,7 +623,8 @@ pub async fn search_user_task_audit_logs(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchUserTaskAuditLogsError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchUserTaskAuditLogsError> =
+            SearchUserTaskAuditLogsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -505,7 +684,7 @@ pub async fn search_user_task_effective_variables(
     } else {
         let content = resp.text().await?;
         let entity: Option<SearchUserTaskEffectiveVariablesError> =
-            serde_json::from_str(&content).ok();
+            SearchUserTaskEffectiveVariablesError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -564,7 +743,8 @@ pub async fn search_user_task_variables(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchUserTaskVariablesError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchUserTaskVariablesError> =
+            SearchUserTaskVariablesError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -616,7 +796,8 @@ pub async fn search_user_tasks(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchUserTasksError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchUserTasksError> =
+            SearchUserTasksError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -658,7 +839,8 @@ pub async fn unassign_user_task(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<UnassignUserTaskError> = serde_json::from_str(&content).ok();
+        let entity: Option<UnassignUserTaskError> =
+            UnassignUserTaskError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -703,7 +885,8 @@ pub async fn update_user_task(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<UpdateUserTaskError> = serde_json::from_str(&content).ok();
+        let entity: Option<UpdateUserTaskError> =
+            UpdateUserTaskError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

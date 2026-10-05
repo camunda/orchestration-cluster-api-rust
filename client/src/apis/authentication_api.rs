@@ -29,6 +29,22 @@ pub enum GetAuthenticationError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetAuthenticationError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_own_authorizations`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -37,6 +53,22 @@ pub enum SearchOwnAuthorizationsError {
     Status401(models::ProblemDetail),
     Status500(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SearchOwnAuthorizationsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Retrieves the current authenticated user.
@@ -73,7 +105,8 @@ pub async fn get_authentication(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetAuthenticationError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetAuthenticationError> =
+            GetAuthenticationError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -125,7 +158,8 @@ pub async fn search_own_authorizations(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SearchOwnAuthorizationsError> = serde_json::from_str(&content).ok();
+        let entity: Option<SearchOwnAuthorizationsError> =
+            SearchOwnAuthorizationsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

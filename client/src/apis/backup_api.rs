@@ -174,6 +174,24 @@ pub enum DeleteHistoryBackupError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteHistoryBackupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_history_backup_as_cluster_admin`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -187,6 +205,25 @@ pub enum DeleteHistoryBackupAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteHistoryBackupAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_runtime_backup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -196,6 +233,23 @@ pub enum DeleteRuntimeBackupError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl DeleteRuntimeBackupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`delete_runtime_backup_as_cluster_admin`]
@@ -210,6 +264,24 @@ pub enum DeleteRuntimeBackupAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteRuntimeBackupAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`delete_runtime_backup_state`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -219,6 +291,23 @@ pub enum DeleteRuntimeBackupStateError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl DeleteRuntimeBackupStateError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`delete_runtime_backup_state_as_cluster_admin`]
@@ -232,6 +321,23 @@ pub enum DeleteRuntimeBackupStateAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl DeleteRuntimeBackupStateAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_history_backup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -242,6 +348,24 @@ pub enum GetHistoryBackupError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetHistoryBackupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_history_backup_as_cluster_admin`]
@@ -257,6 +381,25 @@ pub enum GetHistoryBackupAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetHistoryBackupAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_runtime_backup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -267,6 +410,24 @@ pub enum GetRuntimeBackupError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetRuntimeBackupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_runtime_backup_as_cluster_admin`]
@@ -281,6 +442,24 @@ pub enum GetRuntimeBackupAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetRuntimeBackupAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`get_runtime_backup_state`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -290,6 +469,23 @@ pub enum GetRuntimeBackupStateError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl GetRuntimeBackupStateError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_runtime_backup_state_as_cluster_admin`]
@@ -303,6 +499,23 @@ pub enum GetRuntimeBackupStateAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetRuntimeBackupStateAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`list_history_backups`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -313,6 +526,24 @@ pub enum ListHistoryBackupsError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl ListHistoryBackupsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`list_history_backups_as_cluster_admin`]
@@ -328,6 +559,25 @@ pub enum ListHistoryBackupsAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl ListHistoryBackupsAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`list_runtime_backups`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -338,6 +588,24 @@ pub enum ListRuntimeBackupsError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl ListRuntimeBackupsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`list_runtime_backups_as_cluster_admin`]
@@ -352,6 +620,24 @@ pub enum ListRuntimeBackupsAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl ListRuntimeBackupsAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`sync_runtime_backup_state`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -362,6 +648,24 @@ pub enum SyncRuntimeBackupStateError {
     Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl SyncRuntimeBackupStateError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`sync_runtime_backup_state_as_cluster_admin`]
@@ -376,6 +680,24 @@ pub enum SyncRuntimeBackupStateAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl SyncRuntimeBackupStateAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`take_history_backup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -387,6 +709,25 @@ pub enum TakeHistoryBackupError {
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl TakeHistoryBackupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`take_history_backup_as_cluster_admin`]
@@ -403,6 +744,26 @@ pub enum TakeHistoryBackupAsClusterAdminError {
     UnknownValue(serde_json::Value),
 }
 
+impl TakeHistoryBackupAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`take_runtime_backup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -415,6 +776,26 @@ pub enum TakeRuntimeBackupError {
     Status503(models::ProblemDetail),
     Status504(models::ProblemDetail),
     UnknownValue(serde_json::Value),
+}
+
+impl TakeRuntimeBackupError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`take_runtime_backup_as_cluster_admin`]
@@ -430,6 +811,27 @@ pub enum TakeRuntimeBackupAsClusterAdminError {
     Status503(models::ClusterTakeRuntimeBackupResponse),
     Status504(models::ClusterTakeRuntimeBackupResponse),
     UnknownValue(serde_json::Value),
+}
+
+impl TakeRuntimeBackupAsClusterAdminError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            502 => serde_json::from_str(content).ok().map(Self::Status502),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            504 => serde_json::from_str(content).ok().map(Self::Status504),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// Deletes the history backup with the given id, by deleting every snapshot that makes it up.  Only available on clusters whose secondary storage is Elasticsearch or OpenSearch.
@@ -465,7 +867,8 @@ pub async fn delete_history_backup(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteHistoryBackupError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteHistoryBackupError> =
+            DeleteHistoryBackupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -511,7 +914,7 @@ pub async fn delete_history_backup_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteHistoryBackupAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            DeleteHistoryBackupAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -553,7 +956,8 @@ pub async fn delete_runtime_backup(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteRuntimeBackupError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteRuntimeBackupError> =
+            DeleteRuntimeBackupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -599,7 +1003,7 @@ pub async fn delete_runtime_backup_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteRuntimeBackupAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            DeleteRuntimeBackupAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -636,7 +1040,8 @@ pub async fn delete_runtime_backup_state(
         Ok(())
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteRuntimeBackupStateError> = serde_json::from_str(&content).ok();
+        let entity: Option<DeleteRuntimeBackupStateError> =
+            DeleteRuntimeBackupStateError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -681,7 +1086,7 @@ pub async fn delete_runtime_backup_state_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<DeleteRuntimeBackupStateAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            DeleteRuntimeBackupStateAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -732,7 +1137,8 @@ pub async fn get_history_backup(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetHistoryBackupError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetHistoryBackupError> =
+            GetHistoryBackupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -787,7 +1193,7 @@ pub async fn get_history_backup_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetHistoryBackupAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            GetHistoryBackupAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -838,7 +1244,8 @@ pub async fn get_runtime_backup(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetRuntimeBackupError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetRuntimeBackupError> =
+            GetRuntimeBackupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -893,7 +1300,7 @@ pub async fn get_runtime_backup_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetRuntimeBackupAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            GetRuntimeBackupAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -939,7 +1346,8 @@ pub async fn get_runtime_backup_state(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetRuntimeBackupStateError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetRuntimeBackupStateError> =
+            GetRuntimeBackupStateError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -993,7 +1401,7 @@ pub async fn get_runtime_backup_state_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetRuntimeBackupStateAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            GetRuntimeBackupStateAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1046,7 +1454,8 @@ pub async fn list_history_backups(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<ListHistoryBackupsError> = serde_json::from_str(&content).ok();
+        let entity: Option<ListHistoryBackupsError> =
+            ListHistoryBackupsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1103,7 +1512,7 @@ pub async fn list_history_backups_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<ListHistoryBackupsAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            ListHistoryBackupsAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1153,7 +1562,8 @@ pub async fn list_runtime_backups(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<ListRuntimeBackupsError> = serde_json::from_str(&content).ok();
+        let entity: Option<ListRuntimeBackupsError> =
+            ListRuntimeBackupsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1207,7 +1617,7 @@ pub async fn list_runtime_backups_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<ListRuntimeBackupsAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            ListRuntimeBackupsAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1255,7 +1665,8 @@ pub async fn sync_runtime_backup_state(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<SyncRuntimeBackupStateError> = serde_json::from_str(&content).ok();
+        let entity: Option<SyncRuntimeBackupStateError> =
+            SyncRuntimeBackupStateError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1311,7 +1722,7 @@ pub async fn sync_runtime_backup_state_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<SyncRuntimeBackupStateAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            SyncRuntimeBackupStateAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1361,7 +1772,8 @@ pub async fn take_history_backup(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<TakeHistoryBackupError> = serde_json::from_str(&content).ok();
+        let entity: Option<TakeHistoryBackupError> =
+            TakeHistoryBackupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1415,7 +1827,7 @@ pub async fn take_history_backup_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<TakeHistoryBackupAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            TakeHistoryBackupAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1467,7 +1879,8 @@ pub async fn take_runtime_backup(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<TakeRuntimeBackupError> = serde_json::from_str(&content).ok();
+        let entity: Option<TakeRuntimeBackupError> =
+            TakeRuntimeBackupError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1523,7 +1936,7 @@ pub async fn take_runtime_backup_as_cluster_admin(
     } else {
         let content = resp.text().await?;
         let entity: Option<TakeRuntimeBackupAsClusterAdminError> =
-            serde_json::from_str(&content).ok();
+            TakeRuntimeBackupAsClusterAdminError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

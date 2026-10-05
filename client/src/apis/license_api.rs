@@ -21,6 +21,20 @@ pub enum GetLicenseError {
     UnknownValue(serde_json::Value),
 }
 
+impl GetLicenseError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// Obtains the status of the current Camunda license.
 pub async fn get_license(
     configuration: &configuration::Configuration,
@@ -52,7 +66,8 @@ pub async fn get_license(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<GetLicenseError> = serde_json::from_str(&content).ok();
+        let entity: Option<GetLicenseError> =
+            GetLicenseError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
