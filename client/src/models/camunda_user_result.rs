@@ -22,7 +22,7 @@ pub struct CamundaUserResult {
     /// The email of the user.
     #[serde(rename = "email", deserialize_with = "Option::deserialize")]
     pub email: Option<String>,
-    /// The web components the user is authorized to use.
+    /// The web components the user is authorized to use. When authorizations are disabled for the cluster, this always returns `[\"*\"]`, regardless of the user's actual permissions, since access is not restricted in that case.
     #[serde(rename = "authorizedComponents")]
     pub authorized_components: Vec<String>,
     /// The tenants the user is a member of.
