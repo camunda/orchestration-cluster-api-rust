@@ -56,8 +56,7 @@ jobs:
       extra-instructions: |
         src/runtime/facade_generated.rs and client/ are generated output — do not
         hand-edit them. If a fix needs regeneration, run `make generate`; the runner
-        image ships a JDK, so openapi-generator works here. Follow it with
-        `cargo fmt --all`, since the generator does not format what it emits.
+        image ships a JDK, so openapi-generator works here. It formats its own output.
 
         `examples/readme.rs` is the source of truth for the code blocks in `README.md`;
         edit the region there rather than editing `README.md`.
