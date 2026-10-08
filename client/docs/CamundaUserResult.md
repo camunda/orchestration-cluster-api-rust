@@ -7,7 +7,7 @@ Name | Type | Description | Notes
 **username** | **String** | The username of the user. | 
 **display_name** | Option<**String**> | The display name of the user. | 
 **email** | Option<**String**> | The email of the user. | 
-**authorized_components** | **Vec<String>** | The web components the user is authorized to use. | 
+**authorized_components** | **Vec<String>** | The web components the user is authorized to use. When authorizations are disabled for the cluster, this always returns `[\"*\"]`, regardless of the user's actual permissions, since access is not restricted in that case. | 
 **tenants** | [**Vec<models::TenantResult>**](TenantResult.md) | The tenants the user is a member of. | 
 **groups** | **Vec<String>** | The groups assigned to the user. | 
 **roles** | **Vec<String>** | The roles assigned to the user. | 
