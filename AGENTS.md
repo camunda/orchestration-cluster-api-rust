@@ -65,7 +65,8 @@ make generate    # regenerate from the already-bundled spec
    (`hook_07` parses `client/src/apis/*_api.rs` and emits `src/runtime/facade_generated.rs`,
    one `CamundaClient` method per operation routed through `guarded`). It parses the
    **unformatted** generator output, so it runs before step 4's `cargo fmt`.
-4. `cargo fmt` + `cargo build` on the client crate.
+4. `cargo fmt --all` (the client crate and the hook-emitted `src/runtime/*_generated.rs`),
+   then `cargo build` on the client crate.
 
 The hooks are **idempotent** and fix: missing/broken semantic keys, collapsed semantic
 `String` fields, doubled

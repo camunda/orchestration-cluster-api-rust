@@ -49,8 +49,9 @@ python3 scripts/postprocess.py \
   --spec "$BUNDLED_SPEC" \
   --metadata "$BUNDLED_META"
 
-echo "==> Formatting generated crate..."
-( cd client && cargo fmt 2>/dev/null || true )
+# --all: hooks also emit src/runtime/*_generated.rs into the root crate.
+echo "==> Formatting generated sources..."
+cargo fmt --all
 
 echo "==> Done. Verifying it builds..."
 ( cd client && cargo build )
