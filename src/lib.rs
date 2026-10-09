@@ -40,6 +40,7 @@ pub use runtime::eventual::ConsistencyOptions;
 pub use runtime::job_worker::{
     Job, JobAction, JobHandler, JobWorker, JobWorkerConfig, JobWorkerHandle, ReadyCallback,
 };
+pub use runtime::random::{LiveRandom, Random, SeededRandom};
 
 /// Eventual-consistency polling helpers ([`ConsistencyOptions`]).
 pub use runtime::eventual;

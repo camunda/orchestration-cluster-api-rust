@@ -35,6 +35,7 @@ use tokio_tungstenite::tungstenite::Message;
 use camunda_orchestration_api_client::models;
 
 use super::errors::{CamundaError, Result};
+use super::random::Random;
 
 /// Default Falcon command-stream path advertised by a nanobpmn gateway.
 const DEFAULT_COMMAND_STREAM_PATH: &str = "/falcon";
@@ -357,6 +358,8 @@ struct LinkInner {
     current: Mutex<Option<String>>,
     /// Total successful (re)connections; `connects - 1` = failovers.
     connects: AtomicU64,
+    /// Picks the endpoint to dial on each (re)connect.
+    random: Arc<dyn Random>,
 }
 
 /// A command-stream link that transparently fails over across a directory of nodes.
@@ -374,13 +377,18 @@ impl SupervisedLink {
     /// Start the supervisor and wait for the first connection before returning, so the
     /// caller can immediately send (e.g. the initial subscribe was already issued by
     /// `on_connect`).
-    async fn start(endpoints: Vec<String>, hooks: LinkHooks) -> Result<SupervisedLink> {
+    async fn start(
+        endpoints: Vec<String>,
+        hooks: LinkHooks,
+        random: Arc<dyn Random>,
+    ) -> Result<SupervisedLink> {
         debug_assert!(!endpoints.is_empty());
         let inner = Arc::new(LinkInner {
             writer: Mutex::new(None),
             endpoints,
             current: Mutex::new(None),
             connects: AtomicU64::new(0),
+            random,
         });
         let (ready_tx, ready_rx) = oneshot::channel::<Result<()>>();
         let sup = inner.clone();
@@ -407,16 +415,13 @@ impl SupervisedLink {
     }
 }
 
-/// Pick the next endpoint: random, but avoid `avoid` (the node that just failed) when the
-/// directory has more than one entry. Cheap xorshift seeded from the clock — no rng dep.
-fn pick_endpoint<'a>(endpoints: &'a [String], avoid: Option<&str>, seed: &mut u64) -> &'a str {
+/// Pick the endpoint the uniform draw `u` in `[0, 1)` selects, avoiding `avoid` (the node
+/// that just failed) when the directory has more than one entry.
+fn pick_endpoint<'a>(endpoints: &'a [String], avoid: Option<&str>, u: f64) -> &'a str {
     if endpoints.len() == 1 {
         return &endpoints[0];
     }
-    *seed ^= *seed << 13;
-    *seed ^= *seed >> 7;
-    *seed ^= *seed << 17;
-    let start = (*seed as usize) % endpoints.len();
+    let start = (u * endpoints.len() as f64) as usize;
     for i in 0..endpoints.len() {
         let cand = &endpoints[(start + i) % endpoints.len()];
         if Some(cand.as_str()) != avoid {
@@ -429,17 +434,16 @@ fn pick_endpoint<'a>(endpoints: &'a [String], avoid: Option<&str>, seed: &mut u6
 /// The reconnect loop. Runs until the process ends (the link lives for the client's life).
 async fn supervise(inner: Arc<LinkInner>, hooks: LinkHooks, ready_tx: oneshot::Sender<Result<()>>) {
     let mut idle = link_idle(DEFAULT_HEARTBEAT_MS);
-    // Seeds an RNG for reconnect jitter, not cadence -- nothing observable depends on it.
-    #[allow(clippy::disallowed_methods)]
-    let mut seed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as u64 | 1)
-        .unwrap_or(0x9E37_79B9_7F4A_7C15);
     let mut last_failed: Option<String> = None;
     let mut ready_tx = Some(ready_tx);
 
     loop {
-        let url = pick_endpoint(&inner.endpoints, last_failed.as_deref(), &mut seed).to_string();
+        let url = pick_endpoint(
+            &inner.endpoints,
+            last_failed.as_deref(),
+            inner.random.next_f64(),
+        )
+        .to_string();
         match dial(&url).await {
             Ok((tx, mut frames)) => {
                 *inner.writer.lock().unwrap() = Some(tx.clone());
@@ -596,7 +600,10 @@ pub struct FalconProducer {
 impl FalconProducer {
     /// Connect a new producer over the failover directory `endpoints` (≥1). The supervisor
     /// picks one at random and fails over to a survivor on disconnect.
-    pub async fn start(endpoints: Vec<String>) -> Result<Arc<FalconProducer>> {
+    pub async fn start(
+        endpoints: Vec<String>,
+        random: Arc<dyn Random>,
+    ) -> Result<Arc<FalconProducer>> {
         let shared = Arc::new(ProducerShared {
             credits: AtomicI64::new(0),
             credit_ready: Notify::new(),
@@ -613,7 +620,7 @@ impl FalconProducer {
             on_connect: Box::new(|_tx| {}),
             on_disconnect: Box::new(move || disc_shared.on_disconnect()),
         };
-        let link = SupervisedLink::start(endpoints, hooks).await?;
+        let link = SupervisedLink::start(endpoints, hooks, random).await?;
 
         Ok(Arc::new(FalconProducer {
             link,
@@ -800,6 +807,7 @@ impl FalconStreamWorker {
         fetch_variable: Option<Vec<String>>,
         timeout_ms: Option<u64>,
         worker: Option<String>,
+        random: Arc<dyn Random>,
     ) -> Result<FalconStreamWorker> {
         let (jobs_tx, jobs_rx) = mpsc::unbounded_channel::<models::ActivatedJobResult>();
 
@@ -840,7 +848,7 @@ impl FalconStreamWorker {
             on_connect: Box::new(on_connect),
             on_disconnect: Box::new(|| {}),
         };
-        let link = SupervisedLink::start(endpoints, hooks).await?;
+        let link = SupervisedLink::start(endpoints, hooks, random).await?;
 
         Ok(FalconStreamWorker {
             link,
@@ -1051,24 +1059,73 @@ mod tests {
         assert_eq!(eps, vec!["ws://localhost:8080/falcon".to_string()]);
     }
 
+    /// Draws the same value every time.
+    #[derive(Debug)]
+    struct Fixed(f64);
+
+    impl Random for Fixed {
+        fn next_f64(&self) -> f64 {
+            self.0
+        }
+    }
+
     #[test]
-    fn pick_endpoint_avoids_failed_node() {
+    fn pick_endpoint_maps_the_draw_onto_the_directory() {
         let eps = vec![
             "ws://a/cs".to_string(),
             "ws://b/cs".to_string(),
             "ws://c/cs".to_string(),
         ];
-        let mut seed = 0x1234_5678u64;
-        // Over many picks avoiding "ws://b/cs", it must never be selected.
-        for _ in 0..200 {
-            let p = pick_endpoint(&eps, Some("ws://b/cs"), &mut seed);
-            assert_ne!(p, "ws://b/cs");
+        for (u, avoid, want) in [
+            (0.0, None, "ws://a/cs"),
+            (0.34, None, "ws://b/cs"),
+            (0.999, None, "ws://c/cs"),
+            // The drawn node failed last time: take the next one round the ring.
+            (0.5, Some("ws://b/cs"), "ws://c/cs"),
+            (0.9, Some("ws://c/cs"), "ws://a/cs"),
+        ] {
+            assert_eq!(
+                pick_endpoint(&eps, avoid, u),
+                want,
+                "u={u}, avoid={avoid:?}"
+            );
         }
         // Single-element directory always returns its only entry, even if "avoided".
         let one = vec!["ws://solo/cs".to_string()];
         assert_eq!(
-            pick_endpoint(&one, Some("ws://solo/cs"), &mut seed),
+            pick_endpoint(&one, Some("ws://solo/cs"), 0.5),
             "ws://solo/cs"
+        );
+    }
+
+    /// The supervisor dials the endpoint the injected source selects. With one dead and
+    /// one live node, the draw alone decides whether the first dial succeeds.
+    #[tokio::test]
+    async fn the_first_dial_goes_where_the_source_points() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let live = format!("ws://{}/falcon", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                tokio::spawn(async move {
+                    if let Ok(mut ws) = tokio_tungstenite::accept_async(stream).await {
+                        while ws.next().await.is_some() {}
+                    }
+                });
+            }
+        });
+        let eps = vec!["ws://127.0.0.1:1/falcon".to_string(), live];
+
+        assert!(
+            FalconProducer::start(eps.clone(), Arc::new(Fixed(0.9)))
+                .await
+                .is_ok(),
+            "a draw selecting the live node should connect"
+        );
+        assert!(
+            FalconProducer::start(eps, Arc::new(Fixed(0.1)))
+                .await
+                .is_err(),
+            "a draw selecting the dead node should fail the first dial"
         );
     }
 

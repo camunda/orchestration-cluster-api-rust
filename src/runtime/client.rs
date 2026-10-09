@@ -18,6 +18,7 @@ use super::errors::{CamundaError, Result};
 use super::eventual::ConsistencyOptions;
 use super::falcon::{FalconCaps, FalconProducer};
 use super::job_worker::{Job, JobAction, JobWorker, JobWorkerConfig, JobWorkerHandle};
+use super::random::{self, Random};
 use super::{retry, tls};
 
 /// Lazily-resolved nanobpmn command-stream state, shared across client clones.
@@ -44,6 +45,9 @@ pub struct CamundaOptions {
     pub http_client: Option<reqwest::Client>,
     /// The clock the client's cadence resolves through. When `None`, real time is used.
     pub clock: Option<Arc<dyn Clock>>,
+    /// The source jitter is drawn from. When `None`, [`LiveRandom`](super::random::LiveRandom)
+    /// is used.
+    pub random: Option<Arc<dyn Random>>,
 }
 
 impl CamundaOptions {
@@ -69,6 +73,14 @@ impl CamundaOptions {
         self.clock = Some(clock);
         self
     }
+
+    /// Draw jitter (retry backoff, worker startup delay, FALCON endpoint selection) from
+    /// `random`. Pass a [`SeededRandom`](super::random::SeededRandom) to make it
+    /// reproducible.
+    pub fn with_random(mut self, random: Arc<dyn Random>) -> Self {
+        self.random = Some(random);
+        self
+    }
 }
 
 /// The primary entry point of the SDK.
@@ -85,6 +97,7 @@ pub struct CamundaClient {
     workers: Arc<std::sync::Mutex<Vec<JobWorkerHandle>>>,
     falcon: FalconState,
     clock: Arc<dyn Clock>,
+    random: Arc<dyn Random>,
 }
 
 impl CamundaClient {
@@ -120,6 +133,7 @@ impl CamundaClient {
             workers: Arc::new(std::sync::Mutex::new(Vec::new())),
             falcon: FalconState::default(),
             clock,
+            random: options.random.unwrap_or_else(random::live_random),
         })
     }
 
@@ -131,6 +145,11 @@ impl CamundaClient {
     /// The clock this client's cadence resolves through.
     pub fn clock(&self) -> &Arc<dyn Clock> {
         &self.clock
+    }
+
+    /// The source this client draws jitter from.
+    pub fn random(&self) -> &Arc<dyn Random> {
+        &self.random
     }
 
     /// The authentication handler.
@@ -176,7 +195,13 @@ impl CamundaClient {
         Fut: std::future::Future<Output = Result<T>>,
     {
         self.bp.acquire().await?;
-        let result = retry::with_retry(&self.config.retry, self.clock.as_ref(), &op).await;
+        let result = retry::with_retry(
+            &self.config.retry,
+            self.clock.as_ref(),
+            self.random.as_ref(),
+            &op,
+        )
+        .await;
         match &result {
             Ok(_) => self.bp.record_healthy_hint(),
             Err(e) if is_backpressure_error(e) => self.bp.record_backpressure(),
@@ -253,7 +278,9 @@ impl CamundaClient {
         let endpoints = caps.endpoints.clone();
         self.falcon
             .producer
-            .get_or_try_init(|| async { FalconProducer::start(endpoints).await })
+            .get_or_try_init(|| async {
+                FalconProducer::start(endpoints, self.random.clone()).await
+            })
             .await
     }
 
