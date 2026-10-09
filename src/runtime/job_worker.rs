@@ -448,13 +448,25 @@ impl JobWorker {
 
     /// Run the worker loop, processing jobs with `handler` until stopped or an
     /// unrecoverable error occurs.
-    pub async fn run<F, Fut>(self, handler: F) -> Result<()>
+    ///
+    /// The startup delay is drawn here, before the returned future is first polled, so
+    /// workers started in sequence draw in that order however their tasks are scheduled.
+    pub fn run<F, Fut>(self, handler: F) -> impl Future<Output = Result<()>> + Send + 'static
     where
         F: Fn(Job) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = JobAction> + Send + 'static,
     {
+        let startup_delay = self.draw_startup_delay();
         let handler: JobHandler = Arc::new(move |job| Box::pin(handler(job)));
-        self.run_boxed(handler).await
+        self.run_boxed(handler, startup_delay)
+    }
+
+    fn draw_startup_delay(&self) -> Duration {
+        if self.config.startup_jitter_max_seconds == 0 {
+            return Duration::ZERO;
+        }
+        let max_ms = self.config.startup_jitter_max_seconds.saturating_mul(1000);
+        Duration::from_millis((self.client.random().next_f64() * max_ms as f64) as u64)
     }
 
     /// Spawn the worker loop on the Tokio runtime, returning a [`tokio::task::JoinHandle`].
@@ -484,7 +496,7 @@ impl JobWorker {
         }
     }
 
-    async fn run_boxed(self, handler: JobHandler) -> Result<()> {
+    async fn run_boxed(self, handler: JobHandler, startup_delay: Duration) -> Result<()> {
         // `max_jobs_to_activate` is the in-flight cap and the activation batch size. A
         // non-positive value is invalid — silently rewriting it to 1 would violate the
         // documented maximum and make an explicitly disabled/misconfigured worker
@@ -498,13 +510,8 @@ impl JobWorker {
         }
 
         // Spread the initial activate-jobs stampede when many workers start together.
-        if self.config.startup_jitter_max_seconds > 0 {
-            let max_ms = self.config.startup_jitter_max_seconds.saturating_mul(1000);
-            let delay = (super::rand_fraction() * max_ms as f64) as u64;
-            self.client
-                .clock()
-                .sleep(Duration::from_millis(delay))
-                .await;
+        if !startup_delay.is_zero() {
+            self.client.clock().sleep(startup_delay).await;
         }
 
         // Falcon upgrade: when the gateway advertises the command stream, take pushed
@@ -721,6 +728,7 @@ impl JobWorker {
             self.config.fetch_variables.clone(),
             Some(self.config.job_timeout_ms.max(0) as u64),
             Some(self.config.worker_name.clone()),
+            self.client.random().clone(),
         )
         .await
         {
@@ -933,6 +941,7 @@ impl CamundaError {
 
 #[cfg(test)]
 mod tests {
+    use super::super::random::Random;
     use super::*;
 
     /// A client pointed at a local address, enough to construct workers for building and
@@ -1235,6 +1244,121 @@ mod tests {
         let s = format!("{c:?}");
         assert!(s.contains("on_ready"));
         assert!(s.contains("<callback>"));
+    }
+
+    /// Seed 42's first draws, from the cross-SDK conformance vector.
+    const SEED_42: [f64; 2] = [0.7415648787718233, 0.1599103928769201];
+
+    /// Records each wait, then never returns -- so a worker's startup wait is the only
+    /// one it makes, and the test reads it without the worker going on to poll.
+    #[derive(Debug, Default)]
+    struct ParkingClock {
+        inner: super::super::clock::LiveClock,
+        waits: std::sync::Mutex<Vec<Duration>>,
+    }
+
+    #[async_trait::async_trait]
+    impl Clock for ParkingClock {
+        fn now(&self) -> tokio::time::Instant {
+            self.inner.now()
+        }
+        fn now_wall(&self) -> std::time::SystemTime {
+            self.inner.now_wall()
+        }
+        async fn sleep(&self, duration: Duration) {
+            self.waits.lock().expect("poisoned").push(duration);
+            std::future::pending::<()>().await;
+        }
+    }
+
+    fn seeded_client(
+        clock: Arc<dyn Clock>,
+        random: Arc<super::super::random::SeededRandom>,
+    ) -> super::super::client::CamundaClient {
+        super::super::client::CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", "http://localhost:8080")
+                .with_clock(clock)
+                .with_random(random),
+        )
+        .expect("client should build from an address alone")
+    }
+
+    async fn noop(_: Job) -> JobAction {
+        JobAction::Complete { variables: None }
+    }
+
+    /// The delay is drawn when the worker is started, not when its task first runs: on a
+    /// current-thread runtime the spawned task has not run yet, but the draw is gone.
+    /// Covers every way to start a worker.
+    #[tokio::test]
+    async fn startup_delay_is_drawn_when_the_worker_is_started() {
+        type Start = fn(JobWorker);
+        let starts: [(&str, Start); 3] = [
+            ("run", |w| drop(tokio::spawn(w.run(noop)))),
+            ("start", |w| drop(w.start(noop))),
+            ("spawn", |w| drop(w.spawn(noop))),
+        ];
+        for (name, start) in starts {
+            let random = Arc::new(super::super::random::SeededRandom::new(42));
+            let client = seeded_client(Arc::new(ParkingClock::default()), random.clone());
+            start(
+                client.create_job_worker(JobWorkerConfig::new("t").startup_jitter_max_seconds(10)),
+            );
+            assert_eq!(
+                random.next_f64(),
+                SEED_42[1],
+                "`{name}` did not take the startup draw before returning"
+            );
+        }
+    }
+
+    /// Workers started in sequence take the sequence's draws in that order, whatever
+    /// order their tasks run in. Different maxima tell the two workers' waits apart.
+    #[tokio::test]
+    async fn workers_started_in_sequence_draw_in_that_order() {
+        let clock = Arc::new(ParkingClock::default());
+        let client = seeded_client(
+            clock.clone(),
+            Arc::new(super::super::random::SeededRandom::new(42)),
+        );
+        let first = client
+            .create_job_worker(JobWorkerConfig::new("a").startup_jitter_max_seconds(10))
+            .start(noop);
+        let second = client
+            .create_job_worker(JobWorkerConfig::new("b").startup_jitter_max_seconds(20))
+            .start(noop);
+
+        for _ in 0..1_000 {
+            if clock.waits.lock().expect("poisoned").len() == 2 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        first.abort();
+        second.abort();
+
+        let mut waits = clock.waits.lock().expect("poisoned").clone();
+        waits.sort();
+        let mut want = vec![
+            Duration::from_millis((SEED_42[0] * 10_000.0) as u64),
+            Duration::from_millis((SEED_42[1] * 20_000.0) as u64),
+        ];
+        want.sort();
+        assert_eq!(waits, want);
+    }
+
+    /// With no startup jitter a worker neither waits nor consumes a draw, so turning the
+    /// feature off leaves every other draw where it was.
+    #[tokio::test]
+    async fn a_worker_without_startup_jitter_draws_nothing() {
+        let random = Arc::new(super::super::random::SeededRandom::new(42));
+        let client = seeded_client(Arc::new(ParkingClock::default()), random.clone());
+        client
+            .create_job_worker(JobWorkerConfig::new("t"))
+            .start(noop)
+            .abort();
+        assert_eq!(random.next_f64(), SEED_42[0], "a worker consumed a draw");
     }
 
     /// Build an activated job. Only the clock wiring is under test, so the field values

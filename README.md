@@ -357,6 +357,36 @@ so the requests themselves are unaffected by the pinning.
 
 Ambient time is banned in the runtime by `clippy.toml` -- `Instant::now`, `SystemTime::now`,
 `tokio::time::sleep` and friends -- so cadence cannot quietly drift back onto real time.
+
+## Reproducible jitter
+
+Retry backoff, worker startup delay (`CAMUNDA_WORKER_STARTUP_JITTER_MAX_SECONDS`) and
+FALCON endpoint selection draw from an injected `Random` rather than an ambient generator.
+The default, `LiveRandom`, is seeded once per process from OS entropy. A `SeededRandom`
+replays the same sequence for the same seed, so a test can assert the exact delays the SDK
+schedules instead of a range:
+
+<!-- snippet-source: examples/readme.rs | regions: ReproducibleJitter -->
+```rust
+use camunda_orchestration_sdk::{CamundaClient, CamundaOptions, SeededRandom};
+use std::sync::Arc;
+
+// Seeds from CAMUNDA_TEST_SEED when it is set, otherwise from a fresh seed.
+let random = Arc::new(SeededRandom::from_env()?);
+// Log the source: it names the seed and how to replay this run.
+println!("{random}"); // SeededRandom(seed=...; replay with CAMUNDA_TEST_SEED=...)
+
+let client = CamundaClient::new(CamundaOptions::new().with_random(random))?;
+```
+
+The seeded generator is specified across the Camunda SDKs, so one seed produces the same
+draws in every language. A worker draws its startup delay when it is started (`run`,
+`start` or `spawn`), not when its task first runs, so workers started in sequence draw in
+that order however the runtime schedules them.
+
+`std::hash::RandomState`, the only entropy std exposes, is banned in the runtime by
+`clippy.toml` outside the `LiveRandom` adapter.
+
 ## The Camunda Domain Type System
 
 Camunda's spec marks identifier schemas with `x-semantic-type` (e.g. `JobKey`,

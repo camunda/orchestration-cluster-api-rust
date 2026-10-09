@@ -15,3 +15,10 @@ disallowed-methods = [
     { path = "tokio::time::sleep_until", reason = "wait with `Clock::sleep`" },
     { path = "std::thread::sleep", reason = "wait with `Clock::sleep`" },
 ]
+
+# Jitter draws from the injected `Random`, so a seeded source makes it reproducible.
+# `RandomState` is the only entropy std exposes; banning the type covers `new` and
+# `default`. A `HashMap` that picks it as its default hasher is unaffected.
+disallowed-types = [
+    { path = "std::hash::RandomState", reason = "draw from the client's `Random`" },
+]

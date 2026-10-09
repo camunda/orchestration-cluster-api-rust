@@ -880,6 +880,9 @@ RUNTIME_TYPES = [
     "ClockController",
     "LiveClock",
     "EngineClock",
+    "Random",
+    "LiveRandom",
+    "SeededRandom",
 ]
 
 
