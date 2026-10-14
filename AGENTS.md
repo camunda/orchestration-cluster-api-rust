@@ -8,7 +8,7 @@
 
 This repo produces the **Rust SDK** for the Camunda 8 Orchestration Cluster REST API. It is a
 sibling of the JS / Python / C# SDKs and follows the same pattern: a generated low-level
-client wrapped by a hand-written ergonomic runtime. Target API version: **8.10** (`main`).
+client wrapped by a hand-written ergonomic runtime. Target API version: **8.11** (`main`).
 
 Upstream dependencies — fix at the source when they misbehave, not by working around them here:
 
