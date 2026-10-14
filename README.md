@@ -74,13 +74,25 @@ Or add it to `Cargo.toml` directly:
 
 ```toml
 [dependencies]
-camunda-orchestration-sdk = "0.1"
+camunda-orchestration-sdk = "11"
 tokio = { version = "1", features = ["full"] }
 ```
 
 The async API requires a Tokio runtime. The low-level generated client is also
 published as [`camunda-orchestration-api-client`](https://crates.io/crates/camunda-orchestration-api-client),
 but most users only need the `camunda-orchestration-sdk` facade.
+
+## Versioning
+
+The SDK major version tracks the Camunda server minor version: use the SDK line
+that matches your server.
+
+| Camunda server        | SDK version | Branch      |
+| --------------------- | ----------- | ----------- |
+| 8.10                  | `10.x`      | `stable/10` |
+| 8.11 (in development) | `11.x`      | `main`      |
+
+Releases before 10.0.0 (`0.x`) predate this scheme.
 
 ## Quick start
 
@@ -509,7 +521,8 @@ which triggers on any `v*` tag and uploads via [crates.io Trusted Publishing](ht
 
 1. Bump the version in both `Cargo.toml` and `client/Cargo.toml` (keep them in
    lockstep), refresh `Cargo.lock` (`cargo update -p camunda-orchestration-sdk`),
-   and commit on `main`.
+   and commit on the release line's branch (`stable/N` for server 8.N, `main` for
+   the in-development line).
 2. Dry-run locally to be sure both crates package cleanly:
 
    ```bash
