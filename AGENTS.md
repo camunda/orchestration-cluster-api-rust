@@ -8,7 +8,7 @@
 
 This repo produces the **Rust SDK** for the Camunda 8 Orchestration Cluster REST API. It is a
 sibling of the JS / Python / C# SDKs and follows the same pattern: a generated low-level
-client wrapped by a hand-written ergonomic runtime. Target API version: **8.10** (`main`).
+client wrapped by a hand-written ergonomic runtime. Target API version: **8.10** (`stable/10`).
 
 Upstream dependencies — fix at the source when they misbehave, not by working around them here:
 
@@ -125,6 +125,14 @@ alters `client/`, split into two commits:
 2. `chore(gen): regenerate client for <summary>` — the regenerated `client/` output.
 
 This keeps cherry-picks clean and reviews readable, and preserves `git blame` on both surfaces.
+
+## Versioning
+
+The SDK major tracks the Camunda server minor (server 8.10 → SDK 10.x): `stable/10` is
+10.x, `main` is the next line. Both crates share one version, set in `Cargo.toml`,
+`client/Cargo.toml` (from `packageVersion` in `openapi-generator-config.yaml`) and the
+SDK's path dependency on the client; refresh `Cargo.lock` with `cargo update -w`. A
+`vX.Y.Z` tag publishes to crates.io, and a published version can only be yanked.
 
 ## Commit messages
 
