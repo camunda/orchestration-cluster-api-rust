@@ -126,6 +126,14 @@ alters `client/`, split into two commits:
 
 This keeps cherry-picks clean and reviews readable, and preserves `git blame` on both surfaces.
 
+## Versioning
+
+The SDK major tracks the Camunda server minor (server 8.10 → SDK 10.x): `stable/10` is
+10.x, `main` is the next line. Both crates share one version, set in `Cargo.toml`,
+`client/Cargo.toml` (from `packageVersion` in `openapi-generator-config.yaml`) and the
+SDK's path dependency on the client; refresh `Cargo.lock` with `cargo update -w`. A
+`vX.Y.Z` tag publishes to crates.io, and a published version can only be yanked.
+
 ## Commit messages
 
 Conventional Commits. Use `fix` only for user-facing bug fixes (triggers a release); use
