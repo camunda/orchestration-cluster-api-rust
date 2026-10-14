@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UserTaskAssignmentRequest {
     /// The assignee for the user task. The assignee must not be empty or `null`.
-    #[serde(rename = "assignee", skip_serializing_if = "Option::is_none")]
-    pub assignee: Option<String>,
+    #[serde(rename = "assignee")]
+    pub assignee: String,
     /// By default, the task is reassigned if it was already assigned. Set this to `false` to return an error in such cases. The task must then first be unassigned to be assigned again. Use this when you have users picking from group task queues to prevent race conditions.
     #[serde(
         rename = "allowOverride",
@@ -35,9 +35,9 @@ pub struct UserTaskAssignmentRequest {
 }
 
 impl UserTaskAssignmentRequest {
-    pub fn new() -> UserTaskAssignmentRequest {
+    pub fn new(assignee: String) -> UserTaskAssignmentRequest {
         UserTaskAssignmentRequest {
-            assignee: None,
+            assignee,
             allow_override: None,
             action: None,
         }

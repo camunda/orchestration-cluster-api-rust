@@ -1134,6 +1134,8 @@ pub mod role_update_request;
 pub use self::role_update_request::RoleUpdateRequest;
 pub mod role_update_result;
 pub use self::role_update_result::RoleUpdateResult;
+pub mod role_user_filter_request;
+pub use self::role_user_filter_request::RoleUserFilterRequest;
 pub mod role_user_result;
 pub use self::role_user_result::RoleUserResult;
 pub mod role_user_search_query_request;

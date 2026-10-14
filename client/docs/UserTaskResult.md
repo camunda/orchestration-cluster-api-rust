@@ -20,6 +20,7 @@ Name | Type | Description | Notes
 **process_definition_version** | **i32** | The version of the process definition. | 
 **custom_headers** | **std::collections::HashMap<String, String>** | Custom headers for the user task. | 
 **priority** | **i32** | The priority of a user task. The higher the value the higher the priority. | [default to 50]
+**is_suspended** | **bool** | Whether the user task is suspended because its owning process instance is suspended.  | 
 **user_task_key** | **models::UserTaskKey** | The key of the user task. | 
 **element_instance_key** | **models::ElementInstanceKey** | The key of the element instance. | 
 **process_name** | Option<**String**> | The name of the process definition. This is `null` if the process has no name defined.  | 

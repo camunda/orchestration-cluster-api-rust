@@ -31,11 +31,11 @@ pub struct CreateDocumentParams {
 pub struct CreateDocumentLinkParams {
     /// The ID of the document to link.
     pub document_id: String,
+    pub document_link_request: models::DocumentLinkRequest,
     /// The ID of the document store where the document is located.
     pub store_id: Option<String>,
     /// The hash of the document content that was computed by the document store during upload. The hash is part of the document reference that is returned when uploading a document. If the client fails to provide the correct hash, the request will be rejected.
     pub content_hash: Option<String>,
-    pub document_link_request: Option<models::DocumentLinkRequest>,
 }
 
 /// struct for passing parameters to the method [`create_documents`]
@@ -287,9 +287,7 @@ pub async fn create_document_link(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    if let Some(ref body) = params.document_link_request {
-        req_builder = req_builder.json(body);
-    }
+    req_builder = req_builder.json(&params.document_link_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;

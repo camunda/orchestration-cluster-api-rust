@@ -874,6 +874,7 @@ Class | Method | HTTP request | Description
  - [RoleSearchQuerySortRequest](docs/RoleSearchQuerySortRequest.md)
  - [RoleUpdateRequest](docs/RoleUpdateRequest.md)
  - [RoleUpdateResult](docs/RoleUpdateResult.md)
+ - [RoleUserFilterRequest](docs/RoleUserFilterRequest.md)
  - [RoleUserResult](docs/RoleUserResult.md)
  - [RoleUserSearchQueryRequest](docs/RoleUserSearchQueryRequest.md)
  - [RoleUserSearchQuerySortRequest](docs/RoleUserSearchQuerySortRequest.md)
