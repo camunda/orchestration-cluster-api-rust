@@ -497,7 +497,7 @@ Resolves multiple instances of process instances. Since only process instances w
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**process_instance_incident_resolution_batch_operation_request** | Option<[**ProcessInstanceIncidentResolutionBatchOperationRequest**](ProcessInstanceIncidentResolutionBatchOperationRequest.md)> |  |  |
+**process_instance_incident_resolution_batch_operation_request** | [**ProcessInstanceIncidentResolutionBatchOperationRequest**](ProcessInstanceIncidentResolutionBatchOperationRequest.md) |  | [required] |
 
 ### Return type
 

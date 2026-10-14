@@ -22,9 +22,9 @@ pub struct JobSearchResult {
     /// The reason provided by the user task listener for denying the work.
     #[serde(rename = "deniedReason", deserialize_with = "Option::deserialize")]
     pub denied_reason: Option<String>,
-    /// The element ID associated with the job. May be missing on job failure.
-    #[serde(rename = "elementId", deserialize_with = "Option::deserialize")]
-    pub element_id: Option<models::ElementId>,
+    /// The element ID associated with the job.
+    #[serde(rename = "elementId")]
+    pub element_id: models::ElementId,
     /// The element instance key associated with the job.
     #[serde(rename = "elementInstanceKey")]
     pub element_instance_key: Box<models::ElementInstanceKey>,
@@ -98,7 +98,7 @@ impl JobSearchResult {
         custom_headers: std::collections::HashMap<String, String>,
         deadline: Option<chrono::DateTime<chrono::FixedOffset>>,
         denied_reason: Option<String>,
-        element_id: Option<models::ElementId>,
+        element_id: models::ElementId,
         element_instance_key: models::ElementInstanceKey,
         end_time: Option<chrono::DateTime<chrono::FixedOffset>>,
         error_code: Option<String>,

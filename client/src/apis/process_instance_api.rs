@@ -127,7 +127,7 @@ pub struct ModifyProcessInstancesBatchOperationParams {
 #[derive(Clone, Debug)]
 pub struct ResolveIncidentsBatchOperationParams {
     pub process_instance_incident_resolution_batch_operation_request:
-        Option<models::ProcessInstanceIncidentResolutionBatchOperationRequest>,
+        models::ProcessInstanceIncidentResolutionBatchOperationRequest,
 }
 
 /// struct for passing parameters to the method [`resolve_process_instance_incidents`]
@@ -1625,9 +1625,8 @@ pub async fn resolve_incidents_batch_operation(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    if let Some(ref body) = params.process_instance_incident_resolution_batch_operation_request {
-        req_builder = req_builder.json(body);
-    }
+    req_builder =
+        req_builder.json(&params.process_instance_incident_resolution_batch_operation_request);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;

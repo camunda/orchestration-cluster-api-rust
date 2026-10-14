@@ -8,7 +8,7 @@
 
 This repo produces the **Rust SDK** for the Camunda 8 Orchestration Cluster REST API. It is a
 sibling of the JS / Python / C# SDKs and follows the same pattern: a generated low-level
-client wrapped by a hand-written ergonomic runtime. Target API version: **8.10** (`main`).
+client wrapped by a hand-written ergonomic runtime. Target API version: **8.11** (`main`).
 
 Upstream dependencies — fix at the source when they misbehave, not by working around them here:
 
@@ -52,13 +52,13 @@ represented, change it there.
 ## Generation pipeline
 
 ```bash
-make bundle      # re-bundle upstream spec (ref: $SPEC_REF, default stable/8.10) + regenerate
+make bundle      # re-bundle upstream spec (ref: $SPEC_REF, default main) + regenerate
 make generate    # regenerate from the already-bundled spec
 ```
 
 `scripts/generate.sh` runs:
 
-1. (`--bundle`) `camunda-schema-bundler --ref stable/8.10` → `external-spec/bundled/*`.
+1. (`--bundle`) `camunda-schema-bundler --ref main` → `external-spec/bundled/*`.
 2. `openapi-generator generate -c openapi-generator-config.yaml` → `client/`.
 3. `scripts/postprocess.py` — runs the numbered hooks (`scripts/hooks/`): Domain Type
    System, semantic field types, generator-bug fixes, and the full-surface facade

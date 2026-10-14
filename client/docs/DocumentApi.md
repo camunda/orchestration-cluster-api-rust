@@ -47,7 +47,7 @@ Name | Type | Description  | Required | Notes
 
 ## create_document_link
 
-> models::DocumentLink create_document_link(document_id, store_id, content_hash, document_link_request)
+> models::DocumentLink create_document_link(document_id, document_link_request, store_id, content_hash)
 Create document link
 
 Create a link to a document in the Camunda 8 cluster.  Note that this is currently supported for document stores of type: AWS, Azure, GCP 
@@ -58,9 +58,9 @@ Create a link to a document in the Camunda 8 cluster.  Note that this is current
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **document_id** | **String** | The ID of the document to link. | [required] |
+**document_link_request** | [**DocumentLinkRequest**](DocumentLinkRequest.md) |  | [required] |
 **store_id** | Option<**String**> | The ID of the document store where the document is located. |  |
 **content_hash** | Option<**String**> | The hash of the document content that was computed by the document store during upload. The hash is part of the document reference that is returned when uploading a document. If the client fails to provide the correct hash, the request will be rejected.  |  |
-**document_link_request** | Option<[**DocumentLinkRequest**](DocumentLinkRequest.md)> |  |  |
 
 ### Return type
 

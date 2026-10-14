@@ -17,6 +17,14 @@ pub struct UserTaskFilterFields {
     /// The user task state.
     #[serde(rename = "state", skip_serializing_if = "Option::is_none")]
     pub state: Option<Box<models::UserTaskStateFilterProperty>>,
+    /// Whether the user task is suspended because its owning process instance is suspended.
+    #[serde(
+        rename = "isSuspended",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub is_suspended: Option<Option<bool>>,
     /// The assignee of the user task.
     #[serde(rename = "assignee", skip_serializing_if = "Option::is_none")]
     pub assignee: Option<Box<models::StringFilterProperty>>,
@@ -93,6 +101,7 @@ impl UserTaskFilterFields {
     pub fn new() -> UserTaskFilterFields {
         UserTaskFilterFields {
             state: None,
+            is_suspended: None,
             assignee: None,
             business_id: None,
             priority: None,

@@ -7,7 +7,7 @@ Name | Type | Description | Notes
 **custom_headers** | **std::collections::HashMap<String, String>** | A set of custom headers defined during modelling. | 
 **deadline** | Option<**chrono::DateTime<chrono::FixedOffset>**> | If the job has been activated, when it will next be available to be activated. | 
 **denied_reason** | Option<**String**> | The reason provided by the user task listener for denying the work. | 
-**element_id** | Option<**String**> | The element ID associated with the job. May be missing on job failure. | 
+**element_id** | **String** | The element ID associated with the job. | 
 **element_instance_key** | **models::ElementInstanceKey** | The element instance key associated with the job. | 
 **end_time** | Option<**chrono::DateTime<chrono::FixedOffset>**> | End date of the job. This is `null` if the job is not in an end state yet.  | 
 **error_code** | Option<**String**> | The error code provided for a failed job. | 

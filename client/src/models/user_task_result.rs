@@ -63,6 +63,9 @@ pub struct UserTaskResult {
     /// The priority of a user task. The higher the value the higher the priority.
     #[serde(rename = "priority")]
     pub priority: i32,
+    /// Whether the user task is suspended because its owning process instance is suspended.
+    #[serde(rename = "isSuspended")]
+    pub is_suspended: bool,
     /// The key of the user task.
     #[serde(rename = "userTaskKey")]
     pub user_task_key: Box<models::UserTaskKey>,
@@ -113,6 +116,7 @@ impl UserTaskResult {
         process_definition_version: i32,
         custom_headers: std::collections::HashMap<String, String>,
         priority: i32,
+        is_suspended: bool,
         user_task_key: models::UserTaskKey,
         element_instance_key: models::ElementInstanceKey,
         process_name: Option<String>,
@@ -140,6 +144,7 @@ impl UserTaskResult {
             process_definition_version,
             custom_headers,
             priority,
+            is_suspended,
             user_task_key: Box::new(user_task_key),
             element_instance_key: Box::new(element_instance_key),
             process_name,

@@ -20,14 +20,22 @@ pub struct AuthenticationConfigurationResponse {
     /// Whether login is delegated to an external identity provider.
     #[serde(rename = "isLoginDelegated")]
     pub is_login_delegated: bool,
+    /// Whether Camunda manages group membership locally, as opposed to delegating it to the identity provider via a groups claim.
+    #[serde(rename = "isCamundaGroupsEnabled")]
+    pub is_camunda_groups_enabled: bool,
 }
 
 impl AuthenticationConfigurationResponse {
     /// Configuration for authentication and session management.
-    pub fn new(can_logout: bool, is_login_delegated: bool) -> AuthenticationConfigurationResponse {
+    pub fn new(
+        can_logout: bool,
+        is_login_delegated: bool,
+        is_camunda_groups_enabled: bool,
+    ) -> AuthenticationConfigurationResponse {
         AuthenticationConfigurationResponse {
             can_logout,
             is_login_delegated,
+            is_camunda_groups_enabled,
         }
     }
 }

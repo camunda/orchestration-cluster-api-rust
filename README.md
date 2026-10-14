@@ -19,7 +19,7 @@ This SDK follows the same architecture as the official
 - The **Camunda Domain Type System**: semantic keys such as `JobKey` and
   `ProcessInstanceKey` are nominal newtypes with validation, not bare strings.
 
-Target API version: **8.10** (`main`).
+Target API version: **8.11** (`main`).
 
 ## Support status
 
@@ -457,7 +457,7 @@ Requirements: Rust toolchain, Java 17+ (for openapi-generator), Node.js (for
 `camunda-schema-bundler` and `@openapitools/openapi-generator-cli`, both run via `npx`).
 
 ```bash
-make bundle      # re-fetch + bundle the upstream spec (ref: stable/8.10), then regenerate
+make bundle      # re-fetch + bundle the upstream spec (ref: camunda main), then regenerate
 make generate    # regenerate from the already-bundled spec
 make build
 make test

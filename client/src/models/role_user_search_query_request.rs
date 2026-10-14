@@ -16,6 +16,9 @@ pub struct RoleUserSearchQueryRequest {
     /// Pagination criteria.
     #[serde(rename = "page", skip_serializing_if = "Option::is_none")]
     pub page: Option<Box<models::SearchQueryPageRequest>>,
+    /// The user filter criteria.
+    #[serde(rename = "filter", skip_serializing_if = "Option::is_none")]
+    pub filter: Option<Box<models::RoleUserFilterRequest>>,
     /// Sort field criteria.
     #[serde(rename = "sort", skip_serializing_if = "Option::is_none")]
     pub sort: Option<Vec<models::RoleUserSearchQuerySortRequest>>,
@@ -25,6 +28,7 @@ impl RoleUserSearchQueryRequest {
     pub fn new() -> RoleUserSearchQueryRequest {
         RoleUserSearchQueryRequest {
             page: None,
+            filter: None,
             sort: None,
         }
     }

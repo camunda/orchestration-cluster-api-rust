@@ -17,8 +17,8 @@ pub struct CreateClusterVariableRequest {
     #[serde(rename = "name")]
     pub name: models::ClusterVariableName,
     /// The value of the cluster variable. Can be any JSON object or primitive value. Will be serialized as a JSON string in responses.
-    #[serde(rename = "value")]
-    pub value: serde_json::Value,
+    #[serde(rename = "value", deserialize_with = "Option::deserialize")]
+    pub value: Option<serde_json::Value>,
     /// A generic key-value metadata bag attached to the cluster variable. Values must be strings or numbers. Limited to 100 entries and a configurable maximum serialized size (default: 100 entries at max key length of a cluster variable name (256 chars) plus the maximum value length, 8192 characters).
     #[serde(rename = "metadata", skip_serializing_if = "Option::is_none")]
     pub metadata: Option<
@@ -32,7 +32,7 @@ pub struct CreateClusterVariableRequest {
 impl CreateClusterVariableRequest {
     pub fn new(
         name: models::ClusterVariableName,
-        value: serde_json::Value,
+        value: Option<serde_json::Value>,
     ) -> CreateClusterVariableRequest {
         CreateClusterVariableRequest {
             name,
