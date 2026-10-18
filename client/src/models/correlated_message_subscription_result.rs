@@ -43,9 +43,12 @@ pub struct CorrelatedMessageSubscriptionResult {
     /// The process definition ID associated with this correlated message subscription.
     #[serde(rename = "processDefinitionId")]
     pub process_definition_id: models::ProcessDefinitionId,
-    /// The process definition key associated with this correlated message subscription.
-    #[serde(rename = "processDefinitionKey")]
-    pub process_definition_key: Box<models::ProcessDefinitionKey>,
+    /// The process definition key associated with this correlated message subscription. This field is not present for correlations to message subscriptions of a running process instance (catch, boundary and receive task events) written by version 8.8.
+    #[serde(
+        rename = "processDefinitionKey",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub process_definition_key: Option<Box<models::ProcessDefinitionKey>>,
     /// The process instance key associated with this correlated message subscription.
     #[serde(rename = "processInstanceKey")]
     pub process_instance_key: Box<models::ProcessInstanceKey>,
@@ -74,7 +77,7 @@ impl CorrelatedMessageSubscriptionResult {
         message_name: String,
         partition_id: i32,
         process_definition_id: models::ProcessDefinitionId,
-        process_definition_key: models::ProcessDefinitionKey,
+        process_definition_key: Option<models::ProcessDefinitionKey>,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         subscription_key: models::MessageSubscriptionKey,
@@ -94,7 +97,11 @@ impl CorrelatedMessageSubscriptionResult {
             message_name,
             partition_id,
             process_definition_id,
-            process_definition_key: Box::new(process_definition_key),
+            process_definition_key: if let Some(x) = process_definition_key {
+                Some(Box::new(x))
+            } else {
+                None
+            },
             process_instance_key: Box::new(process_instance_key),
             root_process_instance_key: if let Some(x) = root_process_instance_key {
                 Some(Box::new(x))
