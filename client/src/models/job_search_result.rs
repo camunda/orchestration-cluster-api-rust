@@ -22,9 +22,9 @@ pub struct JobSearchResult {
     /// The reason provided by the user task listener for denying the work.
     #[serde(rename = "deniedReason", deserialize_with = "Option::deserialize")]
     pub denied_reason: Option<String>,
-    /// The element ID associated with the job.
-    #[serde(rename = "elementId")]
-    pub element_id: models::ElementId,
+    /// The element ID associated with the job. May be missing on job failure.
+    #[serde(rename = "elementId", deserialize_with = "Option::deserialize")]
+    pub element_id: Option<models::ElementId>,
     /// The element instance key associated with the job.
     #[serde(rename = "elementInstanceKey")]
     pub element_instance_key: Box<models::ElementInstanceKey>,
@@ -50,12 +50,18 @@ pub struct JobSearchResult {
     pub kind: models::JobKindEnum,
     #[serde(rename = "listenerEventType")]
     pub listener_event_type: models::JobListenerEventTypeEnum,
-    /// The process definition ID associated with the job.
-    #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: models::ProcessDefinitionId,
-    /// The process definition key associated with the job.
-    #[serde(rename = "processDefinitionKey")]
-    pub process_definition_key: Box<models::ProcessDefinitionKey>,
+    /// The process definition ID associated with the job. This field is not present for jobs imported by Operate 8.7 and earlier.
+    #[serde(
+        rename = "processDefinitionId",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub process_definition_id: Option<models::ProcessDefinitionId>,
+    /// The process definition key associated with the job. This field is not present for jobs imported by Operate 8.7 and earlier.
+    #[serde(
+        rename = "processDefinitionKey",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub process_definition_key: Option<Box<models::ProcessDefinitionKey>>,
     /// The process instance key associated with the job.
     #[serde(rename = "processInstanceKey")]
     pub process_instance_key: Box<models::ProcessInstanceKey>,
@@ -98,7 +104,7 @@ impl JobSearchResult {
         custom_headers: std::collections::HashMap<String, String>,
         deadline: Option<chrono::DateTime<chrono::FixedOffset>>,
         denied_reason: Option<String>,
-        element_id: models::ElementId,
+        element_id: Option<models::ElementId>,
         element_instance_key: models::ElementInstanceKey,
         end_time: Option<chrono::DateTime<chrono::FixedOffset>>,
         error_code: Option<String>,
@@ -108,8 +114,8 @@ impl JobSearchResult {
         job_key: models::JobKey,
         kind: models::JobKindEnum,
         listener_event_type: models::JobListenerEventTypeEnum,
-        process_definition_id: models::ProcessDefinitionId,
-        process_definition_key: models::ProcessDefinitionKey,
+        process_definition_id: Option<models::ProcessDefinitionId>,
+        process_definition_key: Option<models::ProcessDefinitionKey>,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         business_id: Option<models::BusinessId>,
@@ -137,7 +143,11 @@ impl JobSearchResult {
             kind,
             listener_event_type,
             process_definition_id,
-            process_definition_key: Box::new(process_definition_key),
+            process_definition_key: if let Some(x) = process_definition_key {
+                Some(Box::new(x))
+            } else {
+                None
+            },
             process_instance_key: Box::new(process_instance_key),
             root_process_instance_key: if let Some(x) = root_process_instance_key {
                 Some(Box::new(x))
