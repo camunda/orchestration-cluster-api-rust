@@ -334,6 +334,8 @@ pub mod checkpoint_type;
 pub use self::checkpoint_type::CheckpointType;
 pub mod clock_pin_request;
 pub use self::clock_pin_request::ClockPinRequest;
+pub mod clock_result;
+pub use self::clock_result::ClockResult;
 pub mod cloud_configuration_response;
 pub use self::cloud_configuration_response::CloudConfigurationResponse;
 pub mod cloud_stage;

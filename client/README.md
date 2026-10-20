@@ -88,6 +88,7 @@ Class | Method | HTTP request | Description
 *BatchOperationApi* | [**search_batch_operation_items**](docs/BatchOperationApi.md#search_batch_operation_items) | **POST** /batch-operation-items/search | Search batch operation items
 *BatchOperationApi* | [**search_batch_operations**](docs/BatchOperationApi.md#search_batch_operations) | **POST** /batch-operations/search | Search batch operations
 *BatchOperationApi* | [**suspend_batch_operation**](docs/BatchOperationApi.md#suspend_batch_operation) | **POST** /batch-operations/{batchOperationKey}/suspension | Suspend Batch operation
+*ClockApi* | [**get_clock**](docs/ClockApi.md#get_clock) | **GET** /clock | Get internal clock
 *ClockApi* | [**pin_clock**](docs/ClockApi.md#pin_clock) | **PUT** /clock | Pin internal clock (alpha)
 *ClockApi* | [**reset_clock**](docs/ClockApi.md#reset_clock) | **POST** /clock/reset | Reset internal clock (alpha)
 *ClusterApi* | [**cancel_cluster_rebalance**](docs/ClusterApi.md#cancel_cluster_rebalance) | **DELETE** /cluster/v2/rebalance | Stop the running rebalance
@@ -463,6 +464,7 @@ Class | Method | HTTP request | Description
  - [Changeset](docs/Changeset.md)
  - [CheckpointType](docs/CheckpointType.md)
  - [ClockPinRequest](docs/ClockPinRequest.md)
+ - [ClockResult](docs/ClockResult.md)
  - [CloudConfigurationResponse](docs/CloudConfigurationResponse.md)
  - [CloudStage](docs/CloudStage.md)
  - [ClusterBalanceResponse](docs/ClusterBalanceResponse.md)
