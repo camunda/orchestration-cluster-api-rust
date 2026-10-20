@@ -742,6 +742,15 @@ impl CamundaClient {
         .await
     }
 
+    /// Get internal clock (`GET /clock`).
+    pub async fn get_clock(&self) -> Result<models::ClockResult> {
+        self.guarded(|| async {
+            let cfg = self.configuration().await?;
+            Ok(camunda_orchestration_api_client::apis::clock_api::get_clock(&cfg).await?)
+        })
+        .await
+    }
+
     /// Pin internal clock (alpha) (`PUT /clock`).
     pub async fn pin_clock(
         &self,
