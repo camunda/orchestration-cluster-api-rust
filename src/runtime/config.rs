@@ -207,7 +207,7 @@ impl CamundaConfig {
         Self::resolve(&env_lookup, overrides)
     }
 
-    fn resolve(
+    pub(crate) fn resolve(
         env: &dyn Fn(&str) -> Option<String>,
         overrides: &HashMap<String, String>,
     ) -> Result<Self> {
