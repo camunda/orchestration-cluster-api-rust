@@ -55,6 +55,9 @@ pub struct IncidentResult {
     /// The job key, if exists, associated with this incident.
     #[serde(rename = "jobKey", deserialize_with = "Option::deserialize")]
     pub job_key: Option<Box<models::JobKey>>,
+    /// The storage ordinal this incident's data belongs to. This is `null` for data exported before storage ordinals were introduced in version 8.11.
+    #[serde(rename = "storageOrdinal", deserialize_with = "Option::deserialize")]
+    pub storage_ordinal: Option<i32>,
 }
 
 impl IncidentResult {
@@ -72,6 +75,7 @@ impl IncidentResult {
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         element_instance_key: models::ElementInstanceKey,
         job_key: Option<models::JobKey>,
+        storage_ordinal: Option<i32>,
     ) -> IncidentResult {
         IncidentResult {
             process_definition_id,
@@ -95,6 +99,7 @@ impl IncidentResult {
             } else {
                 None
             },
+            storage_ordinal,
         }
     }
 }

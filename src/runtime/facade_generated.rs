@@ -742,6 +742,24 @@ impl CamundaClient {
         .await
     }
 
+    /// Add time to internal clock (`POST /clock/add`).
+    pub async fn add_clock(
+        &self,
+        params: camunda_orchestration_api_client::apis::clock_api::AddClockParams,
+    ) -> Result<models::ClockResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::clock_api::add_clock(&cfg, params)
+                        .await?,
+                )
+            }
+        })
+        .await
+    }
+
     /// Get internal clock (`GET /clock`).
     pub async fn get_clock(&self) -> Result<models::ClockResult> {
         self.guarded(|| async {
