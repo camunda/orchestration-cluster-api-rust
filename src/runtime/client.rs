@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use camunda_orchestration_api_client::apis::configuration::Configuration;
 use camunda_orchestration_api_client::apis::{
-    cluster_api, conditional_api, decision_definition_api, expression_api, job_api, message_api,
-    process_instance_api, resource_api, signal_api, variable_api,
+    clock_api, cluster_api, conditional_api, decision_definition_api, expression_api, job_api,
+    message_api, process_instance_api, resource_api, signal_api, variable_api,
 };
 use camunda_orchestration_api_client::models;
 
@@ -206,6 +206,29 @@ impl CamundaClient {
         result
     }
 
+    /// Run a **non-idempotent** initiating operation under the adaptive backpressure gate
+    /// but *without* the transient-retry policy: acquire a permit, await the operation
+    /// exactly once, record the outcome, and release the permit.
+    ///
+    /// Use this for mutations that must not be auto-retried on an unknown outcome — a
+    /// retry after a lost 5xx/network response would apply the effect twice. Backpressure
+    /// accounting and auth/backpressure error classification are preserved; only the retry
+    /// loop is skipped.
+    pub(crate) async fn guarded_once<T, Fut>(&self, op: Fut) -> Result<T>
+    where
+        Fut: std::future::Future<Output = Result<T>>,
+    {
+        self.bp.acquire().await?;
+        let result = op.await;
+        match &result {
+            Ok(_) => self.bp.record_healthy_hint(),
+            Err(e) if is_backpressure_error(e) => self.bp.record_backpressure(),
+            Err(_) => {}
+        }
+        self.bp.release();
+        result
+    }
+
     /// Build a generated-client [`Configuration`] with the base URL set and the current
     /// authentication applied (refreshing the OAuth token if needed).
     ///
@@ -246,6 +269,23 @@ impl CamundaClient {
             Ok(cluster_api::get_topology(&cfg).await?)
         })
         .await
+    }
+
+    /// Add a relative offset to the cluster's internal clock (`POST /clock/add`).
+    ///
+    /// Unlike most operations this is **not idempotent** — each call shifts the clock by
+    /// the supplied offset — so it deliberately runs under the backpressure gate *without*
+    /// the transient-retry policy ([`Self::guarded_once`]). Auto-retrying a lost 5xx or
+    /// network response would risk applying the offset twice. Callers that want at-least /
+    /// exactly-once semantics must handle an uncertain outcome themselves (e.g. by reading
+    /// the clock back).
+    pub async fn add_clock(
+        &self,
+        params: clock_api::AddClockParams,
+    ) -> Result<models::ClockResult> {
+        let cfg = self.configuration().await?;
+        self.guarded_once(async move { Ok(clock_api::add_clock(&cfg, params).await?) })
+            .await
     }
 
     /// Probe the gateway once for nanobpmn command-stream support. Returns `None` for
@@ -1076,5 +1116,79 @@ mod tests {
             I::ProcessInstanceCreationInstructionByVersionTag(Box::new(instruction)),
         );
         assert_eq!(tenant_of(&injected).map(|t| t.value()), Some("other"));
+    }
+
+    // --- Untagged-enum deserialization ordering (hook 16) --------------------
+
+    #[test]
+    fn version_tag_variant_wins_over_by_id_during_deserialization() {
+        use models::ProcessInstanceCreationInstruction as I;
+        // A payload carrying BOTH id and version tag must decode as the more-specific
+        // ByVersionTag variant, not greedily as ById (which would silently drop the tag).
+        let json = r#"{"processDefinitionId":"orders","processDefinitionVersionTag":"v2"}"#;
+        let decoded: I = serde_json::from_str(json).expect("decodes");
+        match &decoded {
+            I::ProcessInstanceCreationInstructionByVersionTag(b) => {
+                assert_eq!(b.process_definition_version_tag, "v2");
+            }
+            other => panic!("expected ByVersionTag, got {other:?}"),
+        }
+        // Round-trip must preserve the tag.
+        let reencoded = serde_json::to_value(&decoded).expect("encodes");
+        assert_eq!(reencoded["processDefinitionVersionTag"], "v2");
+    }
+
+    #[test]
+    fn id_only_payload_still_decodes_as_by_id() {
+        use models::ProcessInstanceCreationInstruction as I;
+        let decoded: I =
+            serde_json::from_str(r#"{"processDefinitionId":"orders"}"#).expect("decodes");
+        assert!(matches!(
+            decoded,
+            I::ProcessInstanceCreationInstructionById(_)
+        ));
+    }
+
+    #[test]
+    fn key_payload_still_decodes_as_by_key() {
+        use models::ProcessInstanceCreationInstruction as I;
+        let decoded: I = serde_json::from_str(r#"{"processDefinitionKey":"2251799813686749"}"#)
+            .expect("decodes");
+        assert!(matches!(
+            decoded,
+            I::ProcessInstanceCreationInstructionByKey(_)
+        ));
+    }
+
+    // --- Enum-backed exact-match wrappers (hook 15) --------------------------
+
+    #[test]
+    fn protection_mode_exact_match_preserves_the_enum_value() {
+        use models::ProtectionModeFilterProperty as P;
+        // A bare enum string must decode as the exact-match branch and round-trip.
+        let decoded: P = serde_json::from_str(r#""REDACT""#).expect("decodes");
+        match &decoded {
+            P::ProtectionModeExactMatch(b) => {
+                assert_eq!(b.0, models::ProtectionModeEnum::Redact);
+            }
+            other => panic!("expected ProtectionModeExactMatch, got {other:?}"),
+        }
+        assert_eq!(serde_json::to_value(&decoded).expect("encodes"), "REDACT");
+    }
+
+    #[test]
+    fn protection_mode_advanced_filter_is_not_swallowed_by_exact_match() {
+        use models::ProtectionModeFilterProperty as P;
+        // The advanced-filter object must NOT be captured by the exact-match branch.
+        let decoded: P = serde_json::from_str(r#"{"$in":["REDACT"]}"#).expect("decodes");
+        match &decoded {
+            P::AdvancedProtectionModeFilter(b) => {
+                assert_eq!(
+                    b.dollar_in.as_deref(),
+                    Some(&[models::ProtectionModeEnum::Redact][..])
+                );
+            }
+            other => panic!("expected AdvancedProtectionModeFilter, got {other:?}"),
+        }
     }
 }
