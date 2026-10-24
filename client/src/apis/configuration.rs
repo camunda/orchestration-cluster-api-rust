@@ -46,3 +46,38 @@ impl Default for Configuration {
         }
     }
 }
+
+impl Configuration {
+    /// Base path for one operation, honoring the spec's path-item `servers` overrides.
+    ///
+    /// The top-level server is `{schema}://{host}:{port}/v2`, but the cluster-admin
+    /// path items under `/cluster/v2/*` declare their own `servers` entry without the
+    /// `/v2` suffix — their paths are served from the server root, so the `/v2` base
+    /// suffix must not be prefixed to them (that would produce `/v2/cluster/v2/...`).
+    pub fn operation_base_path(&self, operation_path: &str) -> &str {
+        const ROOT_SERVER_PATHS: &[&str] = &[
+            "/cluster/v2/backups/history",
+            "/cluster/v2/backups/history/{backupId}",
+            "/cluster/v2/backups/runtime",
+            "/cluster/v2/backups/runtime/state",
+            "/cluster/v2/backups/runtime/state/sync",
+            "/cluster/v2/backups/runtime/{backupId}",
+            "/cluster/v2/exporting",
+            "/cluster/v2/exporting/pause",
+            "/cluster/v2/exporting/resume",
+            "/cluster/v2/mode",
+            "/cluster/v2/rebalance",
+            "/cluster/v2/restore",
+            "/cluster/v2/status",
+            "/cluster/v2/status/upgrade",
+            "/cluster/v2/topology",
+        ];
+        if ROOT_SERVER_PATHS.contains(&operation_path) {
+            self.base_path
+                .strip_suffix("/v2")
+                .unwrap_or(&self.base_path)
+        } else {
+            &self.base_path
+        }
+    }
+}

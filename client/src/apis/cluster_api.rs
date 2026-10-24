@@ -233,7 +233,10 @@ impl TriggerClusterRebalanceError {
 pub async fn cancel_cluster_rebalance(
     configuration: &configuration::Configuration,
 ) -> Result<models::RebalanceCancellationResponse, Error<CancelClusterRebalanceError>> {
-    let uri_str = format!("{}/cluster/v2/rebalance", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/rebalance",
+        configuration.operation_base_path("/cluster/v2/rebalance")
+    );
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::DELETE, &uri_str);
@@ -282,7 +285,10 @@ pub async fn cancel_cluster_rebalance(
 pub async fn get_cluster_rebalance(
     configuration: &configuration::Configuration,
 ) -> Result<models::ClusterBalanceResponse, Error<GetClusterRebalanceError>> {
-    let uri_str = format!("{}/cluster/v2/rebalance", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/rebalance",
+        configuration.operation_base_path("/cluster/v2/rebalance")
+    );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -329,7 +335,10 @@ pub async fn get_cluster_rebalance(
 pub async fn get_cluster_status(
     configuration: &configuration::Configuration,
 ) -> Result<models::ClusterStatusResponse, Error<GetClusterStatusError>> {
-    let uri_str = format!("{}/cluster/v2/status", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/status",
+        configuration.operation_base_path("/cluster/v2/status")
+    );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -370,7 +379,10 @@ pub async fn get_cluster_status(
 pub async fn get_cluster_topology(
     configuration: &configuration::Configuration,
 ) -> Result<models::ClusterTopologyResponse, Error<GetClusterTopologyError>> {
-    let uri_str = format!("{}/cluster/v2/topology", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/topology",
+        configuration.operation_base_path("/cluster/v2/topology")
+    );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -417,7 +429,10 @@ pub async fn get_cluster_topology(
 pub async fn get_cluster_upgrade_status(
     configuration: &configuration::Configuration,
 ) -> Result<models::ClusterUpgradeStatusResponse, Error<GetClusterUpgradeStatusError>> {
-    let uri_str = format!("{}/cluster/v2/status/upgrade", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/status/upgrade",
+        configuration.operation_base_path("/cluster/v2/status/upgrade")
+    );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -536,7 +551,10 @@ pub async fn trigger_cluster_rebalance(
     configuration: &configuration::Configuration,
     params: TriggerClusterRebalanceParams,
 ) -> Result<models::ClusterBalanceResponse, Error<TriggerClusterRebalanceError>> {
-    let uri_str = format!("{}/cluster/v2/rebalance", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/rebalance",
+        configuration.operation_base_path("/cluster/v2/rebalance")
+    );
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);

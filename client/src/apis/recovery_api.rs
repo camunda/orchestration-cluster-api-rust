@@ -256,7 +256,10 @@ pub async fn change_cluster_mode_as_cluster_admin(
     configuration: &configuration::Configuration,
     params: ChangeClusterModeAsClusterAdminParams,
 ) -> Result<models::ClusterModeChangeResponse, Error<ChangeClusterModeAsClusterAdminError>> {
-    let uri_str = format!("{}/cluster/v2/mode", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/mode",
+        configuration.operation_base_path("/cluster/v2/mode")
+    );
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::PATCH, &uri_str);
@@ -413,7 +416,10 @@ pub async fn restore_as_cluster_admin(
     configuration: &configuration::Configuration,
     params: RestoreAsClusterAdminParams,
 ) -> Result<models::ClusterRestoreResponse, Error<RestoreAsClusterAdminError>> {
-    let uri_str = format!("{}/cluster/v2/restore", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/restore",
+        configuration.operation_base_path("/cluster/v2/restore")
+    );
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
