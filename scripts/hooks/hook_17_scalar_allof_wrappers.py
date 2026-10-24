@@ -17,10 +17,22 @@ and round-trips correctly.
 
 from __future__ import annotations
 
+import re
+
 from .common import Context, ref_name, snake_case
 
 NUMBER = 17
 NAME = "scalar-allof-wrappers"
+
+
+def _empty_struct_re(name: str) -> re.Pattern[str]:
+    """Match the generator's empty-struct form for ``name`` tolerant of any whitespace
+    between the braces. The hooks run on *unformatted* generator output (post-processing
+    precedes ``cargo fmt`` in ``scripts/generate.sh``), where the generator emits
+    ``pub struct Foo {\\n}`` — the collapsed ``pub struct Foo {}`` only appears after
+    formatting, so a literal match on the formatted form silently skips every wrapper on
+    a normal regeneration and lets the broken empty models survive."""
+    return re.compile(rf"pub struct {re.escape(name)}\s*\{{\s*\}}")
 
 
 def _is_string_enum(schema: dict | None) -> bool:
@@ -86,7 +98,9 @@ def run(ctx: Context) -> None:
             continue
         text = f.read_text(encoding="utf-8")
         # Only touch the broken empty-struct form the generator emits; stay idempotent.
-        if f"pub struct {name} {{}}" not in text:
+        # Whitespace-tolerant so it fires on unformatted generator output, not just the
+        # post-`cargo fmt` collapsed form.
+        if not _empty_struct_re(name).search(text):
             continue
         f.write_text(_render(name, inner, schema), encoding="utf-8")
         rewritten += 1
