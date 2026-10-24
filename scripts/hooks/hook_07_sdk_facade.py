@@ -47,6 +47,11 @@ CURATED_SKIP = {
     "throw_job_error",
     # superseded by the curated `topology()` wrapper
     "get_topology",
+    # superseded by curated wrappers that inject the configured default tenant id
+    # (CAMUNDA_TENANT_ID) into the request, which the plain generated facade does not
+    "create_deployment",
+    "evaluate_conditionals",
+    "evaluate_expression",
 }
 
 # Matches each generated operation. `params` group is optional (6 ops take no params).
