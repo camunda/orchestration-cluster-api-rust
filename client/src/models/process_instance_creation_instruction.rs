@@ -16,11 +16,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ProcessInstanceCreationInstruction {
-    ProcessInstanceCreationInstructionByKey(Box<models::ProcessInstanceCreationInstructionByKey>),
-    ProcessInstanceCreationInstructionById(Box<models::ProcessInstanceCreationInstructionById>),
     ProcessInstanceCreationInstructionByVersionTag(
         Box<models::ProcessInstanceCreationInstructionByVersionTag>,
     ),
+    ProcessInstanceCreationInstructionByKey(Box<models::ProcessInstanceCreationInstructionByKey>),
+    ProcessInstanceCreationInstructionById(Box<models::ProcessInstanceCreationInstructionById>),
 }
 
 impl Default for ProcessInstanceCreationInstruction {
