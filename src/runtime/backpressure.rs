@@ -277,7 +277,7 @@ impl BackpressureManager {
     ///
     /// This is the bare, generation-unaware counterpart to [`acquire`](Self::acquire):
     /// it unconditionally decrements the current count. Permits held across an `.await`
-    /// must use [`acquire_guard`](Self::acquire_guard) instead, whose guard releases only
+    /// must use `acquire_guard` instead, whose guard releases only
     /// the permit it actually acquired, in the cap era it acquired it.
     pub fn release(&self) {
         if self.observe_only {
@@ -324,7 +324,7 @@ impl BackpressureManager {
     /// one-permit floor. The guard also only releases the permit it actually acquired, so
     /// an acquisition made while unlimited never decrements a counted permit after the
     /// manager later caps.
-    pub async fn acquire_guard(self: &Arc<Self>) -> Result<PermitGuard, CamundaError> {
+    pub(crate) async fn acquire_guard(self: &Arc<Self>) -> Result<PermitGuard, CamundaError> {
         let acq = self.acquire_inner().await?;
         Ok(PermitGuard {
             mgr: Arc::clone(self),
@@ -505,7 +505,7 @@ impl Acquisition {
 /// era, so a permit taken while unlimited never decrements a counted permit after a later
 /// cap, and a permit counted before a full recovery never decrements a new era's count.
 #[must_use = "the permit is released as soon as the guard is dropped"]
-pub struct PermitGuard {
+pub(crate) struct PermitGuard {
     mgr: Arc<BackpressureManager>,
     acq: Acquisition,
 }

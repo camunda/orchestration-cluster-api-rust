@@ -273,7 +273,7 @@ impl CamundaClient {
     ///
     /// Unlike most operations this is **not idempotent** — each call shifts the clock by
     /// the supplied offset — so it deliberately runs under the backpressure gate *without*
-    /// the transient-retry policy ([`Self::guarded_once`]). Auto-retrying a lost 5xx or
+    /// the transient-retry policy (`Self::guarded_once`). Auto-retrying a lost 5xx or
     /// network response would risk applying the offset twice. Callers that want at-least /
     /// exactly-once semantics must handle an uncertain outcome themselves (e.g. by reading
     /// the clock back).
