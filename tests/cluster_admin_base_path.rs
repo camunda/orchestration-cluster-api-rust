@@ -118,6 +118,57 @@ async fn non_admin_operations_keep_the_v2_base_path() {
     assert_eq!(target.await, "/v2/topology");
 }
 
+/// With `CAMUNDA_REST_ADDRESS_EXACT` semantics the base address is the configured
+/// gateway address verbatim; a trailing `/v2` belongs to the proxy prefix, so the
+/// helper must preserve it for cluster-admin operations (Copilot review on PR #78:
+/// `https://gateway.example/api/v2` must yield `/api/v2/cluster/v2/topology`, not
+/// `/api/cluster/v2/topology`).
+#[tokio::test]
+async fn exact_base_ending_in_v2_is_preserved_for_cluster_admin_paths() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    tokio::spawn(async move {
+        let (mut sock, _) = listener.accept().await.unwrap();
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 1024];
+        while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+            let n = sock.read(&mut chunk).await.unwrap();
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+        }
+        let request_line = String::from_utf8_lossy(&buf)
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .to_string();
+        let target = request_line
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or_default()
+            .to_string();
+        let body = r#"{"brokers":[]}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\
+             Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        sock.write_all(response.as_bytes()).await.unwrap();
+        let _ = sock.shutdown().await;
+        let _ = tx.send(target);
+    });
+    // Emulates an exact gateway prefix ending in `/v2` (e.g. `https://gateway.example/api/v2`).
+    let cfg = Configuration {
+        base_path: format!("http://{addr}/api/v2"),
+        rest_address_exact: true,
+        ..Configuration::default()
+    };
+    let _ = cluster_api::get_cluster_topology(&cfg).await;
+    assert_eq!(rx.await.unwrap(), "/api/v2/cluster/v2/topology");
+}
+
 /// The helper itself: strips `/v2` only for the overridden paths, and tolerates a
 /// base path without the suffix (e.g. `CAMUNDA_REST_ADDRESS_EXACT` gateway setups).
 #[test]
@@ -136,5 +187,36 @@ fn operation_base_path_strips_v2_only_for_cluster_admin_paths() {
     assert_eq!(
         exact.operation_base_path("/cluster/v2/status"),
         "https://gateway.example/api/camunda"
+    );
+}
+
+/// In exact-address mode a base path whose proxy prefix *ends* in `/v2` is kept
+/// verbatim — that `/v2` is proxy-owned, not the conventional API suffix.
+#[test]
+fn operation_base_path_preserves_an_exact_base_ending_in_v2() {
+    let exact = Configuration {
+        base_path: "https://gateway.example/api/v2".to_string(),
+        rest_address_exact: true,
+        ..Configuration::default()
+    };
+    assert_eq!(
+        exact.operation_base_path("/cluster/v2/topology"),
+        "https://gateway.example/api/v2"
+    );
+    // Non-overridden paths are unaffected either way.
+    assert_eq!(
+        exact.operation_base_path("/topology"),
+        "https://gateway.example/api/v2"
+    );
+
+    // The flag defaults to the conventional behaviour: strip the `/v2` API suffix.
+    let conventional = Configuration {
+        base_path: "https://gateway.example/api/v2".to_string(),
+        ..Configuration::default()
+    };
+    assert!(!conventional.rest_address_exact);
+    assert_eq!(
+        conventional.operation_base_path("/cluster/v2/topology"),
+        "https://gateway.example/api"
     );
 }

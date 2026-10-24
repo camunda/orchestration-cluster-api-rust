@@ -16,14 +16,23 @@ the generated call sites prefix ``/v2`` twice. This hook:
    cluster-admin paths; the build fails loudly if the spec drops the override while the
    generated code still references it.
 2. Adds ``Configuration::operation_base_path`` to ``client/src/apis/configuration.rs``,
-   which strips the ``/v2`` suffix for exactly those paths.
+   which strips the ``/v2`` suffix for exactly those paths — plus a
+   ``rest_address_exact`` flag on ``Configuration`` so the helper can tell the
+   conventional ``/v2`` API suffix (strip it) apart from a proxy-owned path prefix
+   that merely *ends* in ``/v2`` (preserve it). The runtime facade
+   (``CamundaClient::configuration()``) sets the flag from
+   ``CamundaConfig::rest_address_exact``; it defaults to ``false``, the conventional
+   behaviour.
 3. Rewrites the ``uri_str`` construction of every generated operation on an overridden
    path to go through that helper.
 
-The runtime facade is unaffected: ``CamundaClient::configuration()`` keeps handing the
-generated client the ``/v2``-suffixed base path, and the helper strips it only for the
-cluster-admin operations — including under ``CAMUNDA_REST_ADDRESS_EXACT`` gateway
-setups, where ``/v2`` is part of the *operation* path, not the base.
+The runtime facade keeps handing the generated client the ``/v2``-suffixed base path,
+and the helper strips it only for the cluster-admin operations. Under
+``CAMUNDA_REST_ADDRESS_EXACT`` gateway setups the configured address is forwarded
+verbatim and may itself end in ``/v2`` (e.g. ``https://gateway.example/api/v2``);
+there the helper must **not** strip — that ``/v2`` is part of the proxy prefix, not
+the API suffix, and stripping it would misroute ``GET /cluster/v2/topology`` to
+``/api/cluster/v2/topology`` instead of ``/api/v2/cluster/v2/topology``.
 """
 
 from __future__ import annotations
@@ -43,11 +52,16 @@ impl Configuration {
     /// path items under `/cluster/v2/*` declare their own `servers` entry without the
     /// `/v2` suffix — their paths are served from the server root, so the `/v2` base
     /// suffix must not be prefixed to them (that would produce `/v2/cluster/v2/...`).
+    ///
+    /// In exact-address mode (`rest_address_exact`, from `CAMUNDA_REST_ADDRESS_EXACT`)
+    /// the base path is the configured gateway address verbatim; a trailing `/v2`
+    /// there is part of the proxy prefix, not the conventional API suffix, so it is
+    /// preserved.
     pub fn operation_base_path(&self, operation_path: &str) -> &str {
         const ROOT_SERVER_PATHS: &[&str] = &[
 __ROOT_PATHS__
         ];
-        if ROOT_SERVER_PATHS.contains(&operation_path) {
+        if ROOT_SERVER_PATHS.contains(&operation_path) && !self.rest_address_exact {
             self.base_path.strip_suffix("/v2").unwrap_or(&self.base_path)
         } else {
             &self.base_path
@@ -124,6 +138,40 @@ def _rewrite_api_file(content: str, paths: list[str]) -> tuple[str, int]:
     return content, rewritten
 
 
+_EXACT_FIELD = '''    /// Whether the REST base address is exact (`CAMUNDA_REST_ADDRESS_EXACT`): the
+    /// configured address is used verbatim, so a trailing `/v2` belongs to the proxy
+    /// prefix and must not be stripped for cluster-admin operations. Set by the
+    /// runtime facade; defaults to `false` (the conventional `/v2` API suffix).
+    pub rest_address_exact: bool,
+'''
+
+_EXACT_DEFAULT = "            rest_address_exact: false,\n"
+
+
+def _add_exact_address_field(text: str) -> tuple[str, bool]:
+    """Add `rest_address_exact` to the generated Configuration struct and its Default.
+
+    Idempotent: returns (text, False) unchanged when the field is already present.
+    """
+    if "pub rest_address_exact: bool," in text:
+        return text, False
+    struct_anchor = "pub struct Configuration {\n"
+    if struct_anchor not in text:
+        raise RuntimeError(
+            f"{NAME}: could not find the Configuration struct in configuration.rs; "
+            "the generator output shape changed — update the anchor."
+        )
+    text = text.replace(struct_anchor, struct_anchor + _EXACT_FIELD, 1)
+    default_anchor = "        Configuration {\n"
+    if default_anchor not in text:
+        raise RuntimeError(
+            f"{NAME}: could not find the Configuration::default body in "
+            "configuration.rs; the generator output shape changed — update the anchor."
+        )
+    text = text.replace(default_anchor, default_anchor + _EXACT_DEFAULT, 1)
+    return text, True
+
+
 def run(ctx: Context) -> None:
     paths = _root_server_paths(ctx)
     if not paths:
@@ -134,18 +182,21 @@ def run(ctx: Context) -> None:
             "and the `operation_base_path` helper instead of shipping a no-op."
         )
 
-    # 1. Add the helper to configuration.rs (idempotent).
+    # 1. Add the exact-address flag and the helper to configuration.rs (idempotent).
     config_rs = ctx.client_dir / "src" / "apis" / "configuration.rs"
     text = config_rs.read_text()
+    text, added_field = _add_exact_address_field(text)
+    if added_field:
+        ctx.log(NAME, "added Configuration::rest_address_exact")
     if "operation_base_path" not in text:
         rendered_paths = "\n".join(f'            "{p}",' for p in paths)
         helper = _HELPER.replace("__ROOT_PATHS__", rendered_paths)
         text = text.rstrip("\n") + "\n" + helper
-        config_rs.write_text(text)
         ctx.log(
             NAME,
             f"added Configuration::operation_base_path covering {len(paths)} path(s)",
         )
+    config_rs.write_text(text)
 
     # 2. Rewrite the uri_str construction of every operation on an overridden path.
     apis_dir = ctx.client_dir / "src" / "apis"

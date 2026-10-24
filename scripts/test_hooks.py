@@ -796,11 +796,23 @@ class OperationServersHookTest(unittest.TestCase):
         },
     }
 
+    _CONFIGURATION_RS = (
+        "pub struct Configuration {\n"
+        "}\n"
+        "\n"
+        "impl Default for Configuration {\n"
+        "    fn default() -> Self {\n"
+        "        Configuration {\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+    )
+
     def _run_hook(self, files: dict[str, str]) -> Path:
         tmp = Path(tempfile.mkdtemp())
         apis = tmp / "src" / "apis"
         apis.mkdir(parents=True)
-        (apis / "configuration.rs").write_text("pub struct Configuration {\n}\n")
+        (apis / "configuration.rs").write_text(self._CONFIGURATION_RS)
         for name, body in files.items():
             (apis / name).write_bytes(body.encode("utf-8"))
         ctx = Context(client_dir=tmp, spec=self._SPEC, schemas={})
@@ -849,6 +861,25 @@ class OperationServersHookTest(unittest.TestCase):
         self.assertIn('"/cluster/v2/topology",', config)
         self.assertIn('"/cluster/v2/backups/runtime/{backupId}",', config)
         self.assertIn('strip_suffix("/v2")', config)
+
+    def test_adds_the_exact_address_field_and_gates_the_strip_on_it(self):
+        # CAMUNDA_REST_ADDRESS_EXACT forwards the configured gateway address verbatim;
+        # a trailing `/v2` there is proxy-owned, so the helper must preserve it.
+        apis = self._run_hook({"cluster_api.rs": ""})
+        config = (apis / "configuration.rs").read_text()
+        self.assertIn("pub rest_address_exact: bool,", config)
+        self.assertIn("rest_address_exact: false,", config)
+        self.assertIn("&& !self.rest_address_exact", config)
+
+    def test_exact_field_insertion_is_idempotent(self):
+        apis = self._run_hook({"cluster_api.rs": ""})
+        first = (apis / "configuration.rs").read_bytes()
+        ctx = Context(client_dir=apis.parent.parent, spec=self._SPEC, schemas={})
+        hook_16_operation_servers.run(ctx)
+        second = (apis / "configuration.rs").read_bytes()
+        self.assertEqual(first, second)
+        self.assertEqual(second.count(b"pub rest_address_exact: bool,"), 1)
+        self.assertEqual(second.count(b"rest_address_exact: false,"), 1)
 
     def test_is_idempotent(self):
         apis = self._run_hook(
