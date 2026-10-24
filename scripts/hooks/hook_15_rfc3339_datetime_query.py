@@ -19,7 +19,11 @@ rewrites its ``.to_string()`` to ``.to_rfc3339()``. It covers both the required 
 ``if let Some(ref param_value) = params.<field>`` block (``&param_value.to_string()``).
 
 It is idempotent: once a call serializes with ``.to_rfc3339()`` the ``.to_string()`` pattern
-this hook matches on no longer exists, so a second run finds nothing left to rewrite.
+this hook matches on no longer exists, so a second run finds nothing left to rewrite. The
+optional shape is bounded to a *single* guard body — the span between the ``if let`` and its
+query call may not cross the guard's closing ``}`` — so an already-converted optional
+date-time guard can never let the match skip ahead and corrupt an adjacent optional
+``String`` query's ``.to_string()`` on a re-run.
 """
 
 from __future__ import annotations
@@ -40,10 +44,15 @@ REQUIRED_RE = re.compile(
 )
 
 # Optional shape: an `if let Some(ref param_value) = params.<field>` guard whose body
-# serializes `param_value` into a query call.
+# serializes `param_value` into a query call. The span between the guard and its query call
+# is `[^}]*?` (not `.*?`): it may not cross the guard's closing `}`, so the match is confined
+# to this one guard body. Without that bound, a re-run over an already-converted optional
+# date-time guard (whose query no longer has `.to_string()`) would let `.*?` skip across the
+# `}` and latch onto the next optional `String` guard's `.to_string()` — corrupting it to
+# `.to_rfc3339()` while still carrying the date-time field name.
 OPTIONAL_RE = re.compile(
     r"(?P<head>if let Some\(ref param_value\) = params\.(?P<field>\w+) \{"
-    r'(?P<between>.*?req_builder = req_builder\.query\(&\[\("[^"]+", &param_value))\.to_string\(\)',
+    r'(?P<between>[^}]*?req_builder = req_builder\.query\(&\[\("[^"]+", &param_value))\.to_string\(\)',
     re.DOTALL,
 )
 

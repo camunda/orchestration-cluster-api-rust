@@ -922,6 +922,26 @@ _OPTIONAL_DATETIME_API_FIXTURE = (
     "}\n"
 )
 
+# An optional date-time query param immediately followed by an optional String query param.
+# Both guards reuse the `param_value` binding, so a span-crossing match would latch the
+# date-time field name onto the String guard's `.to_string()` on a re-run (issue: hook
+# rerun corrupts an adjacent optional String query).
+_OPTIONAL_DATETIME_THEN_STRING_API_FIXTURE = (
+    "pub struct GetThingParams {\n"
+    "    pub after: Option<chrono::DateTime<chrono::FixedOffset>>,\n"
+    "    pub name: Option<String>,\n"
+    "}\n"
+    "\n"
+    "pub async fn get_thing() {\n"
+    "    if let Some(ref param_value) = params.after {\n"
+    '        req_builder = req_builder.query(&[("after", &param_value.to_string())]);\n'
+    "    }\n"
+    "    if let Some(ref param_value) = params.name {\n"
+    '        req_builder = req_builder.query(&[("name", &param_value.to_string())]);\n'
+    "    }\n"
+    "}\n"
+)
+
 
 class Rfc3339DatetimeQueryTest(unittest.TestCase):
     """`hook_15` serializes date-time query params with `.to_rfc3339()`."""
@@ -950,6 +970,24 @@ class Rfc3339DatetimeQueryTest(unittest.TestCase):
         path, _ = self._run_hook(_OPTIONAL_DATETIME_API_FIXTURE)
         out = path.read_text(encoding="utf-8")
         self.assertIn('("after", &param_value.to_rfc3339())', out)
+
+    def test_leaves_adjacent_optional_string_query_alone(self):
+        path, _ = self._run_hook(_OPTIONAL_DATETIME_THEN_STRING_API_FIXTURE)
+        out = path.read_text(encoding="utf-8")
+        self.assertIn('("after", &param_value.to_rfc3339())', out)
+        self.assertIn('("name", &param_value.to_string())', out)
+
+    def test_is_idempotent_with_optional_datetime_then_string(self):
+        path, ctx = self._run_hook(_OPTIONAL_DATETIME_THEN_STRING_API_FIXTURE)
+        once = path.read_bytes()
+        hook_15_rfc3339_datetime_query.run(ctx)
+        twice = path.read_bytes()
+        self.assertEqual(twice, once)
+        out = twice.decode("utf-8")
+        self.assertIn('("after", &param_value.to_rfc3339())', out)
+        # The adjacent optional String must survive a re-run uncorrupted.
+        self.assertIn('("name", &param_value.to_string())', out)
+        self.assertNotIn('("name", &param_value.to_rfc3339())', out)
 
     def test_is_idempotent(self):
         path, ctx = self._run_hook(_DATETIME_API_FIXTURE)
