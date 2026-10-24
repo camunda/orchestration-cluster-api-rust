@@ -52,6 +52,10 @@ CURATED_SKIP = {
     "create_deployment",
     "evaluate_conditionals",
     "evaluate_expression",
+    # non-idempotent: a relative clock offset must not be auto-retried on an unknown
+    # outcome (a lost 5xx/network response would double-apply it), so it gets a curated
+    # wrapper that runs under backpressure WITHOUT the transient-retry policy.
+    "add_clock",
 }
 
 # Matches each generated operation. `params` group is optional (6 ops take no params).

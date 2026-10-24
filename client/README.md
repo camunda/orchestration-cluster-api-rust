@@ -88,6 +88,7 @@ Class | Method | HTTP request | Description
 *BatchOperationApi* | [**search_batch_operation_items**](docs/BatchOperationApi.md#search_batch_operation_items) | **POST** /batch-operation-items/search | Search batch operation items
 *BatchOperationApi* | [**search_batch_operations**](docs/BatchOperationApi.md#search_batch_operations) | **POST** /batch-operations/search | Search batch operations
 *BatchOperationApi* | [**suspend_batch_operation**](docs/BatchOperationApi.md#suspend_batch_operation) | **POST** /batch-operations/{batchOperationKey}/suspension | Suspend Batch operation
+*ClockApi* | [**add_clock**](docs/ClockApi.md#add_clock) | **POST** /clock/add | Add time to internal clock
 *ClockApi* | [**get_clock**](docs/ClockApi.md#get_clock) | **GET** /clock | Get internal clock
 *ClockApi* | [**pin_clock**](docs/ClockApi.md#pin_clock) | **PUT** /clock | Pin internal clock (alpha)
 *ClockApi* | [**reset_clock**](docs/ClockApi.md#reset_clock) | **POST** /clock/reset | Reset internal clock (alpha)
@@ -341,6 +342,7 @@ Class | Method | HTTP request | Description
  - [AdvancedProcessDefinitionKeyFilter](docs/AdvancedProcessDefinitionKeyFilter.md)
  - [AdvancedProcessInstanceKeyFilter](docs/AdvancedProcessInstanceKeyFilter.md)
  - [AdvancedProcessInstanceStateFilter](docs/AdvancedProcessInstanceStateFilter.md)
+ - [AdvancedProtectionModeFilter](docs/AdvancedProtectionModeFilter.md)
  - [AdvancedResourceKeyFilter](docs/AdvancedResourceKeyFilter.md)
  - [AdvancedResultFilter](docs/AdvancedResultFilter.md)
  - [AdvancedScopeKeyFilter](docs/AdvancedScopeKeyFilter.md)
@@ -463,6 +465,7 @@ Class | Method | HTTP request | Description
  - [CategoryFilterProperty](docs/CategoryFilterProperty.md)
  - [Changeset](docs/Changeset.md)
  - [CheckpointType](docs/CheckpointType.md)
+ - [ClockAddRequest](docs/ClockAddRequest.md)
  - [ClockPinRequest](docs/ClockPinRequest.md)
  - [ClockResult](docs/ClockResult.md)
  - [CloudConfigurationResponse](docs/CloudConfigurationResponse.md)
@@ -805,8 +808,10 @@ Class | Method | HTTP request | Description
  - [ProcessInstanceCallHierarchyEntry](docs/ProcessInstanceCallHierarchyEntry.md)
  - [ProcessInstanceCancellationBatchOperationRequest](docs/ProcessInstanceCancellationBatchOperationRequest.md)
  - [ProcessInstanceCreationInstruction](docs/ProcessInstanceCreationInstruction.md)
+ - [ProcessInstanceCreationInstructionBase](docs/ProcessInstanceCreationInstructionBase.md)
  - [ProcessInstanceCreationInstructionById](docs/ProcessInstanceCreationInstructionById.md)
  - [ProcessInstanceCreationInstructionByKey](docs/ProcessInstanceCreationInstructionByKey.md)
+ - [ProcessInstanceCreationInstructionByVersionTag](docs/ProcessInstanceCreationInstructionByVersionTag.md)
  - [ProcessInstanceCreationStartInstruction](docs/ProcessInstanceCreationStartInstruction.md)
  - [ProcessInstanceCreationTerminateInstruction](docs/ProcessInstanceCreationTerminateInstruction.md)
  - [ProcessInstanceDeletionBatchOperationRequest](docs/ProcessInstanceDeletionBatchOperationRequest.md)
@@ -841,6 +846,9 @@ Class | Method | HTTP request | Description
  - [ProcessInstanceSuspensionBatchOperationRequest](docs/ProcessInstanceSuspensionBatchOperationRequest.md)
  - [ProcessInstanceWaitStateStatisticsQueryResult](docs/ProcessInstanceWaitStateStatisticsQueryResult.md)
  - [ProcessInstanceWaitStateStatisticsResult](docs/ProcessInstanceWaitStateStatisticsResult.md)
+ - [ProtectionModeEnum](docs/ProtectionModeEnum.md)
+ - [ProtectionModeExactMatch](docs/ProtectionModeExactMatch.md)
+ - [ProtectionModeFilterProperty](docs/ProtectionModeFilterProperty.md)
  - [RebalanceCancellationResponse](docs/RebalanceCancellationResponse.md)
  - [ResolvedSecret](docs/ResolvedSecret.md)
  - [ResourceFilter](docs/ResourceFilter.md)
@@ -975,6 +983,7 @@ Class | Method | HTTP request | Description
  - [VariableFilter](docs/VariableFilter.md)
  - [VariableKeyExactMatch](docs/VariableKeyExactMatch.md)
  - [VariableKeyFilterProperty](docs/VariableKeyFilterProperty.md)
+ - [VariableMetadata](docs/VariableMetadata.md)
  - [VariableResult](docs/VariableResult.md)
  - [VariableResultBase](docs/VariableResultBase.md)
  - [VariableSearchQuery](docs/VariableSearchQuery.md)

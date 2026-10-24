@@ -13,6 +13,13 @@
       "label": "Activate jobs"
     }
   ],
+  "addClock": [
+    {
+      "file": "clock.rs",
+      "region": "AddClock",
+      "label": "Add a duration to the internal clock (alpha)"
+    }
+  ],
   "assignClientToGroup": [
     {
       "file": "group.rs",

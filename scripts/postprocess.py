@@ -24,6 +24,8 @@ Hooks (in order):
   14 error-status-dispatch       decode typed error responses into the variant named by the HTTP status
   15 rfc3339-datetime-query      serialize date-time query params with `.to_rfc3339()` instead of `.to_string()`
   16 operation-servers           honor path-item `servers` overrides (cluster-admin paths skip the /v2 base)
+  17 scalar-allof-wrappers       rewrite enum-backed `*ExactMatch` empty structs as transparent newtypes
+  18 untagged-variant-ordering   order untagged enum variants by specificity so a superset variant wins
 
 Usage:
     python3 scripts/postprocess.py --client-dir client \\

@@ -127,7 +127,7 @@ Name | Type | Description  | Required | Notes
 > models::CreateProcessInstanceResult create_process_instance(process_instance_creation_instruction)
 Create process instance
 
-Creates and starts an instance of the specified process. The process definition to use to create the instance can be specified either using its unique key (as returned by Deploy resources), or using the BPMN process id and a version. If only the process definition id is given, the latest ACTIVE version is used. If no ACTIVE version exists, the request is rejected as not found.  Waits for the completion of the process instance before returning a result when awaitCompletion is enabled. 
+Creates and starts an instance of the specified process. The process definition to use to create the instance can be specified either using its unique key (as returned by Deploy resources), or using the BPMN process id and either a version or a version tag. If only the process definition id is given, the latest ACTIVE version is used. If no ACTIVE version exists, the request is rejected as not found.  Waits for the completion of the process instance before returning a result when awaitCompletion is enabled. 
 
 ### Parameters
 

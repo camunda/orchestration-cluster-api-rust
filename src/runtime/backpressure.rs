@@ -140,6 +140,13 @@ struct Inner {
     permits_current: u32,
     /// `None` means unlimited (the gate is open).
     permits_max: Option<u32>,
+    /// Monotonic counter identifying the current "cap era". It is bumped on every
+    /// transition that resets `permits_current` — unlimited → capped (first backpressure
+    /// signal) and capped → unlimited (full recovery). A counted permit belongs to the
+    /// era it was acquired in; releasing it in a later era would decrement a different
+    /// era's count and let concurrency exceed the cap, so the guard only releases when
+    /// its generation still matches.
+    generation: u64,
     last_recover_check: Option<Instant>,
     healthy_since: Option<Instant>,
     waiters: u32,
@@ -172,6 +179,7 @@ impl BackpressureManager {
                 permits_current: 0,
                 // Start unlimited — only boot to INITIAL_MAX on the first backpressure signal.
                 permits_max: None,
+                generation: 0,
                 last_recover_check: None,
                 healthy_since: None,
                 waiters: 0,
@@ -206,8 +214,14 @@ impl BackpressureManager {
     /// (`MAX_WAITERS`), preventing unbounded memory growth under sustained backpressure.
     /// In the `Legacy` profile this is a no-op.
     pub async fn acquire(&self) -> Result<(), CamundaError> {
+        self.acquire_inner().await.map(|_| ())
+    }
+
+    /// Acquire a permit, returning the [`Acquisition`] record describing whether a permit
+    /// was actually counted against the cap and which cap era (`generation`) it belongs to.
+    async fn acquire_inner(&self) -> Result<Acquisition, CamundaError> {
         if self.observe_only {
-            return Ok(());
+            return Ok(Acquisition::uncounted(0));
         }
 
         loop {
@@ -215,7 +229,7 @@ impl BackpressureManager {
             let backoff = {
                 let st = self.inner.lock().unwrap();
                 if st.permits_max.is_none() {
-                    return Ok(()); // unlimited fast path
+                    return Ok(Acquisition::uncounted(st.generation)); // unlimited fast path
                 }
                 st.backoff
             };
@@ -231,11 +245,12 @@ impl BackpressureManager {
             {
                 let mut st = self.inner.lock().unwrap();
                 match st.permits_max {
-                    None => return Ok(()), // went unlimited during the backoff sleep
+                    // went unlimited during the backoff sleep
+                    None => return Ok(Acquisition::uncounted(st.generation)),
                     Some(max) => {
                         if st.permits_current < max {
                             st.permits_current += 1;
-                            return Ok(());
+                            return Ok(Acquisition::counted(st.generation));
                         }
                         if st.waiters >= MAX_WAITERS {
                             return Err(CamundaError::Backpressure(format!(
@@ -259,6 +274,11 @@ impl BackpressureManager {
     }
 
     /// Release a permit and wake one waiter. In the `Legacy` profile this is a no-op.
+    ///
+    /// This is the bare, generation-unaware counterpart to [`acquire`](Self::acquire):
+    /// it unconditionally decrements the current count. Permits held across an `.await`
+    /// must use `acquire_guard` instead, whose guard releases only
+    /// the permit it actually acquired, in the cap era it acquired it.
     pub fn release(&self) {
         if self.observe_only {
             return;
@@ -274,6 +294,68 @@ impl BackpressureManager {
         self.notify.notify_one();
     }
 
+    /// Release a specific [`Acquisition`], decrementing the count only if that acquisition
+    /// actually counted a permit **and** we are still in the same cap era it counted in.
+    /// A cap reset (unlimited ↔ capped) bumps the generation and zeroes the counter, so an
+    /// acquisition from a stale era must not decrement the live count.
+    fn release_acquisition(&self, acq: Acquisition) {
+        if self.observe_only || !acq.counted {
+            return;
+        }
+        let mut st = self.inner.lock().unwrap();
+        if st.generation != acq.generation {
+            return; // stale era — this permit's count no longer exists.
+        }
+        if st.permits_current > 0 {
+            st.permits_current -= 1;
+        }
+        drop(st);
+        self.notify.notify_one();
+    }
+
+    /// Acquire a permit, returning an RAII [`PermitGuard`] that releases it when
+    /// dropped — including if the holding future is **cancelled** (dropped before it
+    /// completes, e.g. under `tokio::time::timeout` or task abortion).
+    ///
+    /// Prefer this over the bare [`acquire`](Self::acquire) / [`release`](Self::release)
+    /// pair for any permit held across an `.await`: a cancellation between the two calls
+    /// leaks the permit, and once the manager is capped a leaked permit is counted against
+    /// every clone of the client forever, eventually stalling all guarded operations at the
+    /// one-permit floor. The guard also only releases the permit it actually acquired, so
+    /// an acquisition made while unlimited never decrements a counted permit after the
+    /// manager later caps.
+    pub(crate) async fn acquire_guard(self: &Arc<Self>) -> Result<PermitGuard, CamundaError> {
+        let acq = self.acquire_inner().await?;
+        Ok(PermitGuard {
+            mgr: Arc::clone(self),
+            acq,
+        })
+    }
+
+    /// Test-only: mimic the Phase-3 recovery transition (capped → unlimited) that
+    /// `maybe_recover` performs on sustained health, without having to drive the
+    /// time-based recovery loop. Zeroes the count and bumps the cap generation.
+    #[cfg(test)]
+    fn force_cap_reset_to_unlimited(&self) {
+        let mut st = self.inner.lock().unwrap();
+        st.generation = st.generation.wrapping_add(1);
+        st.permits_max = None;
+        st.permits_current = 0;
+        st.backoff = Duration::ZERO;
+    }
+
+    /// Test-only: pin the gate to a fixed, deterministic capacity (`max` concurrent
+    /// permits, none outstanding) so a test can saturate it predictably. Bumps the cap
+    /// generation to start a fresh era, matching a real unlimited → capped transition.
+    #[cfg(test)]
+    pub(crate) fn test_force_cap(&self, max: u32) {
+        let mut st = self.inner.lock().unwrap();
+        st.generation = st.generation.wrapping_add(1);
+        st.permits_max = Some(max);
+        st.permits_current = 0;
+        st.backoff = Duration::ZERO;
+    }
+
     /// Record a backpressure signal from the server.
     pub fn record_backpressure(&self) {
         let now = self.clock.now();
@@ -283,7 +365,10 @@ impl BackpressureManager {
         st.healthy_since = None;
 
         if !self.observe_only && st.permits_max.is_none() {
-            // Boot to the initial cap on the first signal (was unlimited).
+            // Boot to the initial cap on the first signal (was unlimited). This starts a
+            // new cap era: bump the generation so permits acquired while unlimited are not
+            // released against this era's count.
+            st.generation = st.generation.wrapping_add(1);
             st.permits_max = Some(INITIAL_MAX);
             st.permits_current = st.permits_current.min(INITIAL_MAX);
         }
@@ -369,6 +454,9 @@ impl BackpressureManager {
         // Phase 3: sustained healthy -> return to unlimited.
         if let Some(since) = st.healthy_since {
             if now.duration_since(since) >= UNLIMITED_AFTER_HEALTHY {
+                // Ending the cap era: bump the generation so any still-counted permit from
+                // this era is not released against a future era's count.
+                st.generation = st.generation.wrapping_add(1);
                 st.permits_max = None;
                 st.permits_current = 0;
                 st.backoff = Duration::ZERO;
@@ -383,6 +471,48 @@ impl BackpressureManager {
             st.permits_max = Some(next_max);
             self.notify.notify_one();
         }
+    }
+}
+
+/// Records the outcome of an acquisition: whether a permit was actually counted against
+/// the cap, and which cap era (`generation`) it belongs to. Releasing is a no-op unless a
+/// permit was counted and the manager is still in the same era.
+#[derive(Clone, Copy)]
+struct Acquisition {
+    counted: bool,
+    generation: u64,
+}
+
+impl Acquisition {
+    fn counted(generation: u64) -> Self {
+        Acquisition {
+            counted: true,
+            generation,
+        }
+    }
+
+    fn uncounted(generation: u64) -> Self {
+        Acquisition {
+            counted: false,
+            generation,
+        }
+    }
+}
+
+/// RAII guard returned by [`BackpressureManager::acquire_guard`]. Releases the held
+/// permit exactly once when dropped, so a cancelled operation cannot leak it. The release
+/// is a no-op unless the acquisition actually counted a permit in the still-current cap
+/// era, so a permit taken while unlimited never decrements a counted permit after a later
+/// cap, and a permit counted before a full recovery never decrements a new era's count.
+#[must_use = "the permit is released as soon as the guard is dropped"]
+pub(crate) struct PermitGuard {
+    mgr: Arc<BackpressureManager>,
+    acq: Acquisition,
+}
+
+impl Drop for PermitGuard {
+    fn drop(&mut self) {
+        self.mgr.release_acquisition(self.acq);
     }
 }
 
@@ -518,6 +648,138 @@ mod tests {
         );
         bp.acquire().await.unwrap();
         assert_eq!(bp.state().permits_current, 0);
+    }
+
+    #[tokio::test]
+    async fn acquire_guard_releases_on_scope_exit() {
+        let bp = Arc::new(BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        ));
+        bp.record_backpressure(); // force a cap
+        {
+            let _permit = bp.acquire_guard().await.unwrap();
+            assert_eq!(bp.state().permits_current, 1);
+        }
+        assert_eq!(
+            bp.state().permits_current,
+            0,
+            "dropping the guard must release the permit"
+        );
+    }
+
+    /// A permit acquired while **unlimited** must never decrement a counted permit after
+    /// the manager later caps. This is the exact "releases permits it did not acquire"
+    /// class: the unlimited-era guard counted nothing, so dropping it after a cap must not
+    /// steal another request's counted permit and let concurrency exceed the cap.
+    #[tokio::test]
+    async fn guard_from_unlimited_era_does_not_release_a_counted_permit() {
+        let bp = Arc::new(BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        ));
+        // Starts unlimited — this acquisition counts nothing.
+        assert_eq!(bp.state().permits_max, None);
+        let unlimited_guard = bp.acquire_guard().await.unwrap();
+        assert_eq!(bp.state().permits_current, 0);
+
+        // Backpressure now caps the manager (new cap era).
+        bp.record_backpressure();
+        assert!(bp.state().permits_max.is_some());
+
+        // A real request counts a permit in the new era.
+        let counted_guard = bp.acquire_guard().await.unwrap();
+        assert_eq!(bp.state().permits_current, 1);
+
+        // Dropping the unlimited-era guard must NOT touch the counted permit.
+        drop(unlimited_guard);
+        assert_eq!(
+            bp.state().permits_current,
+            1,
+            "a guard that counted nothing while unlimited must not release a counted permit"
+        );
+
+        // The genuinely counted guard releases its own permit.
+        drop(counted_guard);
+        assert_eq!(bp.state().permits_current, 0);
+    }
+
+    /// A permit counted in one cap era must not be released against a *different* era's
+    /// count after a full recovery to unlimited (which zeroes the counter) and a fresh cap.
+    #[tokio::test]
+    async fn guard_does_not_release_across_a_cap_era_reset() {
+        let bp = Arc::new(BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        ));
+        bp.record_backpressure(); // era 1: capped
+        let stale_guard = bp.acquire_guard().await.unwrap();
+        assert_eq!(bp.state().permits_current, 1);
+
+        // Simulate a full recovery to unlimited followed by a fresh cap.
+        // `force_cap_reset_to_unlimited` mirrors what maybe_recover's Phase-3 transition
+        // does: zero the count and bump the generation, then re-cap.
+        bp.force_cap_reset_to_unlimited();
+        assert_eq!(bp.state().permits_max, None);
+        assert_eq!(bp.state().permits_current, 0);
+        bp.record_backpressure(); // era 2: capped again
+
+        // A new request counts a permit in era 2.
+        let fresh_guard = bp.acquire_guard().await.unwrap();
+        assert_eq!(bp.state().permits_current, 1);
+
+        // Dropping the era-1 guard must not decrement era 2's count.
+        drop(stale_guard);
+        assert_eq!(
+            bp.state().permits_current,
+            1,
+            "a stale-era guard must not release a later era's counted permit"
+        );
+        drop(fresh_guard);
+        assert_eq!(bp.state().permits_current, 0);
+    }
+
+    /// Cancelling an operation that holds a permit (its future dropped before it
+    /// completes) must release the permit via the guard's `Drop`. Without the RAII
+    /// guard the permit leaks, and once the manager is capped the leak is permanent,
+    /// eventually stalling every guarded operation at the one-permit floor.
+    #[tokio::test]
+    async fn cancelling_a_guarded_operation_releases_the_permit() {
+        use std::future::{pending, Future};
+        use std::task::{Context, Poll, Waker};
+
+        let bp = Arc::new(BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        ));
+        bp.record_backpressure(); // force a cap so leaks are observable
+
+        let waker = Waker::noop();
+        let mut cx = Context::from_waker(waker);
+
+        // A guarded operation that acquires the permit, then parks forever. `Box::pin`
+        // so we *own* the future and dropping it really drops its captured guard (a
+        // `Pin<&mut _>` from `pin!` would only drop the reference, not the future).
+        let mut fut = Box::pin(async {
+            let _permit = bp.acquire_guard().await.unwrap();
+            pending::<()>().await;
+        });
+
+        // Drive it once: it acquires the permit and then parks (Pending).
+        assert!(matches!(fut.as_mut().poll(&mut cx), Poll::Pending));
+        assert_eq!(
+            bp.state().permits_current,
+            1,
+            "permit should be held while the operation is in flight"
+        );
+
+        // Cancel the operation: dropping its future must release the permit.
+        drop(fut);
+        assert_eq!(
+            bp.state().permits_current,
+            0,
+            "cancelling a guarded operation must release the backpressure permit"
+        );
     }
 
     /// The gate's backoff must be spent on the injected clock, not on ambient

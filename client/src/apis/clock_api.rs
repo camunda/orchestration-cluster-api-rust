@@ -13,10 +13,46 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`add_clock`]
+#[derive(Clone, Debug)]
+pub struct AddClockParams {
+    pub clock_add_request: models::ClockAddRequest,
+}
+
 /// struct for passing parameters to the method [`pin_clock`]
 #[derive(Clone, Debug)]
 pub struct PinClockParams {
     pub clock_pin_request: models::ClockPinRequest,
+}
+
+/// struct for typed errors of method [`add_clock`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AddClockError {
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
+    UnknownValue(serde_json::Value),
+}
+
+impl AddClockError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
 }
 
 /// struct for typed errors of method [`get_clock`]
@@ -97,7 +133,57 @@ impl ResetClockError {
     }
 }
 
-/// Returns the current time of the Zeebe engine's internal clock. If the clock is pinned, this is the pinned time. Otherwise, the clock ticks in real time and this is the engine's current time.  Use this endpoint to check the time that the engine uses, for example after pinning the clock with `PUT /v2/clock` or resetting it with `POST /v2/clock/reset`. A pin or reset reaches all partitions shortly after it is accepted, so a request sent right after it may still return the previous time.
+/// Moves the Zeebe engine's internal clock forward or backward by the given offset. Unlike pinning, the clock keeps ticking in real time after the offset is added. If the clock is pinned, it stays pinned and moves to the pinned time plus the offset.  Each request adds to the time of the clock, so adding `PT1H` twice moves the clock two hours ahead. Use `POST /v2/clock/reset` to remove all added time and return the clock to the system time.  The response contains the new time of the clock. The change reaches all partitions shortly after it is accepted, so a request sent right after it may still use the previous time.
+pub async fn add_clock(
+    configuration: &configuration::Configuration,
+    params: AddClockParams,
+) -> Result<models::ClockResult, Error<AddClockError>> {
+    let uri_str = format!("{}/clock/add", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.clock_add_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ClockResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ClockResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<AddClockError> = AddClockError::from_response(status.as_u16(), &content);
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Returns the current time of the Zeebe engine's internal clock. If the clock is pinned, this is the pinned time. Otherwise, the clock ticks in real time and this is the engine's current time.  Use this endpoint to check the time that the engine uses, for example after pinning the clock with `PUT /v2/clock`, adding time with `POST /v2/clock/add`, or resetting it with `POST /v2/clock/reset`. A pin, add, or reset reaches all partitions shortly after it is accepted, so a request sent right after it may still return the previous time.
 pub async fn get_clock(
     configuration: &configuration::Configuration,
 ) -> Result<models::ClockResult, Error<GetClockError>> {
@@ -143,7 +229,7 @@ pub async fn get_clock(
     }
 }
 
-/// Set a precise, static time for the Zeebe engine's internal clock. When the clock is pinned, it remains at the specified time and does not advance. To change the time, the clock must be pinned again with a new timestamp. Use `GET /v2/clock` to read the current time of the clock.  This endpoint is an alpha feature and may be subject to change in future releases.
+/// Set a precise, static time for the Zeebe engine's internal clock. When the clock is pinned, it remains at the specified time and does not advance. To change the time, the clock must be pinned again with a new timestamp. To move the clock without stopping it, use `POST /v2/clock/add` instead. Use `GET /v2/clock` to read the current time of the clock.  This endpoint is an alpha feature and may be subject to change in future releases.
 pub async fn pin_clock(
     configuration: &configuration::Configuration,
     params: PinClockParams,
@@ -180,7 +266,7 @@ pub async fn pin_clock(
     }
 }
 
-/// Resets the Zeebe engine's internal clock to the current system time, enabling it to tick in real-time. This operation is useful for returning the clock to normal behavior after it has been pinned to a specific time. Use `GET /v2/clock` to read the current time of the clock.  This endpoint is an alpha feature and may be subject to change in future releases.
+/// Resets the Zeebe engine's internal clock to the current system time, enabling it to tick in real-time. This operation is useful for returning the clock to normal behavior after it has been pinned to a specific time or moved with `POST /v2/clock/add`. Use `GET /v2/clock` to read the current time of the clock.  This endpoint is an alpha feature and may be subject to change in future releases.
 pub async fn reset_clock(
     configuration: &configuration::Configuration,
 ) -> Result<(), Error<ResetClockError>> {

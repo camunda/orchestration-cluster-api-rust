@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use camunda_orchestration_api_client::apis::configuration::Configuration;
 use camunda_orchestration_api_client::apis::{
-    cluster_api, conditional_api, decision_definition_api, expression_api, job_api, message_api,
-    process_instance_api, resource_api, signal_api, variable_api,
+    clock_api, cluster_api, conditional_api, decision_definition_api, expression_api, job_api,
+    message_api, process_instance_api, resource_api, signal_api, variable_api,
 };
 use camunda_orchestration_api_client::models;
 
@@ -189,7 +189,7 @@ impl CamundaClient {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<T>>,
     {
-        self.bp.acquire().await?;
+        let _permit = self.bp.acquire_guard().await?;
         let result = retry::with_retry(
             &self.config.retry,
             self.clock.as_ref(),
@@ -202,7 +202,28 @@ impl CamundaClient {
             Err(e) if is_backpressure_error(e) => self.bp.record_backpressure(),
             Err(_) => {}
         }
-        self.bp.release();
+        result
+    }
+
+    /// Run a **non-idempotent** initiating operation under the adaptive backpressure gate
+    /// but *without* the transient-retry policy: acquire a permit, await the operation
+    /// exactly once, record the outcome, and release the permit.
+    ///
+    /// Use this for mutations that must not be auto-retried on an unknown outcome — a
+    /// retry after a lost 5xx/network response would apply the effect twice. Backpressure
+    /// accounting and auth/backpressure error classification are preserved; only the retry
+    /// loop is skipped.
+    pub(crate) async fn guarded_once<T, Fut>(&self, op: Fut) -> Result<T>
+    where
+        Fut: std::future::Future<Output = Result<T>>,
+    {
+        let _permit = self.bp.acquire_guard().await?;
+        let result = op.await;
+        match &result {
+            Ok(_) => self.bp.record_healthy_hint(),
+            Err(e) if is_backpressure_error(e) => self.bp.record_backpressure(),
+            Err(_) => {}
+        }
         result
     }
 
@@ -244,6 +265,28 @@ impl CamundaClient {
         self.guarded(|| async {
             let cfg = self.configuration().await?;
             Ok(cluster_api::get_topology(&cfg).await?)
+        })
+        .await
+    }
+
+    /// Add a relative offset to the cluster's internal clock (`POST /clock/add`).
+    ///
+    /// Unlike most operations this is **not idempotent** — each call shifts the clock by
+    /// the supplied offset — so it deliberately runs under the backpressure gate *without*
+    /// the transient-retry policy (`Self::guarded_once`). Auto-retrying a lost 5xx or
+    /// network response would risk applying the offset twice. Callers that want at-least /
+    /// exactly-once semantics must handle an uncertain outcome themselves (e.g. by reading
+    /// the clock back).
+    pub async fn add_clock(
+        &self,
+        params: clock_api::AddClockParams,
+    ) -> Result<models::ClockResult> {
+        self.guarded_once(async move {
+            // Build the configuration (which refreshes the OAuth token if needed) *after*
+            // the permit is acquired, so a request queued behind a capped gate does not
+            // send a token that expired while it waited.
+            let cfg = self.configuration().await?;
+            Ok(clock_api::add_clock(&cfg, params).await?)
         })
         .await
     }
@@ -348,6 +391,9 @@ impl CamundaClient {
                 b.process_definition_version,
                 b.tenant_id.clone(),
             ),
+            // The command stream resolves a definition by id or key only; a version-tag
+            // lookup is REST-only, so fall back transparently.
+            I::ProcessInstanceCreationInstructionByVersionTag(_) => return Ok(None),
         };
 
         let Some(caps) = self.falcon_caps().await.cloned() else {
@@ -741,6 +787,10 @@ impl CamundaClient {
                 b.tenant_id = self.with_default_tenant(b.tenant_id);
                 I::ProcessInstanceCreationInstructionByKey(b)
             }
+            I::ProcessInstanceCreationInstructionByVersionTag(mut b) => {
+                b.tenant_id = self.with_default_tenant(b.tenant_id);
+                I::ProcessInstanceCreationInstructionByVersionTag(b)
+            }
         }
     }
 
@@ -1002,5 +1052,193 @@ mod tests {
         let as_str = apply_default_tenant_str(None, &cfg).expect("injected");
         let as_newtype = apply_default_tenant(None, &cfg).expect("injected");
         assert_eq!(as_str, as_newtype.value());
+    }
+
+    fn client_with_tenant(tenant: Option<&str>) -> CamundaClient {
+        let mut options = CamundaOptions::new();
+        if let Some(t) = tenant {
+            options = options.with("CAMUNDA_DEFAULT_TENANT_ID", t);
+        }
+        CamundaClient::new(options).expect("client builds")
+    }
+
+    fn tenant_of(
+        instruction: &models::ProcessInstanceCreationInstruction,
+    ) -> Option<&models::TenantId> {
+        use models::ProcessInstanceCreationInstruction as I;
+        match instruction {
+            I::ProcessInstanceCreationInstructionById(b) => b.tenant_id.as_ref(),
+            I::ProcessInstanceCreationInstructionByKey(b) => b.tenant_id.as_ref(),
+            I::ProcessInstanceCreationInstructionByVersionTag(b) => b.tenant_id.as_ref(),
+        }
+    }
+
+    #[test]
+    fn injects_default_tenant_into_every_creation_instruction_variant() {
+        use models::ProcessInstanceCreationInstruction as I;
+        let client = client_with_tenant(Some("acme"));
+
+        let by_id = I::ProcessInstanceCreationInstructionById(Box::new(
+            models::ProcessInstanceCreationInstructionById::new(
+                models::ProcessDefinitionId::assume_exists("order-process"),
+            ),
+        ));
+        let by_key = I::ProcessInstanceCreationInstructionByKey(Box::new(
+            models::ProcessInstanceCreationInstructionByKey::new(
+                models::ProcessDefinitionKey::assume_exists("2251799813686749"),
+            ),
+        ));
+        let by_version_tag = I::ProcessInstanceCreationInstructionByVersionTag(Box::new(
+            models::ProcessInstanceCreationInstructionByVersionTag::new(
+                models::ProcessDefinitionId::assume_exists("order-process"),
+                "v2.1".to_string(),
+            ),
+        ));
+
+        for instruction in [by_id, by_key, by_version_tag] {
+            let injected = client.inject_instance_tenant(instruction);
+            assert_eq!(
+                tenant_of(&injected).map(|t| t.value()),
+                Some("acme"),
+                "default tenant must be injected into {injected:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn explicit_tenant_wins_over_the_default() {
+        use models::ProcessInstanceCreationInstruction as I;
+        let client = client_with_tenant(Some("acme"));
+
+        let mut instruction = models::ProcessInstanceCreationInstructionByVersionTag::new(
+            models::ProcessDefinitionId::assume_exists("order-process"),
+            "v2.1".to_string(),
+        );
+        instruction.tenant_id = Some(models::TenantId::assume_exists("other"));
+        let injected = client.inject_instance_tenant(
+            I::ProcessInstanceCreationInstructionByVersionTag(Box::new(instruction)),
+        );
+        assert_eq!(tenant_of(&injected).map(|t| t.value()), Some("other"));
+    }
+
+    // --- Untagged-enum deserialization ordering (hook 16) --------------------
+
+    #[test]
+    fn version_tag_variant_wins_over_by_id_during_deserialization() {
+        use models::ProcessInstanceCreationInstruction as I;
+        // A payload carrying BOTH id and version tag must decode as the more-specific
+        // ByVersionTag variant, not greedily as ById (which would silently drop the tag).
+        let json = r#"{"processDefinitionId":"orders","processDefinitionVersionTag":"v2"}"#;
+        let decoded: I = serde_json::from_str(json).expect("decodes");
+        match &decoded {
+            I::ProcessInstanceCreationInstructionByVersionTag(b) => {
+                assert_eq!(b.process_definition_version_tag, "v2");
+            }
+            other => panic!("expected ByVersionTag, got {other:?}"),
+        }
+        // Round-trip must preserve the tag.
+        let reencoded = serde_json::to_value(&decoded).expect("encodes");
+        assert_eq!(reencoded["processDefinitionVersionTag"], "v2");
+    }
+
+    #[test]
+    fn id_only_payload_still_decodes_as_by_id() {
+        use models::ProcessInstanceCreationInstruction as I;
+        let decoded: I =
+            serde_json::from_str(r#"{"processDefinitionId":"orders"}"#).expect("decodes");
+        assert!(matches!(
+            decoded,
+            I::ProcessInstanceCreationInstructionById(_)
+        ));
+    }
+
+    #[test]
+    fn key_payload_still_decodes_as_by_key() {
+        use models::ProcessInstanceCreationInstruction as I;
+        let decoded: I = serde_json::from_str(r#"{"processDefinitionKey":"2251799813686749"}"#)
+            .expect("decodes");
+        assert!(matches!(
+            decoded,
+            I::ProcessInstanceCreationInstructionByKey(_)
+        ));
+    }
+
+    // --- Enum-backed exact-match wrappers (hook 15) --------------------------
+
+    #[test]
+    fn protection_mode_exact_match_preserves_the_enum_value() {
+        use models::ProtectionModeFilterProperty as P;
+        // A bare enum string must decode as the exact-match branch and round-trip.
+        let decoded: P = serde_json::from_str(r#""REDACT""#).expect("decodes");
+        match &decoded {
+            P::ProtectionModeExactMatch(b) => {
+                assert_eq!(b.0, models::ProtectionModeEnum::Redact);
+            }
+            other => panic!("expected ProtectionModeExactMatch, got {other:?}"),
+        }
+        assert_eq!(serde_json::to_value(&decoded).expect("encodes"), "REDACT");
+    }
+
+    #[test]
+    fn protection_mode_advanced_filter_is_not_swallowed_by_exact_match() {
+        use models::ProtectionModeFilterProperty as P;
+        // The advanced-filter object must NOT be captured by the exact-match branch.
+        let decoded: P = serde_json::from_str(r#"{"$in":["REDACT"]}"#).expect("decodes");
+        match &decoded {
+            P::AdvancedProtectionModeFilter(b) => {
+                assert_eq!(
+                    b.dollar_in.as_deref(),
+                    Some(&[models::ProtectionModeEnum::Redact][..])
+                );
+            }
+            other => panic!("expected AdvancedProtectionModeFilter, got {other:?}"),
+        }
+    }
+
+    // --- Gated operations defer auth until a permit is acquired --------------
+
+    // Regression: a gated, non-idempotent operation (`add_clock`) must build its
+    // `Configuration` — which captures / refreshes the OAuth bearer token — *inside* the
+    // guarded future, so the token is read only after a backpressure permit is acquired.
+    // Capturing it before `guarded_once` meant a request queued behind a capped gate could
+    // send a token that expired while it waited. We prove the ordering generically at the
+    // `guarded_once` seam: with the only permit held, the op future must not be polled.
+    #[tokio::test(flavor = "current_thread")]
+    async fn guarded_once_defers_op_until_a_permit_is_available() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let client = client_with_tenant(None);
+        // Pin the gate to a single permit and take it, so any further acquire must queue.
+        client.bp.test_force_cap(1);
+        let hold = client.bp.acquire_guard().await.expect("first permit");
+
+        let polled = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&polled);
+        let worker = client.clone();
+        let task = tokio::spawn(async move {
+            worker
+                .guarded_once(async move {
+                    flag.store(true, Ordering::SeqCst);
+                    Ok::<(), CamundaError>(())
+                })
+                .await
+        });
+
+        // Let the spawned task run until it parks waiting for the (held) permit.
+        for _ in 0..16 {
+            tokio::task::yield_now().await;
+        }
+        assert!(
+            !polled.load(Ordering::SeqCst),
+            "op future (which would capture the auth token) was polled before a permit was acquired"
+        );
+
+        // Releasing the permit lets the queued op acquire one and only then run.
+        drop(hold);
+        task.await.expect("task joins").expect("op succeeds");
+        assert!(
+            polled.load(Ordering::SeqCst),
+            "op future must run once a permit is available"
+        );
     }
 }

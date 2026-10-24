@@ -32,6 +32,7 @@ from scripts.hooks import hook_13_present_when
 from scripts.hooks import hook_14_error_status_dispatch
 from scripts.hooks import hook_15_rfc3339_datetime_query
 from scripts.hooks import hook_16_operation_servers
+from scripts.hooks import hook_17_scalar_allof_wrappers
 from scripts.hooks.common import Context
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1200,6 +1201,58 @@ class EveryDatetimeQueryParamIsRfc3339Test(unittest.TestCase):
                     offenders.append(f"{path.name}: params.{field} query uses to_string()")
         self.assertGreater(checked, 0, "guard found no date-time query params in the generated apis")
         self.assertEqual(offenders, [])
+
+
+class ScalarAllOfWrappersHookTest(unittest.TestCase):
+    """`hook_17` rewrites enum-backed `*ExactMatch` empty structs as transparent newtypes.
+
+    The hooks run on **unformatted** generator output (post-processing precedes
+    `cargo fmt` in `scripts/generate.sh`), so the detector must fire on the generator's
+    `pub struct Foo {\\n}` form, not only the post-format collapsed `pub struct Foo {}`.
+    A literal match on the formatted form silently skips every wrapper on a normal
+    regeneration and lets the broken empty models survive.
+    """
+
+    def _run_hook(self, model_text: str) -> str:
+        tmp = Path(tempfile.mkdtemp())
+        models = tmp / "src" / "models"
+        models.mkdir(parents=True)
+        (models / "protection_mode_exact_match.rs").write_bytes(model_text.encode("utf-8"))
+        schemas = {
+            "ProtectionModeEnum": {"type": "string", "enum": ["REDACT", "NONE"]},
+            "ProtectionModeExactMatch": {"allOf": [{"$ref": "#/components/schemas/ProtectionModeEnum"}]},
+        }
+        ctx = Context(client_dir=tmp, spec={}, schemas=schemas)
+        hook_17_scalar_allof_wrappers.run(ctx)
+        return (models / "protection_mode_exact_match.rs").read_text(encoding="utf-8")
+
+    def test_rewrites_unformatted_empty_struct(self):
+        # The generator's raw output: an open brace, no fields, a close brace on its own
+        # line. This is what the hook actually sees before `cargo fmt` runs.
+        out = self._run_hook("pub struct ProtectionModeExactMatch {\n}\n")
+        self.assertIn("#[serde(transparent)]", out)
+        self.assertIn("pub struct ProtectionModeExactMatch(pub models::ProtectionModeEnum);", out)
+
+    def test_rewrites_formatted_empty_struct(self):
+        # The collapsed form must keep working too (e.g. an already-formatted tree).
+        out = self._run_hook("pub struct ProtectionModeExactMatch {}\n")
+        self.assertIn("pub struct ProtectionModeExactMatch(pub models::ProtectionModeEnum);", out)
+
+    def test_is_idempotent(self):
+        first = self._run_hook("pub struct ProtectionModeExactMatch {\n}\n")
+        tmp = Path(tempfile.mkdtemp())
+        models = tmp / "src" / "models"
+        models.mkdir(parents=True)
+        (models / "protection_mode_exact_match.rs").write_bytes(first.encode("utf-8"))
+        schemas = {
+            "ProtectionModeEnum": {"type": "string", "enum": ["REDACT", "NONE"]},
+            "ProtectionModeExactMatch": {"allOf": [{"$ref": "#/components/schemas/ProtectionModeEnum"}]},
+        }
+        ctx = Context(client_dir=tmp, spec={}, schemas=schemas)
+        hook_17_scalar_allof_wrappers.run(ctx)
+        self.assertEqual(
+            (models / "protection_mode_exact_match.rs").read_text(encoding="utf-8"), first
+        )
 
 
 if __name__ == "__main__":
