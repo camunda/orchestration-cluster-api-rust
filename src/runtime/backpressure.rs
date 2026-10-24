@@ -274,6 +274,22 @@ impl BackpressureManager {
         self.notify.notify_one();
     }
 
+    /// Acquire a permit, returning an RAII [`PermitGuard`] that releases it when
+    /// dropped — including if the holding future is **cancelled** (dropped before it
+    /// completes, e.g. under `tokio::time::timeout` or task abortion).
+    ///
+    /// Prefer this over the bare [`acquire`](Self::acquire) / [`release`](Self::release)
+    /// pair for any permit held across an `.await`: a cancellation between the two calls
+    /// leaks the permit, and once the manager is capped a leaked permit is counted against
+    /// every clone of the client forever, eventually stalling all guarded operations at the
+    /// one-permit floor.
+    pub async fn acquire_guard(self: &Arc<Self>) -> Result<PermitGuard, CamundaError> {
+        self.acquire().await?;
+        Ok(PermitGuard {
+            mgr: Arc::clone(self),
+        })
+    }
+
     /// Record a backpressure signal from the server.
     pub fn record_backpressure(&self) {
         let now = self.clock.now();
@@ -383,6 +399,19 @@ impl BackpressureManager {
             st.permits_max = Some(next_max);
             self.notify.notify_one();
         }
+    }
+}
+
+/// RAII guard returned by [`BackpressureManager::acquire_guard`]. Releases the held
+/// permit exactly once when dropped, so a cancelled operation cannot leak it.
+#[must_use = "the permit is released as soon as the guard is dropped"]
+pub struct PermitGuard {
+    mgr: Arc<BackpressureManager>,
+}
+
+impl Drop for PermitGuard {
+    fn drop(&mut self) {
+        self.mgr.release();
     }
 }
 
@@ -518,6 +547,67 @@ mod tests {
         );
         bp.acquire().await.unwrap();
         assert_eq!(bp.state().permits_current, 0);
+    }
+
+    #[tokio::test]
+    async fn acquire_guard_releases_on_scope_exit() {
+        let bp = Arc::new(BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        ));
+        bp.record_backpressure(); // force a cap
+        {
+            let _permit = bp.acquire_guard().await.unwrap();
+            assert_eq!(bp.state().permits_current, 1);
+        }
+        assert_eq!(
+            bp.state().permits_current,
+            0,
+            "dropping the guard must release the permit"
+        );
+    }
+
+    /// Cancelling an operation that holds a permit (its future dropped before it
+    /// completes) must release the permit via the guard's `Drop`. Without the RAII
+    /// guard the permit leaks, and once the manager is capped the leak is permanent,
+    /// eventually stalling every guarded operation at the one-permit floor.
+    #[tokio::test]
+    async fn cancelling_a_guarded_operation_releases_the_permit() {
+        use std::future::{pending, Future};
+        use std::task::{Context, Poll, Waker};
+
+        let bp = Arc::new(BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        ));
+        bp.record_backpressure(); // force a cap so leaks are observable
+
+        let waker = Waker::noop();
+        let mut cx = Context::from_waker(waker);
+
+        // A guarded operation that acquires the permit, then parks forever. `Box::pin`
+        // so we *own* the future and dropping it really drops its captured guard (a
+        // `Pin<&mut _>` from `pin!` would only drop the reference, not the future).
+        let mut fut = Box::pin(async {
+            let _permit = bp.acquire_guard().await.unwrap();
+            pending::<()>().await;
+        });
+
+        // Drive it once: it acquires the permit and then parks (Pending).
+        assert!(matches!(fut.as_mut().poll(&mut cx), Poll::Pending));
+        assert_eq!(
+            bp.state().permits_current,
+            1,
+            "permit should be held while the operation is in flight"
+        );
+
+        // Cancel the operation: dropping its future must release the permit.
+        drop(fut);
+        assert_eq!(
+            bp.state().permits_current,
+            0,
+            "cancelling a guarded operation must release the backpressure permit"
+        );
     }
 
     /// The gate's backoff must be spent on the injected clock, not on ambient

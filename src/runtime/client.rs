@@ -189,7 +189,7 @@ impl CamundaClient {
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<T>>,
     {
-        self.bp.acquire().await?;
+        let _permit = self.bp.acquire_guard().await?;
         let result = retry::with_retry(
             &self.config.retry,
             self.clock.as_ref(),
@@ -202,7 +202,6 @@ impl CamundaClient {
             Err(e) if is_backpressure_error(e) => self.bp.record_backpressure(),
             Err(_) => {}
         }
-        self.bp.release();
         result
     }
 
@@ -218,14 +217,13 @@ impl CamundaClient {
     where
         Fut: std::future::Future<Output = Result<T>>,
     {
-        self.bp.acquire().await?;
+        let _permit = self.bp.acquire_guard().await?;
         let result = op.await;
         match &result {
             Ok(_) => self.bp.record_healthy_hint(),
             Err(e) if is_backpressure_error(e) => self.bp.record_backpressure(),
             Err(_) => {}
         }
-        self.bp.release();
         result
     }
 
