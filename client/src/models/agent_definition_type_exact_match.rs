@@ -1,7 +1,7 @@
 /*
  * Orchestration Cluster API
  *
- * @generated transparent wrapper (scripts/postprocess.py hook 15) — DO NOT EDIT.
+ * @generated transparent wrapper (scripts/postprocess.py hook 17) — DO NOT EDIT.
  */
 
 use crate::models;
