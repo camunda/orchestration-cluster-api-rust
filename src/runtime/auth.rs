@@ -142,7 +142,11 @@ impl Authentication {
             }
             AuthStrategy::OAuth => {
                 let token = self.access_token().await?;
-                config.oauth_access_token = Some(token);
+                // The generated operations read the bearer token from
+                // `bearer_access_token`; `oauth_access_token` is a dead field they never
+                // consult. Writing the fetched token here is what actually sets the
+                // `Authorization: Bearer` header on every request.
+                config.bearer_access_token = Some(token);
             }
         }
         Ok(())
@@ -336,5 +340,47 @@ mod tests {
         );
         assert_eq!("NONE".parse::<AuthStrategy>().unwrap(), AuthStrategy::None);
         assert!("nope".parse::<AuthStrategy>().is_err());
+    }
+
+    /// OAuth tokens must be written to `bearer_access_token` — the only field the
+    /// generated operations actually read. Writing them to `oauth_access_token` (a dead
+    /// field) would send no `Authorization` header and fail against an OAuth cluster.
+    #[tokio::test]
+    async fn oauth_token_is_applied_as_bearer_access_token() {
+        let clock = super::super::clock::live_clock();
+        let auth = Authentication {
+            inner: Arc::new(Inner {
+                strategy: AuthStrategy::OAuth,
+                oauth_url: None,
+                client_id: None,
+                client_secret: None,
+                audience: None,
+                scope: None,
+                basic_username: None,
+                basic_password: None,
+                http: reqwest::Client::new(),
+                // Pre-seed the in-memory cache so `apply` resolves without network I/O.
+                cache: Mutex::new(Some(CachedToken {
+                    token: "test-token-abc".to_string(),
+                    refresh_after: clock.now() + Duration::from_secs(3600),
+                    refresh_after_wall: clock.now_wall() + Duration::from_secs(3600),
+                })),
+                oauth_cache_dir: None,
+                clock,
+            }),
+        };
+
+        let mut cfg = Configuration::default();
+        auth.apply(&mut cfg).await.unwrap();
+
+        assert_eq!(
+            cfg.bearer_access_token.as_deref(),
+            Some("test-token-abc"),
+            "OAuth token must populate bearer_access_token (the field operations read)"
+        );
+        assert!(
+            cfg.oauth_access_token.is_none(),
+            "oauth_access_token is a dead field and must not be relied upon"
+        );
     }
 }
