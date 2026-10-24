@@ -23,6 +23,7 @@ Hooks (in order):
   13 present-when                emit spec-declared dependent-presence couplings
   14 error-status-dispatch       decode typed error responses into the variant named by the HTTP status
   15 rfc3339-datetime-query      serialize date-time query params with `.to_rfc3339()` instead of `.to_string()`
+  16 operation-servers           honor path-item `servers` overrides (cluster-admin paths skip the /v2 base)
 
 Usage:
     python3 scripts/postprocess.py --client-dir client \\

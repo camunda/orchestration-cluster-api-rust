@@ -31,6 +31,7 @@ from scripts.hooks import hook_12_strip_variant_discriminators
 from scripts.hooks import hook_13_present_when
 from scripts.hooks import hook_14_error_status_dispatch
 from scripts.hooks import hook_15_rfc3339_datetime_query
+from scripts.hooks import hook_16_operation_servers
 from scripts.hooks.common import Context
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -773,6 +774,182 @@ class PresentWhenHookTest(unittest.TestCase):
 
 
 _APIS_DIR = _REPO_ROOT / "client" / "src" / "apis"
+
+
+class OperationServersHookTest(unittest.TestCase):
+    """`hook_16` routes path items with their own root-level `servers` entry (the
+    `/cluster/v2/*` cluster-admin operations) around the top-level `/v2` base path —
+    the defect class from issue #72 (`GET /v2/cluster/v2/topology`)."""
+
+    _SPEC = {
+        "servers": [{"url": "{schema}://{host}:{port}/v2"}],
+        "paths": {
+            "/cluster/v2/topology": {
+                "servers": [{"url": "{schema}://{host}:{port}"}],
+                "get": {"operationId": "getClusterTopology"},
+            },
+            "/cluster/v2/backups/runtime/{backupId}": {
+                "servers": [{"url": "{schema}://{host}:{port}"}],
+                "get": {"operationId": "getRuntimeBackupAsClusterAdmin"},
+            },
+            "/topology": {"get": {"operationId": "getTopology"}},
+        },
+    }
+
+    _CONFIGURATION_RS = (
+        "pub struct Configuration {\n"
+        "}\n"
+        "\n"
+        "impl Default for Configuration {\n"
+        "    fn default() -> Self {\n"
+        "        Configuration {\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+    )
+
+    def _run_hook(self, files: dict[str, str]) -> Path:
+        tmp = Path(tempfile.mkdtemp())
+        apis = tmp / "src" / "apis"
+        apis.mkdir(parents=True)
+        (apis / "configuration.rs").write_text(self._CONFIGURATION_RS)
+        for name, body in files.items():
+            (apis / name).write_bytes(body.encode("utf-8"))
+        ctx = Context(client_dir=tmp, spec=self._SPEC, schemas={})
+        hook_16_operation_servers.run(ctx)
+        return apis
+
+    def test_derives_only_the_overridden_paths(self):
+        ctx = Context(client_dir=Path("."), spec=self._SPEC, schemas={})
+        self.assertEqual(
+            hook_16_operation_servers._root_server_paths(ctx),
+            ["/cluster/v2/backups/runtime/{backupId}", "/cluster/v2/topology"],
+        )
+
+    def test_rewrites_single_and_multi_line_call_sites(self):
+        apis = self._run_hook(
+            {
+                "cluster_api.rs": (
+                    'let uri_str = format!("{}/cluster/v2/topology", configuration.base_path);\n'
+                    "let uri_str = format!(\n"
+                    '    "{}/cluster/v2/backups/runtime/{backupId}",\n'
+                    "    configuration.base_path,\n"
+                    "    backupId = params.backup_id\n"
+                    ");\n"
+                    # A non-overridden path keeps the plain base path.
+                    'let uri_str = format!("{}/topology", configuration.base_path);\n'
+                )
+            }
+        )
+        text = (apis / "cluster_api.rs").read_text()
+        self.assertIn(
+            'configuration.operation_base_path("/cluster/v2/topology"));', text
+        )
+        self.assertIn(
+            'configuration.operation_base_path("/cluster/v2/backups/runtime/{backupId}"),',
+            text,
+        )
+        self.assertIn(
+            'format!("{}/topology", configuration.base_path);', text
+        )
+        self.assertNotIn("configuration.base_path,\n", text.split("/topology")[0])
+
+    def test_adds_the_helper_listing_every_overridden_path(self):
+        apis = self._run_hook({"cluster_api.rs": ""})
+        config = (apis / "configuration.rs").read_text()
+        self.assertIn("pub fn operation_base_path(&self, operation_path: &str) -> &str", config)
+        self.assertIn('"/cluster/v2/topology",', config)
+        self.assertIn('"/cluster/v2/backups/runtime/{backupId}",', config)
+        self.assertIn('strip_suffix("/v2")', config)
+
+    def test_adds_the_exact_address_field_and_gates_the_strip_on_it(self):
+        # CAMUNDA_REST_ADDRESS_EXACT forwards the configured gateway address verbatim;
+        # a trailing `/v2` there is proxy-owned, so the helper must preserve it.
+        apis = self._run_hook({"cluster_api.rs": ""})
+        config = (apis / "configuration.rs").read_text()
+        self.assertIn("pub rest_address_exact: bool,", config)
+        self.assertIn("rest_address_exact: false,", config)
+        self.assertIn("&& !self.rest_address_exact", config)
+
+    def test_exact_field_insertion_is_idempotent(self):
+        apis = self._run_hook({"cluster_api.rs": ""})
+        first = (apis / "configuration.rs").read_bytes()
+        ctx = Context(client_dir=apis.parent.parent, spec=self._SPEC, schemas={})
+        hook_16_operation_servers.run(ctx)
+        second = (apis / "configuration.rs").read_bytes()
+        self.assertEqual(first, second)
+        self.assertEqual(second.count(b"pub rest_address_exact: bool,"), 1)
+        self.assertEqual(second.count(b"rest_address_exact: false,"), 1)
+
+    def test_is_idempotent(self):
+        apis = self._run_hook(
+            {
+                "cluster_api.rs": (
+                    'let uri_str = format!("{}/cluster/v2/topology", configuration.base_path);\n'
+                )
+            }
+        )
+        first = (apis / "cluster_api.rs").read_bytes()
+        first_cfg = (apis / "configuration.rs").read_bytes()
+        ctx = Context(client_dir=apis.parent.parent, spec=self._SPEC, schemas={})
+        hook_16_operation_servers.run(ctx)
+        self.assertEqual((apis / "cluster_api.rs").read_bytes(), first)
+        self.assertEqual((apis / "configuration.rs").read_bytes(), first_cfg)
+
+    def test_raises_when_the_spec_drops_the_override(self):
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "src" / "apis").mkdir(parents=True)
+        ctx = Context(client_dir=tmp, spec={"paths": {}}, schemas={})
+        with self.assertRaises(RuntimeError):
+            hook_16_operation_servers.run(ctx)
+
+
+class GeneratedClusterAdminBasePathTest(unittest.TestCase):
+    """Structural guard over the committed generated client: every `/cluster/v2/*`
+    call site must go through `operation_base_path`, and no other call site may.
+    Runs against the real generated output so a silent stop-firing is caught without
+    regenerating."""
+
+    def test_every_cluster_admin_call_site_uses_the_override(self):
+        if not _APIS_DIR.exists():
+            self.skipTest("generated client apis are not present")
+        offenders = []
+        sites = 0
+        for path in sorted(_APIS_DIR.glob("*_api.rs")):
+            lines = path.read_text(encoding="utf-8").splitlines()
+            for i, line in enumerate(lines):
+                if '"{}/cluster/v2' not in line:
+                    continue
+                sites += 1
+                # The base-path expression follows the format string: same line in the
+                # single-line form, next line in the rustfmt-wrapped form.
+                window = line + (lines[i + 1] if i + 1 < len(lines) else "")
+                if "operation_base_path" not in window:
+                    offenders.append(f"{path.name}: {line.strip()}")
+                if "configuration.base_path" in window:
+                    offenders.append(f"{path.name}: still uses base_path: {line.strip()}")
+            for i, line in enumerate(lines):
+                if "operation_base_path" in line and "/cluster/v2" not in line:
+                    offenders.append(
+                        f"{path.name}: override used for a non-cluster path: {line.strip()}"
+                    )
+        self.assertGreater(sites, 0, "guard found no /cluster/v2 call sites")
+        self.assertEqual(offenders, [])
+
+    def test_configuration_lists_every_spec_overridden_path(self):
+        config = _APIS_DIR / "configuration.rs"
+        if not config.exists():
+            self.skipTest("generated client apis are not present")
+        import json
+
+        spec = json.loads(
+            (_REPO_ROOT / "external-spec" / "bundled" / "rest-api.bundle.json").read_text()
+        )
+        ctx = Context(client_dir=_REPO_ROOT / "client", spec=spec, schemas={})
+        expected = hook_16_operation_servers._root_server_paths(ctx)
+        text = config.read_text(encoding="utf-8")
+        missing = [p for p in expected if f'"{p}",' not in text]
+        self.assertEqual(missing, [], "configuration.rs is stale — run make generate")
 
 _ERROR_API_FIXTURE = (
     "/// struct for typed errors of method [`cancel`]\n"

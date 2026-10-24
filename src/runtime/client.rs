@@ -225,6 +225,7 @@ impl CamundaClient {
     pub async fn configuration(&self) -> Result<Configuration> {
         let mut cfg = Configuration {
             base_path: self.config.rest_address.clone(),
+            rest_address_exact: self.config.rest_address_exact,
             user_agent: Some(self.user_agent.clone()),
             client: self.http.clone(),
             basic_auth: None,

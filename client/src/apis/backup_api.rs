@@ -884,7 +884,7 @@ pub async fn delete_history_backup_as_cluster_admin(
 ) -> Result<(), Error<DeleteHistoryBackupAsClusterAdminError>> {
     let uri_str = format!(
         "{}/cluster/v2/backups/history/{backupId}",
-        configuration.base_path,
+        configuration.operation_base_path("/cluster/v2/backups/history/{backupId}"),
         backupId = params.backup_id
     );
     let mut req_builder = configuration
@@ -973,7 +973,7 @@ pub async fn delete_runtime_backup_as_cluster_admin(
 ) -> Result<(), Error<DeleteRuntimeBackupAsClusterAdminError>> {
     let uri_str = format!(
         "{}/cluster/v2/backups/runtime/{backupId}",
-        configuration.base_path,
+        configuration.operation_base_path("/cluster/v2/backups/runtime/{backupId}"),
         backupId = params.backup_id
     );
     let mut req_builder = configuration
@@ -1057,7 +1057,7 @@ pub async fn delete_runtime_backup_state_as_cluster_admin(
 ) -> Result<(), Error<DeleteRuntimeBackupStateAsClusterAdminError>> {
     let uri_str = format!(
         "{}/cluster/v2/backups/runtime/state",
-        configuration.base_path
+        configuration.operation_base_path("/cluster/v2/backups/runtime/state")
     );
     let mut req_builder = configuration
         .client
@@ -1154,7 +1154,7 @@ pub async fn get_history_backup_as_cluster_admin(
 ) -> Result<models::ClusterHistoryBackupInfo, Error<GetHistoryBackupAsClusterAdminError>> {
     let uri_str = format!(
         "{}/cluster/v2/backups/history/{backupId}",
-        configuration.base_path,
+        configuration.operation_base_path("/cluster/v2/backups/history/{backupId}"),
         backupId = params.backup_id
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
@@ -1261,7 +1261,7 @@ pub async fn get_runtime_backup_as_cluster_admin(
 ) -> Result<models::ClusterRuntimeBackupInfo, Error<GetRuntimeBackupAsClusterAdminError>> {
     let uri_str = format!(
         "{}/cluster/v2/backups/runtime/{backupId}",
-        configuration.base_path,
+        configuration.operation_base_path("/cluster/v2/backups/runtime/{backupId}"),
         backupId = params.backup_id
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
@@ -1363,7 +1363,7 @@ pub async fn get_runtime_backup_state_as_cluster_admin(
 ) -> Result<models::ClusterRuntimeBackupState, Error<GetRuntimeBackupStateAsClusterAdminError>> {
     let uri_str = format!(
         "{}/cluster/v2/backups/runtime/state",
-        configuration.base_path
+        configuration.operation_base_path("/cluster/v2/backups/runtime/state")
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
@@ -1469,7 +1469,10 @@ pub async fn list_history_backups_as_cluster_admin(
     configuration: &configuration::Configuration,
     params: ListHistoryBackupsAsClusterAdminParams,
 ) -> Result<Vec<models::ClusterHistoryBackupInfo>, Error<ListHistoryBackupsAsClusterAdminError>> {
-    let uri_str = format!("{}/cluster/v2/backups/history", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/backups/history",
+        configuration.operation_base_path("/cluster/v2/backups/history")
+    );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref param_value) = params.physical_tenant_id {
@@ -1577,7 +1580,10 @@ pub async fn list_runtime_backups_as_cluster_admin(
     configuration: &configuration::Configuration,
     params: ListRuntimeBackupsAsClusterAdminParams,
 ) -> Result<Vec<models::ClusterRuntimeBackupInfo>, Error<ListRuntimeBackupsAsClusterAdminError>> {
-    let uri_str = format!("{}/cluster/v2/backups/runtime", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/backups/runtime",
+        configuration.operation_base_path("/cluster/v2/backups/runtime")
+    );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref param_value) = params.physical_tenant_id {
@@ -1682,7 +1688,7 @@ pub async fn sync_runtime_backup_state_as_cluster_admin(
 ) -> Result<models::ClusterRuntimeBackupState, Error<SyncRuntimeBackupStateAsClusterAdminError>> {
     let uri_str = format!(
         "{}/cluster/v2/backups/runtime/state/sync",
-        configuration.base_path
+        configuration.operation_base_path("/cluster/v2/backups/runtime/state/sync")
     );
     let mut req_builder = configuration
         .client
@@ -1787,7 +1793,10 @@ pub async fn take_history_backup_as_cluster_admin(
     configuration: &configuration::Configuration,
     params: TakeHistoryBackupAsClusterAdminParams,
 ) -> Result<models::ClusterTakeHistoryBackupResponse, Error<TakeHistoryBackupAsClusterAdminError>> {
-    let uri_str = format!("{}/cluster/v2/backups/history", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/backups/history",
+        configuration.operation_base_path("/cluster/v2/backups/history")
+    );
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
@@ -1894,7 +1903,10 @@ pub async fn take_runtime_backup_as_cluster_admin(
     configuration: &configuration::Configuration,
     params: TakeRuntimeBackupAsClusterAdminParams,
 ) -> Result<models::ClusterTakeRuntimeBackupResponse, Error<TakeRuntimeBackupAsClusterAdminError>> {
-    let uri_str = format!("{}/cluster/v2/backups/runtime", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/backups/runtime",
+        configuration.operation_base_path("/cluster/v2/backups/runtime")
+    );
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
