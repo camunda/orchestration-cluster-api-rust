@@ -592,8 +592,8 @@ pub async fn get_global_job_statistics(
     let uri_str = format!("{}/jobs/statistics/global", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    req_builder = req_builder.query(&[("from", &params.from.to_string())]);
-    req_builder = req_builder.query(&[("to", &params.to.to_string())]);
+    req_builder = req_builder.query(&[("from", &params.from.to_rfc3339())]);
+    req_builder = req_builder.query(&[("to", &params.to.to_rfc3339())]);
     if let Some(ref param_value) = params.job_type {
         req_builder = req_builder.query(&[("jobType", &param_value.to_string())]);
     }

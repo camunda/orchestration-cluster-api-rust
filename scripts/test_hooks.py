@@ -30,6 +30,7 @@ from scripts.hooks import hook_11_optional_body_json
 from scripts.hooks import hook_12_strip_variant_discriminators
 from scripts.hooks import hook_13_present_when
 from scripts.hooks import hook_14_error_status_dispatch
+from scripts.hooks import hook_15_rfc3339_datetime_query
 from scripts.hooks.common import Context
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -890,6 +891,137 @@ class EveryErrorEnumDecodesByStatusTest(unittest.TestCase):
                 if site not in names:
                     offenders.append(f"{path.name}: decode site for unparsed enum {site}")
         self.assertGreater(enums, 0, "guard found no error enums in the generated apis")
+        self.assertEqual(offenders, [])
+
+
+_DATETIME_API_FIXTURE = (
+    "pub struct GetGlobalJobStatisticsParams {\n"
+    "    pub from: chrono::DateTime<chrono::FixedOffset>,\n"
+    "    pub to: chrono::DateTime<chrono::FixedOffset>,\n"
+    "    pub job_type: Option<String>,\n"
+    "}\n"
+    "\n"
+    "pub async fn get_global_job_statistics() {\n"
+    '    req_builder = req_builder.query(&[("from", &params.from.to_string())]);\n'
+    '    req_builder = req_builder.query(&[("to", &params.to.to_string())]);\n'
+    "    if let Some(ref param_value) = params.job_type {\n"
+    '        req_builder = req_builder.query(&[("jobType", &param_value.to_string())]);\n'
+    "    }\n"
+    "}\n"
+)
+
+_OPTIONAL_DATETIME_API_FIXTURE = (
+    "pub struct GetThingParams {\n"
+    "    pub after: Option<chrono::DateTime<chrono::FixedOffset>>,\n"
+    "}\n"
+    "\n"
+    "pub async fn get_thing() {\n"
+    "    if let Some(ref param_value) = params.after {\n"
+    '        req_builder = req_builder.query(&[("after", &param_value.to_string())]);\n'
+    "    }\n"
+    "}\n"
+)
+
+# An optional date-time query param immediately followed by an optional String query param.
+# Both guards reuse the `param_value` binding, so a span-crossing match would latch the
+# date-time field name onto the String guard's `.to_string()` on a re-run (issue: hook
+# rerun corrupts an adjacent optional String query).
+_OPTIONAL_DATETIME_THEN_STRING_API_FIXTURE = (
+    "pub struct GetThingParams {\n"
+    "    pub after: Option<chrono::DateTime<chrono::FixedOffset>>,\n"
+    "    pub name: Option<String>,\n"
+    "}\n"
+    "\n"
+    "pub async fn get_thing() {\n"
+    "    if let Some(ref param_value) = params.after {\n"
+    '        req_builder = req_builder.query(&[("after", &param_value.to_string())]);\n'
+    "    }\n"
+    "    if let Some(ref param_value) = params.name {\n"
+    '        req_builder = req_builder.query(&[("name", &param_value.to_string())]);\n'
+    "    }\n"
+    "}\n"
+)
+
+
+class Rfc3339DatetimeQueryTest(unittest.TestCase):
+    """`hook_15` serializes date-time query params with `.to_rfc3339()`."""
+
+    def _run_hook(self, source: str) -> tuple[Path, Context]:
+        tmp = Path(tempfile.mkdtemp())
+        apis = tmp / "src" / "apis"
+        apis.mkdir(parents=True)
+        (apis / "x_api.rs").write_bytes(source.encode("utf-8"))
+        ctx = Context(client_dir=tmp, spec={}, schemas={})
+        hook_15_rfc3339_datetime_query.run(ctx)
+        return apis / "x_api.rs", ctx
+
+    def test_rewrites_required_datetime_query_params(self):
+        path, _ = self._run_hook(_DATETIME_API_FIXTURE)
+        out = path.read_text(encoding="utf-8")
+        self.assertIn('("from", &params.from.to_rfc3339())', out)
+        self.assertIn('("to", &params.to.to_rfc3339())', out)
+
+    def test_leaves_non_datetime_query_params_alone(self):
+        path, _ = self._run_hook(_DATETIME_API_FIXTURE)
+        out = path.read_text(encoding="utf-8")
+        self.assertIn('("jobType", &param_value.to_string())', out)
+
+    def test_rewrites_optional_datetime_query_params(self):
+        path, _ = self._run_hook(_OPTIONAL_DATETIME_API_FIXTURE)
+        out = path.read_text(encoding="utf-8")
+        self.assertIn('("after", &param_value.to_rfc3339())', out)
+
+    def test_leaves_adjacent_optional_string_query_alone(self):
+        path, _ = self._run_hook(_OPTIONAL_DATETIME_THEN_STRING_API_FIXTURE)
+        out = path.read_text(encoding="utf-8")
+        self.assertIn('("after", &param_value.to_rfc3339())', out)
+        self.assertIn('("name", &param_value.to_string())', out)
+
+    def test_is_idempotent_with_optional_datetime_then_string(self):
+        path, ctx = self._run_hook(_OPTIONAL_DATETIME_THEN_STRING_API_FIXTURE)
+        once = path.read_bytes()
+        hook_15_rfc3339_datetime_query.run(ctx)
+        twice = path.read_bytes()
+        self.assertEqual(twice, once)
+        out = twice.decode("utf-8")
+        self.assertIn('("after", &param_value.to_rfc3339())', out)
+        # The adjacent optional String must survive a re-run uncorrupted.
+        self.assertIn('("name", &param_value.to_string())', out)
+        self.assertNotIn('("name", &param_value.to_rfc3339())', out)
+
+    def test_is_idempotent(self):
+        path, ctx = self._run_hook(_DATETIME_API_FIXTURE)
+        once = path.read_bytes()
+        hook_15_rfc3339_datetime_query.run(ctx)
+        self.assertEqual(path.read_bytes(), once)
+
+    def test_preserves_lf_line_endings(self):
+        path, _ = self._run_hook(_DATETIME_API_FIXTURE)
+        self.assertNotIn(b"\r\n", path.read_bytes())
+
+
+class EveryDatetimeQueryParamIsRfc3339Test(unittest.TestCase):
+    """Regression guard over the *real* generated client for issue #73: no date-time
+    query param may serialize via `.to_string()` (chrono's non-RFC-3339 Display form)."""
+
+    def test_no_datetime_query_param_uses_to_string(self):
+        if not _APIS_DIR.exists():
+            self.skipTest("generated client apis are not present")
+        offenders = []
+        checked = 0
+        for path in sorted(_APIS_DIR.glob("*.rs")):
+            text = path.read_text(encoding="utf-8")
+            datetime_fields = set(
+                re.findall(r"pub (\w+): (?:Option<)?chrono::DateTime", text)
+            )
+            for field in datetime_fields:
+                checked += 1
+                if re.search(
+                    r'query\(&\[\("[^"]+", &params\.%s\.to_string\(\)\)\]\)' % re.escape(field),
+                    text,
+                ):
+                    offenders.append(f"{path.name}: params.{field} query uses to_string()")
+        self.assertGreater(checked, 0, "guard found no date-time query params in the generated apis")
         self.assertEqual(offenders, [])
 
 
