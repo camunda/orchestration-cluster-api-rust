@@ -344,6 +344,18 @@ impl BackpressureManager {
         st.backoff = Duration::ZERO;
     }
 
+    /// Test-only: pin the gate to a fixed, deterministic capacity (`max` concurrent
+    /// permits, none outstanding) so a test can saturate it predictably. Bumps the cap
+    /// generation to start a fresh era, matching a real unlimited → capped transition.
+    #[cfg(test)]
+    pub(crate) fn test_force_cap(&self, max: u32) {
+        let mut st = self.inner.lock().unwrap();
+        st.generation = st.generation.wrapping_add(1);
+        st.permits_max = Some(max);
+        st.permits_current = 0;
+        st.backoff = Duration::ZERO;
+    }
+
     /// Record a backpressure signal from the server.
     pub fn record_backpressure(&self) {
         let now = self.clock.now();

@@ -281,9 +281,14 @@ impl CamundaClient {
         &self,
         params: clock_api::AddClockParams,
     ) -> Result<models::ClockResult> {
-        let cfg = self.configuration().await?;
-        self.guarded_once(async move { Ok(clock_api::add_clock(&cfg, params).await?) })
-            .await
+        self.guarded_once(async move {
+            // Build the configuration (which refreshes the OAuth token if needed) *after*
+            // the permit is acquired, so a request queued behind a capped gate does not
+            // send a token that expired while it waited.
+            let cfg = self.configuration().await?;
+            Ok(clock_api::add_clock(&cfg, params).await?)
+        })
+        .await
     }
 
     /// Probe the gateway once for nanobpmn command-stream support. Returns `None` for
@@ -1188,5 +1193,52 @@ mod tests {
             }
             other => panic!("expected AdvancedProtectionModeFilter, got {other:?}"),
         }
+    }
+
+    // --- Gated operations defer auth until a permit is acquired --------------
+
+    // Regression: a gated, non-idempotent operation (`add_clock`) must build its
+    // `Configuration` — which captures / refreshes the OAuth bearer token — *inside* the
+    // guarded future, so the token is read only after a backpressure permit is acquired.
+    // Capturing it before `guarded_once` meant a request queued behind a capped gate could
+    // send a token that expired while it waited. We prove the ordering generically at the
+    // `guarded_once` seam: with the only permit held, the op future must not be polled.
+    #[tokio::test(flavor = "current_thread")]
+    async fn guarded_once_defers_op_until_a_permit_is_available() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let client = client_with_tenant(None);
+        // Pin the gate to a single permit and take it, so any further acquire must queue.
+        client.bp.test_force_cap(1);
+        let hold = client.bp.acquire_guard().await.expect("first permit");
+
+        let polled = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&polled);
+        let worker = client.clone();
+        let task = tokio::spawn(async move {
+            worker
+                .guarded_once(async move {
+                    flag.store(true, Ordering::SeqCst);
+                    Ok::<(), CamundaError>(())
+                })
+                .await
+        });
+
+        // Let the spawned task run until it parks waiting for the (held) permit.
+        for _ in 0..16 {
+            tokio::task::yield_now().await;
+        }
+        assert!(
+            !polled.load(Ordering::SeqCst),
+            "op future (which would capture the auth token) was polled before a permit was acquired"
+        );
+
+        // Releasing the permit lets the queued op acquire one and only then run.
+        drop(hold);
+        task.await.expect("task joins").expect("op succeeds");
+        assert!(
+            polled.load(Ordering::SeqCst),
+            "op future must run once a permit is available"
+        );
     }
 }
