@@ -133,8 +133,8 @@ pub async fn get_usage_metrics(
     let uri_str = format!("{}/system/usage-metrics", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
-    req_builder = req_builder.query(&[("startTime", &params.start_time.to_string())]);
-    req_builder = req_builder.query(&[("endTime", &params.end_time.to_string())]);
+    req_builder = req_builder.query(&[("startTime", &params.start_time.to_rfc3339())]);
+    req_builder = req_builder.query(&[("endTime", &params.end_time.to_rfc3339())]);
     if let Some(ref param_value) = params.tenant_id {
         req_builder = req_builder.query(&[("tenantId", &param_value.to_string())]);
     }
