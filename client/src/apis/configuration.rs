@@ -10,6 +10,11 @@
 
 #[derive(Debug, Clone)]
 pub struct Configuration {
+    /// Whether the REST base address is exact (`CAMUNDA_REST_ADDRESS_EXACT`): the
+    /// configured address is used verbatim, so a trailing `/v2` belongs to the proxy
+    /// prefix and must not be stripped for cluster-admin operations. Set by the
+    /// runtime facade; defaults to `false` (the conventional `/v2` API suffix).
+    pub rest_address_exact: bool,
     pub base_path: String,
     pub user_agent: Option<String>,
     pub client: reqwest::Client,
@@ -36,6 +41,7 @@ impl Configuration {
 impl Default for Configuration {
     fn default() -> Self {
         Configuration {
+            rest_address_exact: false,
             base_path: "http://localhost:8080/v2".to_owned(),
             user_agent: Some("OpenAPI-Generator/0.1/rust".to_owned()),
             client: reqwest::Client::new(),
@@ -43,6 +49,46 @@ impl Default for Configuration {
             oauth_access_token: None,
             bearer_access_token: None,
             api_key: None,
+        }
+    }
+}
+
+impl Configuration {
+    /// Base path for one operation, honoring the spec's path-item `servers` overrides.
+    ///
+    /// The top-level server is `{schema}://{host}:{port}/v2`, but the cluster-admin
+    /// path items under `/cluster/v2/*` declare their own `servers` entry without the
+    /// `/v2` suffix — their paths are served from the server root, so the `/v2` base
+    /// suffix must not be prefixed to them (that would produce `/v2/cluster/v2/...`).
+    ///
+    /// In exact-address mode (`rest_address_exact`, from `CAMUNDA_REST_ADDRESS_EXACT`)
+    /// the base path is the configured gateway address verbatim; a trailing `/v2`
+    /// there is part of the proxy prefix, not the conventional API suffix, so it is
+    /// preserved.
+    pub fn operation_base_path(&self, operation_path: &str) -> &str {
+        const ROOT_SERVER_PATHS: &[&str] = &[
+            "/cluster/v2/backups/history",
+            "/cluster/v2/backups/history/{backupId}",
+            "/cluster/v2/backups/runtime",
+            "/cluster/v2/backups/runtime/state",
+            "/cluster/v2/backups/runtime/state/sync",
+            "/cluster/v2/backups/runtime/{backupId}",
+            "/cluster/v2/exporting",
+            "/cluster/v2/exporting/pause",
+            "/cluster/v2/exporting/resume",
+            "/cluster/v2/mode",
+            "/cluster/v2/rebalance",
+            "/cluster/v2/restore",
+            "/cluster/v2/status",
+            "/cluster/v2/status/upgrade",
+            "/cluster/v2/topology",
+        ];
+        if ROOT_SERVER_PATHS.contains(&operation_path) && !self.rest_address_exact {
+            self.base_path
+                .strip_suffix("/v2")
+                .unwrap_or(&self.base_path)
+        } else {
+            &self.base_path
         }
     }
 }

@@ -995,26 +995,6 @@ impl CamundaClient {
         .await
     }
 
-    /// Evaluate root level conditional start events (`POST /conditionals/evaluation`).
-    pub async fn evaluate_conditionals(
-        &self,
-        params: camunda_orchestration_api_client::apis::conditional_api::EvaluateConditionalsParams,
-    ) -> Result<models::EvaluateConditionalResult> {
-        self.guarded(|| {
-            let params = params.clone();
-            async move {
-                let cfg = self.configuration().await?;
-                Ok(
-                    camunda_orchestration_api_client::apis::conditional_api::evaluate_conditionals(
-                        &cfg, params,
-                    )
-                    .await?,
-                )
-            }
-        })
-        .await
-    }
-
     /// Get decision definition (`GET /decision-definitions/{decisionDefinitionKey}`).
     pub async fn get_decision_definition(
         &self,
@@ -1423,26 +1403,6 @@ impl CamundaClient {
                 camunda_orchestration_api_client::apis::exporting_api::resume_exporting(&cfg)
                     .await?,
             )
-        })
-        .await
-    }
-
-    /// Evaluate an expression (`POST /expression/evaluation`).
-    pub async fn evaluate_expression(
-        &self,
-        params: camunda_orchestration_api_client::apis::expression_api::EvaluateExpressionParams,
-    ) -> Result<models::ExpressionEvaluationResult> {
-        self.guarded(|| {
-            let params = params.clone();
-            async move {
-                let cfg = self.configuration().await?;
-                Ok(
-                    camunda_orchestration_api_client::apis::expression_api::evaluate_expression(
-                        &cfg, params,
-                    )
-                    .await?,
-                )
-            }
         })
         .await
     }
@@ -2706,26 +2666,6 @@ impl CamundaClient {
                 let cfg = self.configuration().await?;
                 Ok(
                     camunda_orchestration_api_client::apis::recovery_api::restore_as_cluster_admin(
-                        &cfg, params,
-                    )
-                    .await?,
-                )
-            }
-        })
-        .await
-    }
-
-    /// Deploy resources (`POST /deployments`).
-    pub async fn create_deployment(
-        &self,
-        params: camunda_orchestration_api_client::apis::resource_api::CreateDeploymentParams,
-    ) -> Result<models::DeploymentResult> {
-        self.guarded(|| {
-            let params = params.clone();
-            async move {
-                let cfg = self.configuration().await?;
-                Ok(
-                    camunda_orchestration_api_client::apis::resource_api::create_deployment(
                         &cfg, params,
                     )
                     .await?,

@@ -199,7 +199,10 @@ impl ResumeExportingError {
 pub async fn get_cluster_exporting_status(
     configuration: &configuration::Configuration,
 ) -> Result<models::ExportingStatusResponse, Error<GetClusterExportingStatusError>> {
-    let uri_str = format!("{}/cluster/v2/exporting", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/exporting",
+        configuration.operation_base_path("/cluster/v2/exporting")
+    );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
@@ -294,7 +297,10 @@ pub async fn pause_cluster_exporting(
     configuration: &configuration::Configuration,
     params: PauseClusterExportingParams,
 ) -> Result<(), Error<PauseClusterExportingError>> {
-    let uri_str = format!("{}/cluster/v2/exporting/pause", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/exporting/pause",
+        configuration.operation_base_path("/cluster/v2/exporting/pause")
+    );
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);
@@ -377,7 +383,10 @@ pub async fn pause_exporting(
 pub async fn resume_cluster_exporting(
     configuration: &configuration::Configuration,
 ) -> Result<(), Error<ResumeClusterExportingError>> {
-    let uri_str = format!("{}/cluster/v2/exporting/resume", configuration.base_path);
+    let uri_str = format!(
+        "{}/cluster/v2/exporting/resume",
+        configuration.operation_base_path("/cluster/v2/exporting/resume")
+    );
     let mut req_builder = configuration
         .client
         .request(reqwest::Method::POST, &uri_str);

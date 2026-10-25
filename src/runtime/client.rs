@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use camunda_orchestration_api_client::apis::configuration::Configuration;
 use camunda_orchestration_api_client::apis::{
-    cluster_api, decision_definition_api, job_api, message_api, process_instance_api, resource_api,
-    signal_api, variable_api,
+    cluster_api, conditional_api, decision_definition_api, expression_api, job_api, message_api,
+    process_instance_api, resource_api, signal_api, variable_api,
 };
 use camunda_orchestration_api_client::models;
 
@@ -175,12 +175,7 @@ impl CamundaClient {
         &self,
         provided: Option<models::TenantId>,
     ) -> Option<models::TenantId> {
-        provided.or_else(|| {
-            self.config
-                .default_tenant_id
-                .clone()
-                .map(models::TenantId::assume_exists)
-        })
+        apply_default_tenant(provided, &self.config)
     }
 
     /// Run an initiating operation under the adaptive backpressure gate AND the transient
@@ -230,6 +225,7 @@ impl CamundaClient {
     pub async fn configuration(&self) -> Result<Configuration> {
         let mut cfg = Configuration {
             base_path: self.config.rest_address.clone(),
+            rest_address_exact: self.config.rest_address_exact,
             user_agent: Some(self.user_agent.clone()),
             client: self.http.clone(),
             basic_auth: None,
@@ -479,6 +475,31 @@ impl CamundaClient {
         .await
     }
 
+    /// Deploy resources (`POST /deployments`). The configured default tenant id is applied
+    /// when the params carry no `tenant_id`.
+    ///
+    /// This is the params-struct twin of [`CamundaClient::deploy_resources`], kept so the
+    /// generated-facade surface applies the default tenant like the sibling SDKs do.
+    pub async fn create_deployment(
+        &self,
+        params: resource_api::CreateDeploymentParams,
+    ) -> Result<models::DeploymentResult> {
+        let tenant_id = apply_default_tenant_str(params.tenant_id, &self.config);
+        self.guarded(|| {
+            let resources = params.resources.clone();
+            let tenant_id = tenant_id.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                let params = resource_api::CreateDeploymentParams {
+                    resources,
+                    tenant_id,
+                };
+                Ok(resource_api::create_deployment(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     // --- Messaging, signals, decisions --------------------------------------
 
     /// Publish a message (no correlation key matching against active subscriptions only —
@@ -559,20 +580,80 @@ impl CamundaClient {
         .await
     }
 
+    /// Evaluate root level conditional start events (`POST /conditionals/evaluation`). The
+    /// configured default tenant id is applied when the instruction carries no `tenant_id`.
+    pub async fn evaluate_conditionals(
+        &self,
+        params: conditional_api::EvaluateConditionalsParams,
+    ) -> Result<models::EvaluateConditionalResult> {
+        let mut instruction = params.conditional_evaluation_instruction;
+        instruction.tenant_id = apply_default_tenant(instruction.tenant_id, &self.config);
+        self.guarded(|| {
+            let instruction = instruction.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                let params = conditional_api::EvaluateConditionalsParams {
+                    conditional_evaluation_instruction: instruction,
+                };
+                Ok(conditional_api::evaluate_conditionals(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
+    /// Evaluate an expression (`POST /expression/evaluation`). The configured default
+    /// tenant id is applied when the request carries no `tenant_id`.
+    pub async fn evaluate_expression(
+        &self,
+        params: expression_api::EvaluateExpressionParams,
+    ) -> Result<models::ExpressionEvaluationResult> {
+        let mut request = params.expression_evaluation_request;
+        request.tenant_id = apply_default_tenant_str(request.tenant_id, &self.config);
+        self.guarded(|| {
+            let request = request.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                let params = expression_api::EvaluateExpressionParams {
+                    expression_evaluation_request: request,
+                };
+                Ok(expression_api::evaluate_expression(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     // --- Variable search ----------------------------------------------------
 
     /// Search variables, returning the raw generated result.
+    ///
+    /// Long variable values are truncated in the response (`truncateValues=true`, the
+    /// server-side default) to match the sibling SDKs. Use
+    /// [`CamundaClient::search_variables_with_options`] to pass an explicit
+    /// `truncateValues` (for example `false` to read full values).
     pub async fn search_variables(
         &self,
         request: models::VariableSearchQuery,
     ) -> Result<models::VariableSearchQueryResult> {
+        self.search_variables_with_options(request, None).await
+    }
+
+    /// Search variables with an explicit `truncateValues` query parameter.
+    ///
+    /// `truncate_values` defaults to `true` (the server-side default) when `None`, so the
+    /// parameter is always sent; pass `Some(false)` to read full, untruncated values.
+    pub async fn search_variables_with_options(
+        &self,
+        request: models::VariableSearchQuery,
+        truncate_values: Option<bool>,
+    ) -> Result<models::VariableSearchQueryResult> {
+        let truncate_values = truncate_values.unwrap_or(true);
         self.guarded(|| {
             let request = request.clone();
             async move {
                 let cfg = self.configuration().await?;
                 let params = variable_api::SearchVariablesParams {
                     variable_search_query: Some(request),
-                    truncate_values: None,
+                    truncate_values: Some(truncate_values),
                 };
                 Ok(variable_api::search_variables(&cfg, params).await?)
             }
@@ -813,6 +894,31 @@ impl CamundaClient {
     }
 }
 
+/// Apply the configured default tenant id to an optional [`models::TenantId`], leaving an
+/// explicitly-provided value untouched. Free function (rather than a method) so the
+/// injection is unit-testable without standing up a full client.
+pub(crate) fn apply_default_tenant(
+    provided: Option<models::TenantId>,
+    config: &CamundaConfig,
+) -> Option<models::TenantId> {
+    provided.or_else(|| {
+        config
+            .default_tenant_id
+            .clone()
+            .map(models::TenantId::assume_exists)
+    })
+}
+
+/// Apply the configured default tenant id to an optional `String` tenant value, leaving an
+/// explicitly-provided value untouched. Used by operations whose generated request model
+/// carries the tenant as a plain `String` rather than a [`models::TenantId`] newtype.
+pub(crate) fn apply_default_tenant_str(
+    provided: Option<String>,
+    config: &CamundaConfig,
+) -> Option<String> {
+    provided.or_else(|| config.default_tenant_id.clone())
+}
+
 #[async_trait::async_trait]
 impl super::clock::ClockController for CamundaClient {
     async fn pin(&self, epoch_millis: i64) -> Result<()> {
@@ -828,5 +934,73 @@ impl super::clock::ClockController for CamundaClient {
 
     async fn reset(&self) -> Result<()> {
         self.reset_clock().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a config carrying the given default tenant id (and nothing else).
+    fn cfg_with_tenant(tenant: Option<&str>) -> CamundaConfig {
+        let mut map = std::collections::HashMap::new();
+        if let Some(t) = tenant {
+            map.insert("CAMUNDA_TENANT_ID".to_string(), t.to_string());
+        }
+        CamundaConfig::resolve(&|_| None, &map).expect("valid config")
+    }
+
+    #[test]
+    fn default_tenant_fills_missing_newtype() {
+        let cfg = cfg_with_tenant(Some("acme"));
+        let out = apply_default_tenant(None, &cfg);
+        assert_eq!(out.as_ref().map(|t| t.value()), Some("acme"));
+    }
+
+    #[test]
+    fn default_tenant_keeps_explicit_newtype() {
+        let cfg = cfg_with_tenant(Some("acme"));
+        let explicit = models::TenantId::assume_exists("other");
+        let out = apply_default_tenant(Some(explicit), &cfg);
+        assert_eq!(out.as_ref().map(|t| t.value()), Some("other"));
+    }
+
+    #[test]
+    fn default_tenant_none_when_unconfigured() {
+        let cfg = cfg_with_tenant(None);
+        assert!(apply_default_tenant(None, &cfg).is_none());
+    }
+
+    #[test]
+    fn default_tenant_str_fills_missing() {
+        let cfg = cfg_with_tenant(Some("acme"));
+        assert_eq!(
+            apply_default_tenant_str(None, &cfg).as_deref(),
+            Some("acme")
+        );
+    }
+
+    #[test]
+    fn default_tenant_str_keeps_explicit() {
+        let cfg = cfg_with_tenant(Some("acme"));
+        let out = apply_default_tenant_str(Some("other".to_string()), &cfg);
+        assert_eq!(out.as_deref(), Some("other"));
+    }
+
+    #[test]
+    fn default_tenant_str_none_when_unconfigured() {
+        let cfg = cfg_with_tenant(None);
+        assert!(apply_default_tenant_str(None, &cfg).is_none());
+    }
+
+    #[test]
+    fn tenant_id_roundtrips_through_string() {
+        // The deployment param and expression request carry the tenant as a plain String;
+        // the conditional instruction carries it as a TenantId newtype. Both must serialize
+        // the same value onto the wire.
+        let cfg = cfg_with_tenant(Some("acme"));
+        let as_str = apply_default_tenant_str(None, &cfg).expect("injected");
+        let as_newtype = apply_default_tenant(None, &cfg).expect("injected");
+        assert_eq!(as_str, as_newtype.value());
     }
 }
