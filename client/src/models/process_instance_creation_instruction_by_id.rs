@@ -13,15 +13,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProcessInstanceCreationInstructionById {
-    /// The BPMN process id of the process definition to start an instance of.
-    #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: models::ProcessDefinitionId,
-    /// The version of the process. If omitted, the latest active version is used.
-    #[serde(
-        rename = "processDefinitionVersion",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub process_definition_version: Option<i32>,
     /// JSON object that will instantiate the variables for the root variable scope of the process instance.
     #[serde(rename = "variables", skip_serializing_if = "Option::is_none")]
     pub variables: Option<std::collections::HashMap<String, serde_json::Value>>,
@@ -55,6 +46,15 @@ pub struct ProcessInstanceCreationInstructionById {
     /// An optional, user-defined string identifier that identifies the process instance within the scope of a process definition (scoped by tenant). If provided and uniqueness enforcement is enabled, the engine will reject creation if another root process instance with the same business id is already active for the same process definition. Note that any active child process instances with the same business id are not taken into account.
     #[serde(rename = "businessId", skip_serializing_if = "Option::is_none")]
     pub business_id: Option<models::BusinessId>,
+    /// The BPMN process id of the process definition to start an instance of.
+    #[serde(rename = "processDefinitionId")]
+    pub process_definition_id: models::ProcessDefinitionId,
+    /// The version of the process. If omitted, the latest active version is used.
+    #[serde(
+        rename = "processDefinitionVersion",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub process_definition_version: Option<i32>,
 }
 
 impl ProcessInstanceCreationInstructionById {
@@ -62,8 +62,6 @@ impl ProcessInstanceCreationInstructionById {
         process_definition_id: models::ProcessDefinitionId,
     ) -> ProcessInstanceCreationInstructionById {
         ProcessInstanceCreationInstructionById {
-            process_definition_id,
-            process_definition_version: None,
             variables: None,
             tenant_id: None,
             operation_reference: None,
@@ -74,6 +72,8 @@ impl ProcessInstanceCreationInstructionById {
             request_timeout: None,
             tags: None,
             business_id: None,
+            process_definition_id,
+            process_definition_version: None,
         }
     }
 }

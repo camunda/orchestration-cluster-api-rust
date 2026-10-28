@@ -97,7 +97,7 @@ Name | Type | Description  | Required | Notes
 > models::BatchOperationCreatedResult cancel_process_instances_batch_operation(process_instance_cancellation_batch_operation_request)
 Cancel process instances (batch)
 
-Cancels multiple active or suspended process instances. Only ACTIVE and SUSPENDED root instances can be cancelled. A state filter narrows the batch to the given states. Requesting any state other than ACTIVE or SUSPENDED through the `$eq` or `$in` operators is rejected. Other state operators (`$neq`, `$exists`, `$like`) are applied as given, and the batch remains limited to ACTIVE and SUSPENDED instances. Without a state filter, both ACTIVE and SUSPENDED instances are selected. Any given filter for parentProcessInstanceKey is ignored and overridden during this batch operation. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}). 
+Cancels multiple active or suspended process instances. Only ACTIVE and SUSPENDED root instances can be cancelled. A state filter narrows the batch to the given states. Requesting any state other than ACTIVE or SUSPENDED through the `$eq` or `$in` operators is rejected. Other state operators (`$neq`, `$exists`, `$like`) are applied as given, and the batch remains limited to ACTIVE and SUSPENDED instances. Without a state filter, both ACTIVE and SUSPENDED instances are selected. Filters on parentProcessInstanceKey are preserved and combined with the root-only restriction. Filters selecting only child instances therefore match no instances, as children are cancelled together with their root instance. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}). 
 
 ### Parameters
 
@@ -127,7 +127,7 @@ Name | Type | Description  | Required | Notes
 > models::CreateProcessInstanceResult create_process_instance(process_instance_creation_instruction)
 Create process instance
 
-Creates and starts an instance of the specified process. The process definition to use to create the instance can be specified either using its unique key (as returned by Deploy resources), or using the BPMN process id and a version. If only the process definition id is given, the latest ACTIVE version is used. If no ACTIVE version exists, the request is rejected as not found.  Waits for the completion of the process instance before returning a result when awaitCompletion is enabled. 
+Creates and starts an instance of the specified process. The process definition to use to create the instance can be specified either using its unique key (as returned by Deploy resources), or using the BPMN process id and either a version or a version tag. If only the process definition id is given, the latest ACTIVE version is used. If no ACTIVE version exists, the request is rejected as not found.  Waits for the completion of the process instance before returning a result when awaitCompletion is enabled. 
 
 ### Parameters
 

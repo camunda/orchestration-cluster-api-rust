@@ -26,12 +26,18 @@ pub struct ProcessInstanceSequenceFlowResult {
         deserialize_with = "Option::deserialize"
     )]
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
-    /// The process definition key.
-    #[serde(rename = "processDefinitionKey")]
-    pub process_definition_key: Box<models::ProcessDefinitionKey>,
-    /// The process definition id.
-    #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: models::ProcessDefinitionId,
+    /// The process definition key. This field is not present for sequence flows imported by Operate 8.1 or earlier.
+    #[serde(
+        rename = "processDefinitionKey",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub process_definition_key: Option<Box<models::ProcessDefinitionKey>>,
+    /// The process definition id. This field is not present for sequence flows imported by Operate 8.1 or earlier.
+    #[serde(
+        rename = "processDefinitionId",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub process_definition_id: Option<models::ProcessDefinitionId>,
     /// The element id for this sequence flow, as provided in the BPMN process.
     #[serde(rename = "elementId")]
     pub element_id: models::ElementId,
@@ -46,8 +52,8 @@ impl ProcessInstanceSequenceFlowResult {
         sequence_flow_id: String,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
-        process_definition_key: models::ProcessDefinitionKey,
-        process_definition_id: models::ProcessDefinitionId,
+        process_definition_key: Option<models::ProcessDefinitionKey>,
+        process_definition_id: Option<models::ProcessDefinitionId>,
         element_id: models::ElementId,
         tenant_id: models::TenantId,
     ) -> ProcessInstanceSequenceFlowResult {
@@ -59,7 +65,11 @@ impl ProcessInstanceSequenceFlowResult {
             } else {
                 None
             },
-            process_definition_key: Box::new(process_definition_key),
+            process_definition_key: if let Some(x) = process_definition_key {
+                Some(Box::new(x))
+            } else {
+                None
+            },
             process_definition_id,
             element_id,
             tenant_id,

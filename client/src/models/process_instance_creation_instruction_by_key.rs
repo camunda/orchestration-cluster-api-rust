@@ -13,18 +13,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProcessInstanceCreationInstructionByKey {
-    /// The unique key identifying the process definition, for example, returned for a process in the deploy resources endpoint.
-    #[serde(rename = "processDefinitionKey")]
-    pub process_definition_key: Box<models::ProcessDefinitionKey>,
-    /// As the version is already identified by the `processDefinitionKey`, the value of this field is ignored. It's here for backwards-compatibility only as previous releases accepted it in request bodies.
-    #[serde(
-        rename = "processDefinitionVersion",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub process_definition_version: Option<i32>,
-    /// Set of variables as JSON object to instantiate in the root variable scope of the process instance. Can include nested complex objects.
+    /// JSON object that will instantiate the variables for the root variable scope of the process instance.
     #[serde(rename = "variables", skip_serializing_if = "Option::is_none")]
     pub variables: Option<std::collections::HashMap<String, serde_json::Value>>,
+    /// The tenant id of the process definition. If multi-tenancy is enabled, provide the tenant id of the process definition to start a process instance of. If multi-tenancy is disabled, don't provide this parameter.
+    #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<models::TenantId>,
+    /// A reference key chosen by the user that will be part of all records resulting from this operation. Must be > 0 if provided.
+    #[serde(rename = "operationReference", skip_serializing_if = "Option::is_none")]
+    pub operation_reference: Option<i64>,
     /// List of start instructions. By default, the process instance will start at the start event. If provided, the process instance will apply start instructions after it has been created.
     #[serde(rename = "startInstructions", skip_serializing_if = "Option::is_none")]
     pub start_instructions: Option<Vec<models::ProcessInstanceCreationStartInstruction>>,
@@ -34,27 +31,30 @@ pub struct ProcessInstanceCreationInstructionByKey {
         skip_serializing_if = "Option::is_none"
     )]
     pub runtime_instructions: Option<Vec<models::ProcessInstanceCreationTerminateInstruction>>,
-    /// The tenant id of the process definition. If multi-tenancy is enabled, provide the tenant id of the process definition to start a process instance of. If multi-tenancy is disabled, don't provide this parameter.
-    #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<models::TenantId>,
-    /// A reference key chosen by the user that will be part of all records resulting from this operation. Must be > 0 if provided.
-    #[serde(rename = "operationReference", skip_serializing_if = "Option::is_none")]
-    pub operation_reference: Option<i64>,
     /// Wait for the process instance to complete. If the process instance does not complete within the request timeout limit, a 504 response status will be returned. The process instance will continue to run in the background regardless of the timeout. Disabled by default.
     #[serde(rename = "awaitCompletion", skip_serializing_if = "Option::is_none")]
     pub await_completion: Option<bool>,
-    /// Timeout (in ms) the request waits for the process to complete. By default or when set to 0, the generic request timeout configured in the cluster is applied.
-    #[serde(rename = "requestTimeout", skip_serializing_if = "Option::is_none")]
-    pub request_timeout: Option<i64>,
     /// List of variables by name to be included in the response when awaitCompletion is set to true. If empty, all visible variables in the root scope will be returned.
     #[serde(rename = "fetchVariables", skip_serializing_if = "Option::is_none")]
     pub fetch_variables: Option<Vec<String>>,
+    /// Timeout (in ms) the request waits for the process to complete. By default or when set to 0, the generic request timeout configured in the cluster is applied.
+    #[serde(rename = "requestTimeout", skip_serializing_if = "Option::is_none")]
+    pub request_timeout: Option<i64>,
     /// List of tags. Tags need to start with a letter; then alphanumerics, `_`, `-`, `:`, or `.`; length ≤ 100.
     #[serde(rename = "tags", skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
     /// An optional, user-defined string identifier that identifies the process instance within the scope of a process definition (scoped by tenant). If provided and uniqueness enforcement is enabled, the engine will reject creation if another root process instance with the same business id is already active for the same process definition. Note that any active child process instances with the same business id are not taken into account.
     #[serde(rename = "businessId", skip_serializing_if = "Option::is_none")]
     pub business_id: Option<models::BusinessId>,
+    /// The unique key identifying the process definition, for example, returned for a process in the deploy resources endpoint.
+    #[serde(rename = "processDefinitionKey")]
+    pub process_definition_key: Box<models::ProcessDefinitionKey>,
+    /// As the version is already identified by the `processDefinitionKey`, the value of this field is ignored. It's here for backwards-compatibility only as previous releases accepted it in request bodies.
+    #[serde(
+        rename = "processDefinitionVersion",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub process_definition_version: Option<i32>,
 }
 
 impl ProcessInstanceCreationInstructionByKey {
@@ -62,18 +62,18 @@ impl ProcessInstanceCreationInstructionByKey {
         process_definition_key: models::ProcessDefinitionKey,
     ) -> ProcessInstanceCreationInstructionByKey {
         ProcessInstanceCreationInstructionByKey {
-            process_definition_key: Box::new(process_definition_key),
-            process_definition_version: None,
             variables: None,
-            start_instructions: None,
-            runtime_instructions: None,
             tenant_id: None,
             operation_reference: None,
+            start_instructions: None,
+            runtime_instructions: None,
             await_completion: None,
-            request_timeout: None,
             fetch_variables: None,
+            request_timeout: None,
             tags: None,
             business_id: None,
+            process_definition_key: Box::new(process_definition_key),
+            process_definition_version: None,
         }
     }
 }
