@@ -89,6 +89,7 @@ impl CreateDeploymentError {
 pub enum DeleteResourceError {
     Status400(models::ProblemDetail),
     Status404(models::ProblemDetail),
+    Status409(models::ProblemDetail),
     Status500(models::ProblemDetail),
     Status503(models::ProblemDetail),
     UnknownValue(serde_json::Value),
@@ -103,6 +104,7 @@ impl DeleteResourceError {
         let declared: Option<Self> = match status {
             400 => serde_json::from_str(content).ok().map(Self::Status400),
             404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
             500 => serde_json::from_str(content).ok().map(Self::Status500),
             503 => serde_json::from_str(content).ok().map(Self::Status503),
             _ => None,
@@ -279,7 +281,7 @@ pub async fn create_deployment(
     }
 }
 
-/// Deletes a deployed resource. This can be a process definition, decision requirements definition, or form definition deployed using the deploy resources endpoint. Specify the resource you want to delete in the `resourceKey` parameter.  Once a resource has been deleted it cannot be recovered. If the resource needs to be available again, a new deployment of the resource is required.  By default, only the resource itself is deleted from the runtime state. To also delete the historic data associated with a resource, set the `deleteHistory` flag in the request body to `true`. History deletion is supported for process definitions and decision requirements definitions; for other resource types (forms, generic resources) the flag is ignored and no history is deleted.  The two supported types differ in how the history is removed. For a decision requirements definition the history is deleted asynchronously via a batch operation whose details are returned in the `batchOperation` field of the response. For a process definition that still exists in the runtime state, the definition first drains its running instances and its history is deleted asynchronously once the definition is fully removed cluster-wide; no batch operation is returned in the response. If the process definition has already been removed from the runtime state and the deletion is later re-triggered with `deleteHistory` set to `true`, a batch operation is created immediately and returned in the `batchOperation` field.
+/// Deletes a deployed resource. This can be a process definition, decision requirements definition, or form definition deployed using the deploy resources endpoint. Specify the resource you want to delete in the `resourceKey` parameter.  Once a resource has been deleted it cannot be recovered. If the resource needs to be available again, a new deployment of the resource is required.  By default, only the resource itself is deleted from the runtime state. To also delete the historic data associated with a resource, set the `deleteHistory` flag in the request body to `true`. History deletion is supported for process definitions and decision requirements definitions; for other resource types (forms, generic resources) the flag is ignored and no history is deleted.  Deleting a process definition that is already draining is accepted again and changes nothing: the definition stays `DRAINING` until its running instances finish. The one repeated deletion that is rejected is one with `deleteHistory` set to `true`, because the history cannot be deleted before the drain finishes.  The two supported types differ in how the history is removed. For a decision requirements definition the history is deleted asynchronously via a batch operation whose details are returned in the `batchOperation` field of the response. For a process definition that still exists in the runtime state, the definition first drains its running instances and its history is deleted asynchronously once the definition is fully removed cluster-wide; no batch operation is returned in the response. If the process definition has already been removed from the runtime state and the deletion is later re-triggered with `deleteHistory` set to `true`, a batch operation is created immediately and returned in the `batchOperation` field.
 pub async fn delete_resource(
     configuration: &configuration::Configuration,
     params: DeleteResourceParams,

@@ -13,9 +13,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ElementInstanceResult {
-    /// The process definition ID associated to this element instance.
-    #[serde(rename = "processDefinitionId")]
-    pub process_definition_id: models::ProcessDefinitionId,
+    /// The process definition ID associated to this element instance. This field is not present for element instances imported by Operate 8.1 or earlier.
+    #[serde(
+        rename = "processDefinitionId",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub process_definition_id: Option<models::ProcessDefinitionId>,
     /// Date when element instance started.
     #[serde(rename = "startDate")]
     pub start_date: chrono::DateTime<chrono::FixedOffset>,
@@ -52,9 +55,12 @@ pub struct ElementInstanceResult {
         deserialize_with = "Option::deserialize"
     )]
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
-    /// The process definition key associated to this element instance.
-    #[serde(rename = "processDefinitionKey")]
-    pub process_definition_key: Box<models::ProcessDefinitionKey>,
+    /// The process definition key associated to this element instance. This field is not present for element instances imported by Operate 8.1.7 or earlier.
+    #[serde(
+        rename = "processDefinitionKey",
+        deserialize_with = "Option::deserialize"
+    )]
+    pub process_definition_key: Option<Box<models::ProcessDefinitionKey>>,
     /// Incident key associated with this element instance.
     #[serde(rename = "incidentKey", deserialize_with = "Option::deserialize")]
     pub incident_key: Option<Box<models::IncidentKey>>,
@@ -62,7 +68,7 @@ pub struct ElementInstanceResult {
 
 impl ElementInstanceResult {
     pub fn new(
-        process_definition_id: models::ProcessDefinitionId,
+        process_definition_id: Option<models::ProcessDefinitionId>,
         start_date: chrono::DateTime<chrono::FixedOffset>,
         end_date: Option<chrono::DateTime<chrono::FixedOffset>>,
         element_id: models::ElementId,
@@ -74,7 +80,7 @@ impl ElementInstanceResult {
         element_instance_key: models::ElementInstanceKey,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
-        process_definition_key: models::ProcessDefinitionKey,
+        process_definition_key: Option<models::ProcessDefinitionKey>,
         incident_key: Option<models::IncidentKey>,
     ) -> ElementInstanceResult {
         ElementInstanceResult {
@@ -94,7 +100,11 @@ impl ElementInstanceResult {
             } else {
                 None
             },
-            process_definition_key: Box::new(process_definition_key),
+            process_definition_key: if let Some(x) = process_definition_key {
+                Some(Box::new(x))
+            } else {
+                None
+            },
             incident_key: if let Some(x) = incident_key {
                 Some(Box::new(x))
             } else {

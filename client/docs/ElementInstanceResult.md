@@ -4,7 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**process_definition_id** | **String** | The process definition ID associated to this element instance. | 
+**process_definition_id** | Option<**String**> | The process definition ID associated to this element instance. This field is not present for element instances imported by Operate 8.1 or earlier.  | 
 **start_date** | **chrono::DateTime<chrono::FixedOffset>** | Date when element instance started. | 
 **end_date** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Date when element instance finished. | 
 **element_id** | **String** | The element ID for this element instance. | 
@@ -16,7 +16,7 @@ Name | Type | Description | Notes
 **element_instance_key** | **models::ElementInstanceKey** | The assigned key, which acts as a unique identifier for this element instance. | 
 **process_instance_key** | **models::ProcessInstanceKey** | The process instance key associated to this element instance. | 
 **root_process_instance_key** | Option<**models::ProcessInstanceKey**> | The key of the root process instance. The root process instance is the top-level ancestor in the process instance hierarchy. This field is only present for data belonging to process instance hierarchies created in version 8.9 or later.  | 
-**process_definition_key** | **models::ProcessDefinitionKey** | The process definition key associated to this element instance. | 
+**process_definition_key** | Option<**models::ProcessDefinitionKey**> | The process definition key associated to this element instance. This field is not present for element instances imported by Operate 8.1.7 or earlier.  | 
 **incident_key** | Option<**models::IncidentKey**> | Incident key associated with this element instance. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

@@ -17,8 +17,8 @@ Name | Type | Description | Notes
 **job_key** | **models::JobKey** | The key, a unique identifier for the job. | 
 **kind** | [**models::JobKindEnum**](JobKindEnum.md) |  | 
 **listener_event_type** | [**models::JobListenerEventTypeEnum**](JobListenerEventTypeEnum.md) |  | 
-**process_definition_id** | **String** | The process definition ID associated with the job. | 
-**process_definition_key** | **models::ProcessDefinitionKey** | The process definition key associated with the job. | 
+**process_definition_id** | Option<**String**> | The process definition ID associated with the job. This field is not present for jobs imported by Operate 8.7 and earlier.  | 
+**process_definition_key** | Option<**models::ProcessDefinitionKey**> | The process definition key associated with the job. This field is not present for jobs imported by Operate 8.7 and earlier.  | 
 **process_instance_key** | **models::ProcessInstanceKey** | The process instance key associated with the job. | 
 **root_process_instance_key** | Option<**models::ProcessInstanceKey**> | The key of the root process instance. The root process instance is the top-level ancestor in the process instance hierarchy. This field is only present for data belonging to process instance hierarchies created in version 8.9 or later.  | 
 **business_id** | Option<**String**> | The business ID of the owning process instance, inherited when the job was created. This is `null` for jobs created before version 8.10 and for jobs whose owning process instance has no business ID.  | 

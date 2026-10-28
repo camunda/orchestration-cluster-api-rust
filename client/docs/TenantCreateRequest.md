@@ -4,7 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**tenant_id** | **String** | The unique ID for the tenant. Must be 31 characters or less and match `^[\\w.-]{1,31}$` (word characters, `.`, `-`). The literal `<default>` is also accepted as the default-tenant alias.  | 
+**tenant_id** | **String** | The unique ID for the tenant. Must be 31 characters or less and match `` ^[\\w.-]{1,31}$ `` (word characters, `.`, `-`). The literal `<default>` is also accepted as the default-tenant alias.  | 
 **name** | **String** | The name of the tenant. | 
 **description** | Option<**String**> | The description of the tenant. | [optional]
 

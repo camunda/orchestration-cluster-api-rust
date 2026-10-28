@@ -11,11 +11,14 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ProcessInstanceCreationInstruction : Instructions for creating a process instance. The process definition can be specified either by id or by key.
-/// Instructions for creating a process instance. The process definition can be specified either by id or by key.
+/// ProcessInstanceCreationInstruction : Instructions for creating a process instance. The process definition can be specified either by id, by id and version tag, or by key.
+/// Instructions for creating a process instance. The process definition can be specified either by id, by id and version tag, or by key.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ProcessInstanceCreationInstruction {
+    ProcessInstanceCreationInstructionByVersionTag(
+        Box<models::ProcessInstanceCreationInstructionByVersionTag>,
+    ),
     ProcessInstanceCreationInstructionByKey(Box<models::ProcessInstanceCreationInstructionByKey>),
     ProcessInstanceCreationInstructionById(Box<models::ProcessInstanceCreationInstructionById>),
 }
