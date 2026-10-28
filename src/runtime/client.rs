@@ -348,6 +348,9 @@ impl CamundaClient {
                 b.process_definition_version,
                 b.tenant_id.clone(),
             ),
+            // The command stream resolves a definition by id or key only; a version-tag
+            // lookup is REST-only, so fall back transparently.
+            I::ProcessInstanceCreationInstructionByVersionTag(_) => return Ok(None),
         };
 
         let Some(caps) = self.falcon_caps().await.cloned() else {
@@ -741,6 +744,10 @@ impl CamundaClient {
                 b.tenant_id = self.with_default_tenant(b.tenant_id);
                 I::ProcessInstanceCreationInstructionByKey(b)
             }
+            I::ProcessInstanceCreationInstructionByVersionTag(mut b) => {
+                b.tenant_id = self.with_default_tenant(b.tenant_id);
+                I::ProcessInstanceCreationInstructionByVersionTag(b)
+            }
         }
     }
 
@@ -1002,5 +1009,95 @@ mod tests {
         let as_str = apply_default_tenant_str(None, &cfg).expect("injected");
         let as_newtype = apply_default_tenant(None, &cfg).expect("injected");
         assert_eq!(as_str, as_newtype.value());
+    }
+
+    fn client_with_tenant(tenant: &str) -> CamundaClient {
+        CamundaClient::new(CamundaOptions::new().with("CAMUNDA_TENANT_ID", tenant))
+            .expect("client builds")
+    }
+
+    fn tenant_of(
+        instruction: &models::ProcessInstanceCreationInstruction,
+    ) -> Option<&models::TenantId> {
+        use models::ProcessInstanceCreationInstruction as I;
+        match instruction {
+            I::ProcessInstanceCreationInstructionById(b) => b.tenant_id.as_ref(),
+            I::ProcessInstanceCreationInstructionByKey(b) => b.tenant_id.as_ref(),
+            I::ProcessInstanceCreationInstructionByVersionTag(b) => b.tenant_id.as_ref(),
+        }
+    }
+
+    #[test]
+    fn injects_default_tenant_into_every_creation_instruction_variant() {
+        use models::ProcessInstanceCreationInstruction as I;
+        let client = client_with_tenant("acme");
+
+        let by_id = I::ProcessInstanceCreationInstructionById(Box::new(
+            models::ProcessInstanceCreationInstructionById::new(
+                models::ProcessDefinitionId::assume_exists("order-process"),
+            ),
+        ));
+        let by_key = I::ProcessInstanceCreationInstructionByKey(Box::new(
+            models::ProcessInstanceCreationInstructionByKey::new(
+                models::ProcessDefinitionKey::assume_exists("2251799813686749"),
+            ),
+        ));
+        let by_version_tag = I::ProcessInstanceCreationInstructionByVersionTag(Box::new(
+            models::ProcessInstanceCreationInstructionByVersionTag::new(
+                models::ProcessDefinitionId::assume_exists("order-process"),
+                "v2.1".to_string(),
+            ),
+        ));
+
+        for instruction in [by_id, by_key, by_version_tag] {
+            let injected = client.inject_instance_tenant(instruction);
+            assert_eq!(
+                tenant_of(&injected).map(|t| t.value()),
+                Some("acme"),
+                "default tenant must be injected into {injected:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn explicit_tenant_wins_over_the_default() {
+        use models::ProcessInstanceCreationInstruction as I;
+        let client = client_with_tenant("acme");
+
+        let mut instruction = models::ProcessInstanceCreationInstructionByVersionTag::new(
+            models::ProcessDefinitionId::assume_exists("order-process"),
+            "v2.1".to_string(),
+        );
+        instruction.tenant_id = Some(models::TenantId::assume_exists("other"));
+        let injected = client.inject_instance_tenant(
+            I::ProcessInstanceCreationInstructionByVersionTag(Box::new(instruction)),
+        );
+        assert_eq!(tenant_of(&injected).map(|t| t.value()), Some("other"));
+    }
+
+    #[test]
+    fn version_tag_variant_wins_over_by_id_during_deserialization() {
+        use models::ProcessInstanceCreationInstruction as I;
+        let json = r#"{"processDefinitionId":"orders","processDefinitionVersionTag":"v2"}"#;
+        let decoded: I = serde_json::from_str(json).expect("decodes");
+        match &decoded {
+            I::ProcessInstanceCreationInstructionByVersionTag(b) => {
+                assert_eq!(b.process_definition_version_tag, "v2");
+            }
+            other => panic!("expected ByVersionTag, got {other:?}"),
+        }
+        let reencoded = serde_json::to_value(&decoded).expect("encodes");
+        assert_eq!(reencoded["processDefinitionVersionTag"], "v2");
+    }
+
+    #[test]
+    fn id_only_payload_still_decodes_as_by_id() {
+        use models::ProcessInstanceCreationInstruction as I;
+        let decoded: I =
+            serde_json::from_str(r#"{"processDefinitionId":"orders"}"#).expect("decodes");
+        assert!(matches!(
+            decoded,
+            I::ProcessInstanceCreationInstructionById(_)
+        ));
     }
 }
