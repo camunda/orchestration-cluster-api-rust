@@ -32,6 +32,7 @@ from scripts.hooks import hook_13_present_when
 from scripts.hooks import hook_14_error_status_dispatch
 from scripts.hooks import hook_15_rfc3339_datetime_query
 from scripts.hooks import hook_16_operation_servers
+from scripts.hooks import hook_18_untagged_variant_ordering
 from scripts.hooks.common import Context
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1199,6 +1200,91 @@ class EveryDatetimeQueryParamIsRfc3339Test(unittest.TestCase):
                 ):
                     offenders.append(f"{path.name}: params.{field} query uses to_string()")
         self.assertGreater(checked, 0, "guard found no date-time query params in the generated apis")
+        self.assertEqual(offenders, [])
+
+
+_UNTAGGED_ENUM_FIXTURE = (
+    "#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]\n"
+    "#[serde(untagged)]\n"
+    "pub enum Instruction {\n"
+    "    ById(Box<models::ById>),\n"
+    "    ByVersionTag(\n"
+    "        Box<models::ByVersionTag>,\n"
+    "    ),\n"
+    "}\n"
+    "\n"
+    "impl Default for Instruction {\n"
+    "    fn default() -> Self {\n"
+    "        Self::ById(Default::default())\n"
+    "    }\n"
+    "}\n"
+)
+
+_UNTAGGED_ENUM_SCHEMAS = {
+    "Base": {"required": ["processDefinitionId"]},
+    "ById": {"allOf": [{"$ref": "#/components/schemas/Base"}]},
+    "ByVersionTag": {
+        "allOf": [{"$ref": "#/components/schemas/Base"}],
+        "required": ["processDefinitionVersionTag"],
+    },
+}
+
+
+class UntaggedVariantOrderingTest(unittest.TestCase):
+    """`hook_18` tries a superset variant before its subset in untagged enums."""
+
+    def _run_hook(self, source: str) -> tuple[Path, Context]:
+        tmp = Path(tempfile.mkdtemp())
+        models = tmp / "src" / "models"
+        models.mkdir(parents=True)
+        (models / "instruction.rs").write_bytes(source.encode("utf-8"))
+        ctx = Context(client_dir=tmp, spec={}, schemas=_UNTAGGED_ENUM_SCHEMAS)
+        hook_18_untagged_variant_ordering.run(ctx)
+        return models / "instruction.rs", ctx
+
+    def test_moves_the_superset_variant_first(self):
+        path, _ = self._run_hook(_UNTAGGED_ENUM_FIXTURE)
+        out = path.read_text(encoding="utf-8")
+        self.assertLess(out.index("ByVersionTag(Box"), out.index("ById(Box"))
+        self.assertIn("Self::ById(Default::default())", out)
+
+    def test_is_idempotent(self):
+        path, ctx = self._run_hook(_UNTAGGED_ENUM_FIXTURE)
+        once = path.read_bytes()
+        hook_18_untagged_variant_ordering.run(ctx)
+        self.assertEqual(path.read_bytes(), once)
+
+
+class EveryUntaggedEnumTriesSupersetFirstTest(unittest.TestCase):
+    """Regression guard over the *real* generated models: no untagged enum may list a
+    variant before one requiring strictly more fields, or serde decodes the superset
+    payload as the subset and silently drops the extra fields."""
+
+    _SPEC = _REPO_ROOT / "external-spec" / "bundled" / "rest-api.bundle.json"
+
+    def test_variants_are_in_non_increasing_required_count(self):
+        if not _MODELS_DIR.exists() or not self._SPEC.exists():
+            self.skipTest("generated client models are not present")
+        import json
+
+        schemas = json.loads(self._SPEC.read_text())["components"]["schemas"]
+        offenders = []
+        checked = 0
+        for path in sorted(_MODELS_DIR.glob("*.rs")):
+            text = path.read_text(encoding="utf-8")
+            m = re.search(r"#\[serde\(untagged\)\]\s*pub enum (\w+) \{(.*?)\n\}", text, re.DOTALL)
+            if not m:
+                continue
+            inners = re.findall(r"Box<models::(\w+)>", m.group(2))
+            if len(inners) < 2:
+                continue
+            checked += 1
+            counts = [
+                hook_18_untagged_variant_ordering._required_count(i, schemas) for i in inners
+            ]
+            if counts != sorted(counts, reverse=True):
+                offenders.append(f"{m.group(1)}: {list(zip(inners, counts))}")
+        self.assertGreater(checked, 0, "guard found no multi-variant untagged enums")
         self.assertEqual(offenders, [])
 
 
