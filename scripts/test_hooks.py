@@ -1254,6 +1254,55 @@ class UntaggedVariantOrderingTest(unittest.TestCase):
         hook_18_untagged_variant_ordering.run(ctx)
         self.assertEqual(path.read_bytes(), once)
 
+    def test_counts_required_fields_through_nested_allof(self):
+        # ByVersionTag inherits ById, which inherits Base: only a transitive walk sees
+        # that ByVersionTag requires strictly more than ById.
+        schemas = {
+            "Base": {"required": ["processDefinitionId"]},
+            "ById": {"allOf": [{"$ref": "#/components/schemas/Base"}]},
+            "ByVersionTag": {
+                "allOf": [
+                    {"$ref": "#/components/schemas/ById"},
+                    {"required": ["processDefinitionVersionTag"]},
+                ],
+            },
+        }
+        count = hook_18_untagged_variant_ordering._required_count
+        self.assertEqual(count("ById", schemas), 1)
+        self.assertEqual(count("ByVersionTag", schemas), 2)
+
+        tmp = Path(tempfile.mkdtemp())
+        models = tmp / "src" / "models"
+        models.mkdir(parents=True)
+        (models / "instruction.rs").write_bytes(_UNTAGGED_ENUM_FIXTURE.encode("utf-8"))
+        hook_18_untagged_variant_ordering.run(Context(client_dir=tmp, spec={}, schemas=schemas))
+        out = (models / "instruction.rs").read_text(encoding="utf-8")
+        self.assertLess(out.index("ByVersionTag(Box"), out.index("ById(Box"))
+
+    def test_survives_allof_cycles(self):
+        schemas = {
+            "A": {"required": ["a"], "allOf": [{"$ref": "#/components/schemas/B"}]},
+            "B": {"required": ["b"], "allOf": [{"$ref": "#/components/schemas/A"}]},
+        }
+        self.assertEqual(hook_18_untagged_variant_ordering._required_count("A", schemas), 2)
+
+
+def _transitive_required(schema: object, schemas: dict, seen: set[str]) -> set[str]:
+    """Independent of the hook, so a shared undercount cannot hide from the guard."""
+    if not isinstance(schema, dict):
+        return set()
+    out = set(schema.get("required", []) or [])
+    refs = [schema.get("$ref")] + [s.get("$ref") for s in schema.get("allOf", []) if isinstance(s, dict)]
+    for ref in filter(None, refs):
+        name = ref.split("/")[-1]
+        if name not in seen:
+            seen.add(name)
+            out |= _transitive_required(schemas.get(name), schemas, seen)
+    for sub in schema.get("allOf", []) or []:
+        if isinstance(sub, dict) and "$ref" not in sub:
+            out |= _transitive_required(sub, schemas, seen)
+    return out
+
 
 class EveryUntaggedEnumTriesSupersetFirstTest(unittest.TestCase):
     """Regression guard over the *real* generated models: no untagged enum may list a
@@ -1279,9 +1328,7 @@ class EveryUntaggedEnumTriesSupersetFirstTest(unittest.TestCase):
             if len(inners) < 2:
                 continue
             checked += 1
-            counts = [
-                hook_18_untagged_variant_ordering._required_count(i, schemas) for i in inners
-            ]
+            counts = [len(_transitive_required(schemas.get(i), schemas, {i})) for i in inners]
             if counts != sorted(counts, reverse=True):
                 offenders.append(f"{m.group(1)}: {list(zip(inners, counts))}")
         self.assertGreater(checked, 0, "guard found no multi-variant untagged enums")

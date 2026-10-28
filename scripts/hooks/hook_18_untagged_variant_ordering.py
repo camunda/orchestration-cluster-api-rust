@@ -30,22 +30,25 @@ NAME = "untagged-variant-ordering"
 _VARIANT_RE = re.compile(r"(\w+)\(\s*Box<models::(\w+)>\s*,?\s*\)")
 
 
-def _required_count(name: str, schemas: dict, seen: set[str] | None = None) -> int:
-    """Count the distinct required properties of a model, merging ``allOf`` bases."""
-    if seen is None:
-        seen = set()
-    schema = schemas.get(name)
-    if not isinstance(schema, dict) or name in seen:
-        return 0
-    seen.add(name)
+def _required_names(schema: object, schemas: dict, seen: set[str]) -> set[str]:
+    """Union the required property names of a schema and its whole ``allOf`` chain."""
+    if not isinstance(schema, dict):
+        return set()
     required: set[str] = set(schema.get("required", []) or [])
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        base = ref.split("/")[-1]
+        if base not in seen:
+            seen.add(base)
+            required |= _required_names(schemas.get(base), schemas, seen)
     for sub in schema.get("allOf", []) or []:
-        if isinstance(sub, dict) and sub.get("$ref"):
-            base = sub["$ref"].split("/")[-1]
-            b = schemas.get(base)
-            if isinstance(b, dict):
-                required |= set(b.get("required", []) or [])
-    return len(required)
+        required |= _required_names(sub, schemas, seen)
+    return required
+
+
+def _required_count(name: str, schemas: dict) -> int:
+    """Count the distinct required properties of a model, merging ``allOf`` bases transitively."""
+    return len(_required_names(schemas.get(name), schemas, {name}))
 
 
 def _reorder_enum(text: str, schemas: dict) -> str | None:
