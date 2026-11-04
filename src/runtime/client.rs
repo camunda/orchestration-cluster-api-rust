@@ -654,7 +654,7 @@ impl CamundaClient {
         params: expression_api::EvaluateExpressionParams,
     ) -> Result<models::ExpressionEvaluationResult> {
         let mut request = params.expression_evaluation_request;
-        request.tenant_id = apply_default_tenant_str(request.tenant_id, &self.config);
+        request.tenant_id = apply_default_tenant(request.tenant_id, &self.config);
         self.guarded(|| {
             let request = request.clone();
             async move {
