@@ -35,7 +35,7 @@ pub struct VariableFilter {
     /// The key of the process instance of this variable.
     #[serde(rename = "processInstanceKey", skip_serializing_if = "Option::is_none")]
     pub process_instance_key: Option<Box<models::ProcessInstanceKeyFilterProperty>>,
-    /// The protection applied to the variable. A variable matches when it has at least one of the given protection modes.
+    /// The protection modes applied to the variable.
     #[serde(rename = "protectionMode", skip_serializing_if = "Option::is_none")]
     pub protection_mode: Option<Box<models::ProtectionModeFilterProperty>>,
 }

@@ -74,6 +74,9 @@ pub struct DecisionInstanceGetQueryResult {
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
     #[serde(rename = "state")]
     pub state: models::DecisionInstanceStateEnum,
+    /// The storage ordinal this decision instance's data belongs to. This is `null` for data exported before storage ordinals were introduced in version 8.11.
+    #[serde(rename = "storageOrdinal", deserialize_with = "Option::deserialize")]
+    pub storage_ordinal: Option<i32>,
     /// The tenant ID of the decision instance.
     #[serde(rename = "tenantId")]
     pub tenant_id: models::TenantId,
@@ -104,6 +107,7 @@ impl DecisionInstanceGetQueryResult {
         root_decision_definition_key: models::DecisionDefinitionKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         state: models::DecisionInstanceStateEnum,
+        storage_ordinal: Option<i32>,
         tenant_id: models::TenantId,
         evaluated_inputs: Vec<models::EvaluatedDecisionInputItem>,
         matched_rules: Vec<models::MatchedDecisionRuleItem>,
@@ -142,6 +146,7 @@ impl DecisionInstanceGetQueryResult {
                 None
             },
             state,
+            storage_ordinal,
             tenant_id,
             evaluated_inputs,
             matched_rules,

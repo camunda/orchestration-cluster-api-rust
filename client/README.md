@@ -281,6 +281,7 @@ Class | Method | HTTP request | Description
 *UserTaskApi* | [**complete_user_task**](docs/UserTaskApi.md#complete_user_task) | **POST** /user-tasks/{userTaskKey}/completion | Complete user task
 *UserTaskApi* | [**get_user_task**](docs/UserTaskApi.md#get_user_task) | **GET** /user-tasks/{userTaskKey} | Get user task
 *UserTaskApi* | [**get_user_task_form**](docs/UserTaskApi.md#get_user_task_form) | **GET** /user-tasks/{userTaskKey}/form | Get user task form
+*UserTaskApi* | [**lookup_user_task**](docs/UserTaskApi.md#lookup_user_task) | **POST** /user-tasks/{userTaskKey}/lookup | Look up an active user task (alpha)
 *UserTaskApi* | [**search_user_task_audit_logs**](docs/UserTaskApi.md#search_user_task_audit_logs) | **POST** /user-tasks/{userTaskKey}/audit-logs/search | Search user task audit logs
 *UserTaskApi* | [**search_user_task_effective_variables**](docs/UserTaskApi.md#search_user_task_effective_variables) | **POST** /user-tasks/{userTaskKey}/effective-variables/search | Search user task effective variables
 *UserTaskApi* | [**search_user_task_variables**](docs/UserTaskApi.md#search_user_task_variables) | **POST** /user-tasks/{userTaskKey}/variables/search | Search user task variables
@@ -965,6 +966,9 @@ Class | Method | HTTP request | Description
  - [UserTaskEffectiveVariableSearchQueryRequest](docs/UserTaskEffectiveVariableSearchQueryRequest.md)
  - [UserTaskFilter](docs/UserTaskFilter.md)
  - [UserTaskFilterFields](docs/UserTaskFilterFields.md)
+ - [UserTaskLookupRequest](docs/UserTaskLookupRequest.md)
+ - [UserTaskLookupResult](docs/UserTaskLookupResult.md)
+ - [UserTaskLookupStateEnum](docs/UserTaskLookupStateEnum.md)
  - [UserTaskProperties](docs/UserTaskProperties.md)
  - [UserTaskResult](docs/UserTaskResult.md)
  - [UserTaskSearchQuery](docs/UserTaskSearchQuery.md)

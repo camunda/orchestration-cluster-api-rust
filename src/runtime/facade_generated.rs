@@ -3726,6 +3726,26 @@ impl CamundaClient {
         .await
     }
 
+    /// Look up an active user task (alpha) (`POST /user-tasks/{userTaskKey}/lookup`).
+    pub async fn lookup_user_task(
+        &self,
+        params: camunda_orchestration_api_client::apis::user_task_api::LookupUserTaskParams,
+    ) -> Result<models::UserTaskLookupResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::user_task_api::lookup_user_task(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
+
     /// Search user task audit logs (`POST /user-tasks/{userTaskKey}/audit-logs/search`).
     pub async fn search_user_task_audit_logs(
         &self,

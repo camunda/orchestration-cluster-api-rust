@@ -21,6 +21,7 @@ Name | Type | Description | Notes
 **root_process_instance_key** | Option<**models::ProcessInstanceKey**> | The key of the root process instance. The root process instance is the top-level ancestor in the process instance hierarchy. This field is only present for data belonging to process instance hierarchies created in version 8.9 or later.  | 
 **tags** | **HashSet<String>** | List of tags. Tags need to start with a letter; then alphanumerics, `_`, `-`, `:`, or `.`; length ≤ 100. | 
 **business_id** | Option<**String**> | The business id associated with this process instance. | 
+**storage_ordinal** | Option<**i32**> | The storage ordinal this process instance's data belongs to. This is `null` for data exported before storage ordinals were introduced in version 8.11.  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

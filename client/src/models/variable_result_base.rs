@@ -35,9 +35,9 @@ pub struct VariableResultBase {
         deserialize_with = "Option::deserialize"
     )]
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
-    /// Metadata of this variable. `null` when the variable has no metadata.
-    #[serde(rename = "metadata", deserialize_with = "Option::deserialize")]
-    pub metadata: Option<Box<models::VariableMetadata>>,
+    /// Metadata of this variable.
+    #[serde(rename = "metadata")]
+    pub metadata: Box<models::VariableMetadata>,
 }
 
 impl VariableResultBase {
@@ -49,7 +49,7 @@ impl VariableResultBase {
         scope_key: models::ScopeKey,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
-        metadata: Option<models::VariableMetadata>,
+        metadata: models::VariableMetadata,
     ) -> VariableResultBase {
         VariableResultBase {
             name,
@@ -62,11 +62,7 @@ impl VariableResultBase {
             } else {
                 None
             },
-            metadata: if let Some(x) = metadata {
-                Some(Box::new(x))
-            } else {
-                None
-            },
+            metadata: Box::new(metadata),
         }
     }
 }

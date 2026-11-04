@@ -14,14 +14,32 @@ use serde::{Deserialize, Serialize};
 /// AdvancedProtectionModeFilter : Advanced ProtectionModeEnum filter.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AdvancedProtectionModeFilter {
+    /// Checks if the variable has the provided protection mode.
+    #[serde(rename = "$eq", skip_serializing_if = "Option::is_none")]
+    pub dollar_eq: Option<models::ProtectionModeEnum>,
+    /// Checks if the variable does not have the provided protection mode.
+    #[serde(rename = "$neq", skip_serializing_if = "Option::is_none")]
+    pub dollar_neq: Option<models::ProtectionModeEnum>,
+    /// Checks if the variable has any protection mode. Use `false` to match the variables that are not protected.
+    #[serde(rename = "$exists", skip_serializing_if = "Option::is_none")]
+    pub dollar_exists: Option<bool>,
     /// Checks if the variable has at least one of the provided protection modes.
     #[serde(rename = "$in", skip_serializing_if = "Option::is_none")]
     pub dollar_in: Option<Vec<models::ProtectionModeEnum>>,
+    /// Checks if the variable has none of the provided protection modes.
+    #[serde(rename = "$notIn", skip_serializing_if = "Option::is_none")]
+    pub dollar_not_in: Option<Vec<models::ProtectionModeEnum>>,
 }
 
 impl AdvancedProtectionModeFilter {
     /// Advanced ProtectionModeEnum filter.
     pub fn new() -> AdvancedProtectionModeFilter {
-        AdvancedProtectionModeFilter { dollar_in: None }
+        AdvancedProtectionModeFilter {
+            dollar_eq: None,
+            dollar_neq: None,
+            dollar_exists: None,
+            dollar_in: None,
+            dollar_not_in: None,
+        }
     }
 }

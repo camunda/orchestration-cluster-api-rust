@@ -18,7 +18,7 @@ pub struct ExpressionEvaluationRequest {
     pub expression: String,
     /// Required when the expression references tenant-scoped cluster variables
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
+    pub tenant_id: Option<models::TenantId>,
     /// Key of the process instance or element instance whose variables should be made visible to the expression. Use a process instance key to evaluate against the process instance scope, or an element instance key to evaluate against that element instance scope. If omitted, the expression is evaluated unscoped, using only cluster variables and request-body variables.
     #[serde(rename = "scopeKey", skip_serializing_if = "Option::is_none")]
     pub scope_key: Option<Box<models::ScopeKey>>,

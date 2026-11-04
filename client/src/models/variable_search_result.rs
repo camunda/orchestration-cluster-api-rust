@@ -34,9 +34,9 @@ pub struct VariableSearchResult {
         deserialize_with = "Option::deserialize"
     )]
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
-    /// Metadata of this variable. `null` when the variable has no metadata.
-    #[serde(rename = "metadata", deserialize_with = "Option::deserialize")]
-    pub metadata: Option<Box<models::VariableMetadata>>,
+    /// Metadata of this variable.
+    #[serde(rename = "metadata")]
+    pub metadata: Box<models::VariableMetadata>,
     /// Value of this variable. Can be truncated.
     #[serde(rename = "value")]
     pub value: String,
@@ -53,7 +53,7 @@ impl VariableSearchResult {
         scope_key: models::ScopeKey,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
-        metadata: Option<models::VariableMetadata>,
+        metadata: models::VariableMetadata,
         value: String,
         is_truncated: bool,
     ) -> VariableSearchResult {
@@ -68,11 +68,7 @@ impl VariableSearchResult {
             } else {
                 None
             },
-            metadata: if let Some(x) = metadata {
-                Some(Box::new(x))
-            } else {
-                None
-            },
+            metadata: Box::new(metadata),
             value,
             is_truncated,
         }

@@ -5,6 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **variables** | Option<**std::collections::HashMap<String, serde_json::Value>**> | JSON object that will instantiate the variables for the root variable scope of the process instance.  | [optional]
+**variables_metadata** | Option<[**std::collections::HashMap<String, models::VariableMetadata>**](VariableMetadata.md)> | Metadata of the variables, keyed by variable name. Use it to set how a variable is treated, for example to protect its value. A variable without an entry has no metadata.  | [optional]
 **tenant_id** | Option<**String**> | The tenant id of the process definition. If multi-tenancy is enabled, provide the tenant id of the process definition to start a process instance of. If multi-tenancy is disabled, don't provide this parameter.  | [optional]
 **operation_reference** | Option<**i64**> | A reference key chosen by the user that will be part of all records resulting from this operation. Must be > 0 if provided.  | [optional]
 **start_instructions** | Option<[**Vec<models::ProcessInstanceCreationStartInstruction>**](ProcessInstanceCreationStartInstruction.md)> | List of start instructions. By default, the process instance will start at the start event. If provided, the process instance will apply start instructions after it has been created.  | [optional]

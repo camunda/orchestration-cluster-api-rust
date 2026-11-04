@@ -21,6 +21,7 @@ Name | Type | Description | Notes
 **root_decision_definition_key** | **models::DecisionDefinitionKey** | The key of the root decision definition. | 
 **root_process_instance_key** | Option<**models::ProcessInstanceKey**> | The key of the root process instance. The root process instance is the top-level ancestor in the process instance hierarchy. This field is only present for data belonging to process instance hierarchies created in version 8.9 or later.  | 
 **state** | [**models::DecisionInstanceStateEnum**](DecisionInstanceStateEnum.md) |  | 
+**storage_ordinal** | Option<**i32**> | The storage ordinal this decision instance's data belongs to. This is `null` for data exported before storage ordinals were introduced in version 8.11.  | 
 **tenant_id** | **String** | The tenant ID of the decision instance. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

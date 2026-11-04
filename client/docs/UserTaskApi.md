@@ -8,6 +8,7 @@ Method | HTTP request | Description
 [**complete_user_task**](UserTaskApi.md#complete_user_task) | **POST** /user-tasks/{userTaskKey}/completion | Complete user task
 [**get_user_task**](UserTaskApi.md#get_user_task) | **GET** /user-tasks/{userTaskKey} | Get user task
 [**get_user_task_form**](UserTaskApi.md#get_user_task_form) | **GET** /user-tasks/{userTaskKey}/form | Get user task form
+[**lookup_user_task**](UserTaskApi.md#lookup_user_task) | **POST** /user-tasks/{userTaskKey}/lookup | Look up an active user task (alpha)
 [**search_user_task_audit_logs**](UserTaskApi.md#search_user_task_audit_logs) | **POST** /user-tasks/{userTaskKey}/audit-logs/search | Search user task audit logs
 [**search_user_task_effective_variables**](UserTaskApi.md#search_user_task_effective_variables) | **POST** /user-tasks/{userTaskKey}/effective-variables/search | Search user task effective variables
 [**search_user_task_variables**](UserTaskApi.md#search_user_task_variables) | **POST** /user-tasks/{userTaskKey}/variables/search | Search user task variables
@@ -134,6 +135,37 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json, application/problem+json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## lookup_user_task
+
+> models::UserTaskLookupResult lookup_user_task(user_task_key, user_task_lookup_request)
+Look up an active user task (alpha)
+
+Returns an active user task together with the variables visible to it, read from the engine's state instead of secondary storage. The task and its variables are read at the same point in processing, so they are consistent with each other and with any command the engine has already processed, for example the completion of a previous task.  The response includes the task's lifecycle `state`. Use it to interpret the returned values: while a change to the task is in progress, the task fields and variables are the ones from before the change, and `state` names the pending change. For example, with `ASSIGNING` the returned `assignee` is still the previous one, because task listeners can deny the new assignment; with `COMPLETING` the variables don't include the ones sent with the completion yet.  Only active tasks can be looked up. The lookup returns 404 when the task doesn't exist, when it was already completed or canceled (use the user task search for those), or when it belongs to a tenant the caller isn't assigned to. It returns 409 when the task's process instance is banned: an instance that hit an unrecoverable error and can only be canceled.  Each lookup is processed by the engine. Use it when a task is opened, not for polling.  This endpoint is an alpha feature and may be subject to change in future releases. 
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**user_task_key** | **UserTaskKey** | The key of the user task to look up. | [required] |
+**user_task_lookup_request** | Option<[**UserTaskLookupRequest**](UserTaskLookupRequest.md)> |  |  |
+
+### Return type
+
+[**models::UserTaskLookupResult**](UserTaskLookupResult.md)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json, application/problem+json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
