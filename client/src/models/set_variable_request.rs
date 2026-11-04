@@ -16,6 +16,9 @@ pub struct SetVariableRequest {
     /// JSON object representing the variables to set in the element’s scope.
     #[serde(rename = "variables")]
     pub variables: std::collections::HashMap<String, serde_json::Value>,
+    /// Metadata of the variables, keyed by variable name. Use it to set how a variable is treated, for example to protect its value. A variable without an entry keeps the metadata it has, or has none.
+    #[serde(rename = "variablesMetadata", skip_serializing_if = "Option::is_none")]
+    pub variables_metadata: Option<std::collections::HashMap<String, models::VariableMetadata>>,
     /// If set to `true`, the variables are merged strictly into the local scope (as specified by the `elementInstanceKey`). Otherwise, the variables are propagated to upper scopes and set at the outermost one.  Let's consider the following example: There are two scopes '1' and '2'. Scope '1' is the parent scope of '2'. The effective variables of the scopes are: 1 => { \"foo\" : 2 } 2 => { \"bar\" : 1 }  An update request with elementInstanceKey as '2', variables { \"foo\": 5 }, and local set to `true` leaves scope '1' unchanged and adjusts scope '2' to { \"bar\": 1, \"foo\": 5 }. By default, with local set to `false`, scope '1' will be { \"foo\": 5 } and scope '2' will be { \"bar\": 1 }.
     #[serde(rename = "local", skip_serializing_if = "Option::is_none")]
     pub local: Option<bool>,
@@ -30,6 +33,7 @@ impl SetVariableRequest {
     ) -> SetVariableRequest {
         SetVariableRequest {
             variables,
+            variables_metadata: None,
             local: None,
             operation_reference: None,
         }

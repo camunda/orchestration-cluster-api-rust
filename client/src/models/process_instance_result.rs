@@ -79,6 +79,9 @@ pub struct ProcessInstanceResult {
     /// The business id associated with this process instance.
     #[serde(rename = "businessId", deserialize_with = "Option::deserialize")]
     pub business_id: Option<models::BusinessId>,
+    /// The storage ordinal this process instance's data belongs to. This is `null` for data exported before storage ordinals were introduced in version 8.11.
+    #[serde(rename = "storageOrdinal", deserialize_with = "Option::deserialize")]
+    pub storage_ordinal: Option<i32>,
 }
 
 impl ProcessInstanceResult {
@@ -101,6 +104,7 @@ impl ProcessInstanceResult {
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         tags: Vec<String>,
         business_id: Option<models::BusinessId>,
+        storage_ordinal: Option<i32>,
     ) -> ProcessInstanceResult {
         ProcessInstanceResult {
             process_definition_id,
@@ -132,6 +136,7 @@ impl ProcessInstanceResult {
             },
             tags,
             business_id,
+            storage_ordinal,
         }
     }
 }

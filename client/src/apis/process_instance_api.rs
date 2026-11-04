@@ -941,7 +941,7 @@ pub async fn cancel_process_instance(
     }
 }
 
-/// Cancels multiple active or suspended process instances. Only ACTIVE and SUSPENDED root instances are cancelled; child instances are cancelled together with their root instance. The given filter only narrows the batch, except for parentProcessInstanceKey: a top-level filter is ignored, and an `$or` branch on it matches nothing. Other `state` operators (`$neq`, `$notIn`, `$exists`, `$like`) are applied as given and are not validated. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
+/// Cancels multiple active or suspended process instances. Only ACTIVE and SUSPENDED root instances are cancelled; child instances are cancelled together with their root instance. The given filter only narrows the batch, so a filter on parentProcessInstanceKey matches no instances. Other `state` operators (`$neq`, `$notIn`, `$exists`, `$like`) are applied as given and are not validated. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
 pub async fn cancel_process_instances_batch_operation(
     configuration: &configuration::Configuration,
     params: CancelProcessInstancesBatchOperationParams,

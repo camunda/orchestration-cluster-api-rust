@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// ProtectionModeFilterProperty : ProtectionModeEnum property with the advanced search capability to match any of several values.
-/// ProtectionModeEnum property with the advanced search capability to match any of several values.
+/// ProtectionModeFilterProperty : ProtectionModeEnum property with full advanced search capabilities.
+/// ProtectionModeEnum property with full advanced search capabilities.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ProtectionModeFilterProperty {

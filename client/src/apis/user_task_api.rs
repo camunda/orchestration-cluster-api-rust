@@ -43,6 +43,14 @@ pub struct GetUserTaskFormParams {
     pub user_task_key: String,
 }
 
+/// struct for passing parameters to the method [`lookup_user_task`]
+#[derive(Clone, Debug)]
+pub struct LookupUserTaskParams {
+    /// The key of the user task to look up.
+    pub user_task_key: String,
+    pub user_task_lookup_request: Option<models::UserTaskLookupRequest>,
+}
+
 /// struct for passing parameters to the method [`search_user_task_audit_logs`]
 #[derive(Clone, Debug)]
 pub struct SearchUserTaskAuditLogsParams {
@@ -212,6 +220,40 @@ impl GetUserTaskFormError {
             403 => serde_json::from_str(content).ok().map(Self::Status403),
             404 => serde_json::from_str(content).ok().map(Self::Status404),
             500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
+/// struct for typed errors of method [`lookup_user_task`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LookupUserTaskError {
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status404(models::ProblemDetail),
+    Status409(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
+    UnknownValue(serde_json::Value),
+}
+
+impl LookupUserTaskError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
             _ => None,
         };
         declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
@@ -568,6 +610,63 @@ pub async fn get_user_task_form(
         let content = resp.text().await?;
         let entity: Option<GetUserTaskFormError> =
             GetUserTaskFormError::from_response(status.as_u16(), &content);
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Returns an active user task together with the variables visible to it, read from the engine's state instead of secondary storage. The task and its variables are read at the same point in processing, so they are consistent with each other and with any command the engine has already processed, for example the completion of a previous task.  The response includes the task's lifecycle `state`. Use it to interpret the returned values: while a change to the task is in progress, the task fields and variables are the ones from before the change, and `state` names the pending change. For example, with `ASSIGNING` the returned `assignee` is still the previous one, because task listeners can deny the new assignment; with `COMPLETING` the variables don't include the ones sent with the completion yet.  Only active tasks can be looked up. The lookup returns 404 when the task doesn't exist, when it was already completed or canceled (use the user task search for those), or when it belongs to a tenant the caller isn't assigned to. It returns 409 when the task's process instance is banned: an instance that hit an unrecoverable error and can only be canceled.  Each lookup is processed by the engine. Use it when a task is opened, not for polling.  This endpoint is an alpha feature and may be subject to change in future releases.
+pub async fn lookup_user_task(
+    configuration: &configuration::Configuration,
+    params: LookupUserTaskParams,
+) -> Result<models::UserTaskLookupResult, Error<LookupUserTaskError>> {
+    let uri_str = format!(
+        "{}/user-tasks/{userTaskKey}/lookup",
+        configuration.base_path,
+        userTaskKey = crate::apis::urlencode(params.user_task_key)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    if let Some(ref body) = params.user_task_lookup_request {
+        req_builder = req_builder.json(body);
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::UserTaskLookupResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::UserTaskLookupResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<LookupUserTaskError> =
+            LookupUserTaskError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
