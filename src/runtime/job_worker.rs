@@ -33,6 +33,7 @@ use super::client::CamundaClient;
 use super::clock::Clock;
 use super::config::WorkerDefaults;
 use super::errors::{CamundaError, Result};
+use super::job_result::CompletionResult;
 
 /// Upper bound on how many credits the REST poller materializes — and jobs it asks
 /// for — in a single `activate_jobs` request. `max_jobs_to_activate` is a positive
@@ -323,7 +324,7 @@ pub enum JobAction {
     #[non_exhaustive]
     CompleteWithResult {
         variables: Option<Value>,
-        result: models::JobResult,
+        result: CompletionResult,
     },
     /// Fail the job, decrementing retries (unless `retries` is set explicitly).
     Fail {
@@ -359,7 +360,8 @@ impl JobAction {
     ///
     /// `result` is a [`UserTaskResult`](super::job_result::UserTaskResult), an
     /// [`AdHocSubProcessResult`](super::job_result::AdHocSubProcessResult), or a
-    /// hand-built [`models::JobResult`].
+    /// hand-built [`models::JobResult`] (anything that converts into a
+    /// [`CompletionResult`]).
     ///
     /// ```
     /// use camunda_orchestration_sdk::{JobAction, UserTaskResult};
@@ -367,7 +369,7 @@ impl JobAction {
     /// let action = JobAction::complete_with_result(UserTaskResult::deny("Incomplete"));
     /// # let _ = action;
     /// ```
-    pub fn complete_with_result(result: impl Into<models::JobResult>) -> Self {
+    pub fn complete_with_result(result: impl Into<CompletionResult>) -> Self {
         JobAction::CompleteWithResult {
             variables: None,
             result: result.into(),
@@ -377,7 +379,7 @@ impl JobAction {
     /// Complete the job with output variables and a job result.
     pub fn complete_with_variables_and_result(
         variables: impl Serialize,
-        result: impl Into<models::JobResult>,
+        result: impl Into<CompletionResult>,
     ) -> Self {
         JobAction::CompleteWithResult {
             variables: serde_json::to_value(variables).ok(),
@@ -899,12 +901,12 @@ async fn apply_action(
     match action {
         JobAction::Leave => Ok(()),
         JobAction::Complete { variables } => {
-            let request = build_completion_request(variables, None, lease_token);
+            let request = build_completion_request(variables, lease_token);
             client.complete_job(job_key, request).await
         }
         JobAction::CompleteWithResult { variables, result } => {
-            let request = build_completion_request(variables, Some(result), lease_token);
-            client.complete_job(job_key, request).await
+            let body = build_result_completion_body(variables, &result, lease_token)?;
+            client.complete_job_with_body(job_key, &body).await
         }
         JobAction::Fail {
             error_message,
@@ -952,22 +954,42 @@ fn enforce_lease_presence(with_lease: bool, jobs: &[models::ActivatedJobResult])
 }
 
 /// Build the optional completion body. A completion needs a body only when it carries
-/// output variables, a job result, or a lease token to present back; without any of them,
-/// `None` lets the worker complete with an empty request.
+/// output variables or a lease token to present back; without either, `None` lets the
+/// worker complete with an empty request.
 fn build_completion_request(
     variables: Option<Value>,
-    result: Option<models::JobResult>,
     lease_token: Option<&str>,
 ) -> Option<models::JobCompletionRequest> {
-    if variables.is_none() && result.is_none() && lease_token.is_none() {
+    if variables.is_none() && lease_token.is_none() {
         return None;
     }
     Some(models::JobCompletionRequest {
         variables: variables.map(value_to_map),
-        result: result.map(Box::new),
+        result: None,
         job_lease_token: lease_token_field(lease_token),
         business_id: None,
     })
+}
+
+/// Build the JSON body for a completion carrying a job result. It is the generated
+/// request's JSON with `result` set to the result's wire form, so a cleared correction
+/// date -- which the generated model types as a date-time -- goes out as `""`.
+fn build_result_completion_body(
+    variables: Option<Value>,
+    result: &CompletionResult,
+    lease_token: Option<&str>,
+) -> Result<Value> {
+    let request = models::JobCompletionRequest {
+        variables: variables.map(value_to_map),
+        result: None,
+        job_lease_token: lease_token_field(lease_token),
+        business_id: None,
+    };
+    let mut body = serde_json::to_value(request)?;
+    if let Some(obj) = body.as_object_mut() {
+        obj.insert("result".into(), result.to_wire()?);
+    }
+    Ok(body)
 }
 
 /// Build a fail-job request, threading the lease token so the engine can fence it.
@@ -1085,8 +1107,13 @@ mod tests {
             JobAction::CompleteWithResult { variables, result } => (variables, Some(result)),
             other => panic!("expected a completion, got {other:?}"),
         };
-        let request = build_completion_request(variables, result, None).unwrap_or_default();
-        serde_json::to_value(request).unwrap()
+        match result {
+            Some(result) => build_result_completion_body(variables, &result, None).unwrap(),
+            None => {
+                serde_json::to_value(build_completion_request(variables, None).unwrap_or_default())
+                    .unwrap()
+            }
+        }
     }
 
     #[test]
@@ -1174,14 +1201,139 @@ mod tests {
         );
     }
 
+    /// The completion body for a user-task result carrying only these corrections.
+    fn corrections_body(corrections: super::super::job_result::UserTaskCorrections) -> Value {
+        use super::super::job_result::UserTaskResult;
+        completion_body(JobAction::complete_with_result(
+            UserTaskResult::new().corrections(corrections),
+        ))
+    }
+
+    #[test]
+    fn cleared_due_date_is_sent_as_an_empty_string() {
+        use super::super::job_result::UserTaskCorrections;
+        assert_eq!(
+            corrections_body(UserTaskCorrections::new().clear_due_date()),
+            serde_json::json!({
+                "result": { "type": "userTask", "corrections": { "dueDate": "" } }
+            })
+        );
+    }
+
+    #[test]
+    fn cleared_follow_up_date_is_sent_as_an_empty_string() {
+        use super::super::job_result::UserTaskCorrections;
+        assert_eq!(
+            corrections_body(UserTaskCorrections::new().clear_follow_up_date()),
+            serde_json::json!({
+                "result": { "type": "userTask", "corrections": { "followUpDate": "" } }
+            })
+        );
+    }
+
+    #[test]
+    fn set_dates_keep_their_iso_form_and_unset_dates_are_omitted() {
+        use super::super::job_result::UserTaskCorrections;
+        let due = chrono::DateTime::parse_from_rfc3339("2026-12-01T09:00:00+02:00").unwrap();
+        assert_eq!(
+            corrections_body(UserTaskCorrections::new().due_date(due)),
+            serde_json::json!({
+                "result": {
+                    "type": "userTask",
+                    "corrections": { "dueDate": "2026-12-01T09:00:00+02:00" }
+                }
+            })
+        );
+        assert_eq!(
+            corrections_body(UserTaskCorrections::new().assignee("alice")),
+            serde_json::json!({
+                "result": { "type": "userTask", "corrections": { "assignee": "alice" } }
+            })
+        );
+    }
+
+    #[test]
+    fn date_clears_combine_with_other_corrections() {
+        use super::super::job_result::{UserTaskCorrections, UserTaskResult};
+        let follow_up = chrono::DateTime::parse_from_rfc3339("2026-11-20T08:30:00+00:00").unwrap();
+        let action = JobAction::complete_with_variables_and_result(
+            serde_json::json!({ "reviewed": true }),
+            UserTaskResult::new().corrections(
+                UserTaskCorrections::new()
+                    .assignee("")
+                    .clear_due_date()
+                    .follow_up_date(follow_up)
+                    .candidate_groups(["managers"])
+                    .priority(80),
+            ),
+        );
+        assert_eq!(
+            completion_body(action),
+            serde_json::json!({
+                "variables": { "reviewed": true },
+                "result": {
+                    "type": "userTask",
+                    "corrections": {
+                        "assignee": "",
+                        "dueDate": "",
+                        "followUpDate": "2026-11-20T08:30:00Z",
+                        "candidateGroups": ["managers"],
+                        "priority": 80
+                    }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn setting_and_clearing_a_date_is_last_call_wins() {
+        use super::super::job_result::UserTaskCorrections;
+        let date = chrono::DateTime::parse_from_rfc3339("2026-12-01T09:00:00+00:00").unwrap();
+        assert_eq!(
+            corrections_body(UserTaskCorrections::new().due_date(date).clear_due_date()),
+            serde_json::json!({
+                "result": { "type": "userTask", "corrections": { "dueDate": "" } }
+            })
+        );
+        assert_eq!(
+            corrections_body(
+                UserTaskCorrections::new()
+                    .clear_follow_up_date()
+                    .follow_up_date(date)
+            ),
+            serde_json::json!({
+                "result": {
+                    "type": "userTask",
+                    "corrections": { "followUpDate": "2026-12-01T09:00:00Z" }
+                }
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn cleared_date_reaches_the_rest_endpoint_as_an_empty_string() {
+        use super::super::job_result::{UserTaskCorrections, UserTaskResult};
+        let (client, mut rest) = recording_rest_server().await;
+        let action = JobAction::complete_with_result(
+            UserTaskResult::new().corrections(UserTaskCorrections::new().clear_due_date()),
+        );
+        apply_action(&client, "1", None, action).await.unwrap();
+        let (_, body) = rest.try_recv().expect("the completion reached REST");
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "result": { "type": "userTask", "corrections": { "dueDate": "" } }
+            })
+        );
+    }
+
     #[test]
     fn result_alone_with_lease_token_builds_a_fenced_body() {
         use super::super::job_result::UserTaskResult;
         let request =
-            build_completion_request(None, Some(UserTaskResult::new().into()), Some("tok"))
-                .expect("a result needs a body");
+            build_result_completion_body(None, &UserTaskResult::new().into(), Some("tok")).unwrap();
         assert_eq!(
-            serde_json::to_value(request).unwrap(),
+            request,
             serde_json::json!({ "result": { "type": "userTask" }, "jobLeaseToken": "tok" })
         );
     }
@@ -1522,7 +1674,7 @@ mod tests {
         let expected = Some(Some(models::JobLeaseToken::assume_exists("tok")));
 
         // Complete: a body is built for the token alone, even with no variables.
-        let complete = build_completion_request(None, None, Some("tok"));
+        let complete = build_completion_request(None, Some("tok"));
         assert_eq!(complete.and_then(|r| r.job_lease_token), expected);
 
         // Fail: the token rides the fail request.
@@ -1537,10 +1689,10 @@ mod tests {
     #[test]
     fn no_lease_token_leaves_commands_unbranded() {
         // No variables and no token => no completion body at all (unchanged behaviour).
-        assert!(build_completion_request(None, None, None).is_none());
+        assert!(build_completion_request(None, None).is_none());
         assert_eq!(lease_token_field(None), None);
         // Variables but no token => body present, token field empty.
-        let complete = build_completion_request(Some(serde_json::json!({ "k": 1 })), None, None);
+        let complete = build_completion_request(Some(serde_json::json!({ "k": 1 })), None);
         assert_eq!(complete.and_then(|r| r.job_lease_token), None);
         // Fail and error unbranded when no lease.
         assert_eq!(

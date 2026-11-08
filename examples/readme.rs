@@ -99,6 +99,7 @@ async fn job_corrections() -> Result<(), Box<dyn std::error::Error>> {
                     UserTaskCorrections::new()
                         .assignee("corrected-user")
                         .candidate_groups(["managers"])
+                        .clear_follow_up_date()
                         .priority(80),
                 ),
             )

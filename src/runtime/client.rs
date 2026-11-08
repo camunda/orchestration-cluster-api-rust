@@ -851,6 +851,42 @@ impl CamundaClient {
         Ok(job_api::complete_job(&cfg, params).await?)
     }
 
+    /// Complete a job with an already-built JSON body, for a body the generated
+    /// [`models::JobCompletionRequest`] cannot express (a correction date cleared with
+    /// `""`). Mirrors the generated `complete_job` call, including its error mapping.
+    pub(crate) async fn complete_job_with_body(
+        &self,
+        job_key: &str,
+        body: &serde_json::Value,
+    ) -> Result<()> {
+        use camunda_orchestration_api_client::apis::{urlencode, Error, ResponseContent};
+        let cfg = self.configuration().await?;
+        let uri = format!("{}/jobs/{}/completion", cfg.base_path, urlencode(job_key));
+        let mut req = cfg.client.post(&uri).json(body);
+        if let Some(user_agent) = &cfg.user_agent {
+            req = req.header(reqwest::header::USER_AGENT, user_agent.clone());
+        }
+        if let Some((user, password)) = &cfg.basic_auth {
+            req = req.basic_auth(user, password.as_ref());
+        }
+        if let Some(token) = &cfg.bearer_access_token {
+            req = req.bearer_auth(token);
+        }
+        let resp = req.send().await?;
+        let status = resp.status();
+        if !status.is_client_error() && !status.is_server_error() {
+            return Ok(());
+        }
+        let content = resp.text().await?;
+        let entity = job_api::CompleteJobError::from_response(status.as_u16(), &content);
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        })
+        .into())
+    }
+
     /// Fail a job, decrementing retries.
     pub async fn fail_job(
         &self,

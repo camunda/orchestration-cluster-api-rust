@@ -298,6 +298,7 @@ client
                 UserTaskCorrections::new()
                     .assignee("corrected-user")
                     .candidate_groups(["managers"])
+                    .clear_follow_up_date()
                     .priority(80),
             ),
         )
@@ -314,16 +315,17 @@ use camunda_orchestration_sdk::{JobAction, UserTaskResult};
 JobAction::complete_with_result(UserTaskResult::deny("Insufficient documentation"))
 ```
 
-| `UserTaskCorrections` setter | Type | Clear value |
+| `UserTaskCorrections` setter | Type | To clear |
 |---|---|---|
-| `assignee` | `impl Into<String>` | Empty string `""` |
-| `due_date` | `impl Into<chrono::DateTime<FixedOffset>>` | — |
-| `follow_up_date` | `impl Into<chrono::DateTime<FixedOffset>>` | — |
-| `candidate_users` | iterator of strings | Empty list |
-| `candidate_groups` | iterator of strings | Empty list |
+| `assignee` | `impl Into<String>` | `.assignee("")` |
+| `due_date` | `impl Into<chrono::DateTime<FixedOffset>>` | `.clear_due_date()` |
+| `follow_up_date` | `impl Into<chrono::DateTime<FixedOffset>>` | `.clear_follow_up_date()` |
+| `candidate_users` | iterator of strings | an empty list |
+| `candidate_groups` | iterator of strings | an empty list |
 | `priority` | `i32` (0–100) | — |
 
-An attribute you do not set preserves the persisted value.
+An attribute you do not set preserves the persisted value. A cleared date is sent as
+`""`; setting and clearing the same date overrides each other, so the last call wins.
 
 ### Ad-hoc sub-process results
 
@@ -345,9 +347,11 @@ JobAction::complete_with_result(
 )
 ```
 
-Both builders convert into the generated `models::JobResult`, whose variant sets the `type`
-discriminator (`userTask` / `adHocSubProcess`) on the wire; a hand-built `models::JobResult`
-is accepted too.
+Both builders convert into a `CompletionResult`, which wraps the generated
+`models::JobResult` (whose variant sets the `type` discriminator, `userTask` /
+`adHocSubProcess`, on the wire) together with any cleared dates. A hand-built
+`models::JobResult` is accepted too, but the generated model types the dates as date-times
+and so cannot clear them — use `UserTaskCorrections` for that.
 
 ## Eventual consistency
 
