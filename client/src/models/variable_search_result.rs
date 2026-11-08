@@ -37,7 +37,7 @@ pub struct VariableSearchResult {
     /// Metadata of this variable.
     #[serde(rename = "metadata")]
     pub metadata: Box<models::VariableMetadata>,
-    /// Value of this variable. Can be truncated.
+    /// The value of this variable. Can be truncated or redacted.  If the value is truncated, `isTruncated` is `true` and the value contains only the beginning of the full value.  If the variable is redacted, the value is set to `\"\"` instead of the real value. Check `metadata.protectionModes` before you use the value: it contains `REDACT` for a redacted variable.
     #[serde(rename = "value")]
     pub value: String,
     /// Whether the value is truncated or not.
