@@ -792,10 +792,12 @@ impl JobWorker {
             let job = self.wrap_job(activated);
             let handler = handler.clone();
             let worker = worker.clone();
+            let client = self.client.clone();
             tokio::spawn(async move {
                 let key = job.key().to_string();
+                let lease_token = job.lease_token().map(str::to_owned);
                 let action = handler(job).await;
-                apply_action_falcon(&worker, &key, action);
+                apply_action_stream(&*worker, &client, &key, lease_token.as_deref(), action).await;
             });
         }
     }
@@ -808,24 +810,59 @@ enum FalconStartError {
     SubscribeFailed(CamundaError),
 }
 
-/// Translate a [`JobAction`] into a fire-and-forget command-stream frame (each frame
-/// also replenishes one delivery credit).
-fn apply_action_falcon(
-    worker: &super::falcon::FalconStreamWorker,
+/// The command-stream operations the stream worker path drives. A seam so the routing
+/// in [`apply_action_stream`] is testable without a live gateway.
+trait StreamCommands {
+    fn complete(&self, job_key: &str, variables: Option<serde_json::Map<String, Value>>);
+    fn fail(&self, job_key: &str, retries: Option<i32>, error_message: Option<String>);
+    fn throw_error(&self, job_key: &str, error_code: &str, error_message: Option<String>);
+    fn replenish(&self, n: i64);
+}
+
+impl StreamCommands for super::falcon::FalconStreamWorker {
+    fn complete(&self, job_key: &str, variables: Option<serde_json::Map<String, Value>>) {
+        super::falcon::FalconStreamWorker::complete(self, job_key, variables);
+    }
+    fn fail(&self, job_key: &str, retries: Option<i32>, error_message: Option<String>) {
+        super::falcon::FalconStreamWorker::fail(self, job_key, retries, error_message);
+    }
+    fn throw_error(&self, job_key: &str, error_code: &str, error_message: Option<String>) {
+        super::falcon::FalconStreamWorker::throw_error(self, job_key, error_code, error_message);
+    }
+    fn replenish(&self, n: i64) {
+        super::falcon::FalconStreamWorker::replenish(self, n);
+    }
+}
+
+/// Apply a [`JobAction`] on the stream worker path. Each command-stream frame also
+/// replenishes one delivery credit.
+///
+/// The command stream's `completeJob` frame has no `result` field, so a completion that
+/// carries a job result goes over REST instead: sending it as a frame would drop the
+/// result and, for a user task listener, silently approve work the handler denied. The
+/// delivery credit a frame would have replenished is topped up afterwards, whether or
+/// not the REST call succeeded, so the push window stays full.
+async fn apply_action_stream(
+    stream: &impl StreamCommands,
+    client: &CamundaClient,
     job_key: &str,
+    lease_token: Option<&str>,
     action: JobAction,
 ) {
     match action {
         JobAction::Leave => {
-            // No completion frame would be sent, so replenish the consumed credit
-            // directly to keep the delivery window full.
-            worker.replenish(1);
+            // No completion frame is sent, so replenish the consumed credit directly to
+            // keep the delivery window full.
+            stream.replenish(1);
         }
         JobAction::Complete { variables } => {
-            worker.complete(job_key, variables.and_then(value_to_obj), None);
+            stream.complete(job_key, variables.and_then(value_to_obj));
         }
-        JobAction::CompleteWithResult { variables, result } => {
-            worker.complete(job_key, variables.and_then(value_to_obj), Some(&result));
+        action @ JobAction::CompleteWithResult { .. } => {
+            if let Err(e) = apply_action(client, job_key, lease_token, action).await {
+                tracing::warn!(error = %e, "failed to apply job action");
+            }
+            stream.replenish(1);
         }
         JobAction::Fail {
             error_message,
@@ -833,14 +870,14 @@ fn apply_action_falcon(
             variables: _,
             retry_backoff_ms: _,
         } => {
-            worker.fail(job_key, retries, Some(error_message));
+            stream.fail(job_key, retries, Some(error_message));
         }
         JobAction::Error {
             error_code,
             error_message,
             variables: _,
         } => {
-            worker.throw_error(job_key, &error_code, error_message);
+            stream.throw_error(job_key, &error_code, error_message);
         }
     }
 }
@@ -1146,6 +1183,147 @@ mod tests {
         assert_eq!(
             serde_json::to_value(request).unwrap(),
             serde_json::json!({ "result": { "type": "userTask" }, "jobLeaseToken": "tok" })
+        );
+    }
+
+    /// Records the command-stream calls the stream worker path makes.
+    #[derive(Default)]
+    struct RecordingStream {
+        calls: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl StreamCommands for RecordingStream {
+        fn complete(&self, job_key: &str, variables: Option<serde_json::Map<String, Value>>) {
+            let vars = variables.map(Value::Object).unwrap_or(Value::Null);
+            self.calls
+                .lock()
+                .unwrap()
+                .push(format!("complete {job_key} {vars}"));
+        }
+        fn fail(&self, job_key: &str, _: Option<i32>, _: Option<String>) {
+            self.calls.lock().unwrap().push(format!("fail {job_key}"));
+        }
+        fn throw_error(&self, job_key: &str, error_code: &str, _: Option<String>) {
+            self.calls
+                .lock()
+                .unwrap()
+                .push(format!("throw_error {job_key} {error_code}"));
+        }
+        fn replenish(&self, n: i64) {
+            self.calls.lock().unwrap().push(format!("replenish {n}"));
+        }
+    }
+
+    /// Serve REST requests on a local port, answering each with `204 No Content` and
+    /// reporting its request line and body.
+    async fn recording_rest_server() -> (
+        CamundaClient,
+        tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
+    ) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            while let Ok((mut sock, _)) = listener.accept().await {
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    let mut tmp = [0u8; 1024];
+                    let header_end = loop {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => {
+                                buf.extend_from_slice(&tmp[..n]);
+                                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                                    break pos + 4;
+                                }
+                            }
+                        }
+                    };
+                    let head = String::from_utf8_lossy(&buf[..header_end]).to_string();
+                    let content_len = head
+                        .lines()
+                        .find_map(|l| {
+                            l.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                        })
+                        .unwrap_or(0);
+                    while buf.len() < header_end + content_len {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => break,
+                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                        }
+                    }
+                    let request_line = head.lines().next().unwrap_or_default().to_string();
+                    let body = serde_json::from_slice(&buf[header_end..]).unwrap_or(Value::Null);
+                    let _ = tx.send((request_line, body));
+                    let _ = sock
+                        .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
+                        .await;
+                });
+            }
+        });
+        let client = CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", format!("http://{addr}"))
+                .with("CAMUNDA_FALCON", "false"),
+        )
+        .expect("client should build from an address alone");
+        (client, rx)
+    }
+
+    #[tokio::test]
+    async fn stream_path_sends_result_completions_over_rest() {
+        use super::super::job_result::UserTaskResult;
+        let (client, mut rest) = recording_rest_server().await;
+        let stream = RecordingStream::default();
+
+        let action = JobAction::complete_with_variables_and_result(
+            serde_json::json!({ "reviewed": true }),
+            UserTaskResult::deny("Missing documents"),
+        );
+        apply_action_stream(&stream, &client, "2251799813685249", Some("tok"), action).await;
+
+        let (request_line, body) = rest.try_recv().expect("the completion went over REST");
+        assert!(
+            request_line.starts_with("POST ")
+                && request_line.contains("/jobs/2251799813685249/completion"),
+            "unexpected request: {request_line}"
+        );
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "variables": { "reviewed": true },
+                "result": {
+                    "type": "userTask",
+                    "denied": true,
+                    "deniedReason": "Missing documents"
+                },
+                "jobLeaseToken": "tok"
+            })
+        );
+        // No completeJob frame; the consumed delivery credit is topped up instead.
+        assert_eq!(*stream.calls.lock().unwrap(), ["replenish 1"]);
+    }
+
+    #[tokio::test]
+    async fn stream_path_sends_plain_completions_as_frames() {
+        let (client, mut rest) = recording_rest_server().await;
+        let stream = RecordingStream::default();
+
+        apply_action_stream(&stream, &client, "1", None, JobAction::complete()).await;
+        let action = JobAction::complete_with(serde_json::json!({ "ok": true }));
+        apply_action_stream(&stream, &client, "2", Some("tok"), action).await;
+
+        assert_eq!(
+            *stream.calls.lock().unwrap(),
+            ["complete 1 null", r#"complete 2 {"ok":true}"#]
+        );
+        assert!(
+            rest.try_recv().is_err(),
+            "a plain completion must not use REST"
         );
     }
 
