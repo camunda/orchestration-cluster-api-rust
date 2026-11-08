@@ -871,15 +871,15 @@ impl FalconStreamWorker {
         let _ = self.link.send(Message::Text(frame.to_string()));
     }
 
-    /// Complete a job (fire-and-forget) and replenish one credit.
-    pub fn complete(&self, job_key: &str, variables: Option<Map<String, Value>>) {
-        let mut frame = json!({"type": "completeJob", "corr": 0, "jobKey": job_key});
-        if let Some(vars) = variables {
-            frame
-                .as_object_mut()
-                .unwrap()
-                .insert("variables".into(), Value::Object(vars));
-        }
+    /// Complete a job (fire-and-forget) and replenish one credit. A job result rides the
+    /// frame under `result`, in the same shape as the REST completion body.
+    pub fn complete(
+        &self,
+        job_key: &str,
+        variables: Option<Map<String, Value>>,
+        result: Option<&models::JobResult>,
+    ) {
+        let frame = complete_frame(job_key, variables, result);
         let _ = self.link.send(Message::Text(frame.to_string()));
         self.replenish(1);
     }
@@ -917,9 +917,42 @@ impl FalconStreamWorker {
     }
 }
 
+/// Build a `completeJob` command-stream frame.
+fn complete_frame(
+    job_key: &str,
+    variables: Option<Map<String, Value>>,
+    result: Option<&models::JobResult>,
+) -> Value {
+    let mut frame = json!({"type": "completeJob", "corr": 0, "jobKey": job_key});
+    let obj = frame.as_object_mut().unwrap();
+    if let Some(vars) = variables {
+        obj.insert("variables".into(), Value::Object(vars));
+    }
+    if let Some(result) = result.and_then(|r| serde_json::to_value(r).ok()) {
+        obj.insert("result".into(), result);
+    }
+    frame
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn complete_frame_carries_result_only_when_given() {
+        let plain = complete_frame("1", None, None);
+        assert_eq!(
+            plain,
+            json!({"type": "completeJob", "corr": 0, "jobKey": "1"})
+        );
+
+        let result = models::JobResult::UserTask(Box::new(models::JobResultUserTask {
+            denied: Some(Some(true)),
+            ..Default::default()
+        }));
+        let frame = complete_frame("1", None, Some(&result));
+        assert_eq!(frame["result"], json!({"type": "userTask", "denied": true}));
+    }
 
     #[test]
     fn ws_url_strips_v2_and_swaps_scheme() {

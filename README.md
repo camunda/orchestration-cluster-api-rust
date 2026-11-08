@@ -239,6 +239,10 @@ worker
 A handler returns a `JobAction`:
 
 - `JobAction::complete()` / `JobAction::complete_with(vars)` — complete the job.
+- `JobAction::complete_with_result(result)` /
+  `JobAction::complete_with_variables_and_result(vars, result)` — complete the job with a
+  job result (see [Job corrections](#job-corrections-user-task-listeners) and
+  [Ad-hoc sub-process results](#ad-hoc-sub-process-results)).
 - `JobAction::fail("message")` — fail the job (retries decremented by the engine).
 - `JobAction::error("ERROR_CODE")` — throw a catchable BPMN error.
 - `JobAction::leave()` — take no action; the job remains activated until timeout.
@@ -271,6 +275,79 @@ client.stop_all_workers().await?;
 > [`examples/worker.rs`](https://github.com/camunda/orchestration-cluster-api-rust/blob/main/examples/worker.rs)
 > and
 > [`examples/deploy_start_and_work.rs`](https://github.com/camunda/orchestration-cluster-api-rust/blob/main/examples/deploy_start_and_work.rs).
+
+### Job corrections (user task listeners)
+
+When a job worker handles a
+[user task listener](https://docs.camunda.io/docs/components/concepts/user-task-listeners/),
+it can correct task properties (assignee, due date, candidate groups, etc.) as part of the
+completion by returning a `UserTaskResult`:
+
+<!-- snippet-source: examples/readme.rs | regions: JobCorrections -->
+```rust
+use camunda_orchestration_sdk::{
+    JobAction, JobWorkerConfig, UserTaskCorrections, UserTaskResult,
+};
+
+client
+    .create_job_worker(JobWorkerConfig::new("io.camunda:userTaskListener"))
+    .run(|_job| async move {
+        JobAction::complete_with_variables_and_result(
+            serde_json::json!({ "reviewed": true }),
+            UserTaskResult::new().corrections(
+                UserTaskCorrections::new()
+                    .assignee("corrected-user")
+                    .candidate_groups(["managers"])
+                    .priority(80),
+            ),
+        )
+    })
+    .await?;
+```
+
+To deny a task completion (reject the work):
+
+<!-- snippet-source: examples/readme.rs | regions: JobCorrectionsDenied -->
+```rust
+use camunda_orchestration_sdk::{JobAction, UserTaskResult};
+
+JobAction::complete_with_result(UserTaskResult::deny("Insufficient documentation"))
+```
+
+| `UserTaskCorrections` setter | Type | Clear value |
+|---|---|---|
+| `assignee` | `impl Into<String>` | Empty string `""` |
+| `due_date` | `impl Into<chrono::DateTime<FixedOffset>>` | — |
+| `follow_up_date` | `impl Into<chrono::DateTime<FixedOffset>>` | — |
+| `candidate_users` | iterator of strings | Empty list |
+| `candidate_groups` | iterator of strings | Empty list |
+| `priority` | `i32` (0–100) | — |
+
+An attribute you do not set preserves the persisted value.
+
+### Ad-hoc sub-process results
+
+A job worker for an
+[ad-hoc sub-process](https://docs.camunda.io/docs/components/modeler/bpmn/ad-hoc-subprocesses/)
+decides which elements to activate, and whether the sub-process is done, by returning an
+`AdHocSubProcessResult`:
+
+<!-- snippet-source: examples/readme.rs | regions: AdHocSubProcessResult -->
+```rust
+use camunda_orchestration_sdk::{AdHocSubProcessResult, JobAction};
+
+JobAction::complete_with_result(
+    AdHocSubProcessResult::new()
+        .activate_element("collect-documents")
+        .activate_element_with("review", serde_json::json!({ "reviewer": "alice" }))
+        .completion_condition_fulfilled(false)
+        .cancel_remaining_instances(false),
+)
+```
+
+Both builders convert into the generated `models::JobResult`, whose variant sets the `type`
+discriminator (`userTask` / `adHocSubProcess`) on the wire; a hand-built `models::JobResult`
+is accepted too.
 
 ## Eventual consistency
 

@@ -313,6 +313,18 @@ impl Job {
 pub enum JobAction {
     /// Complete the job, optionally with output variables.
     Complete { variables: Option<Value> },
+    /// Complete the job with a job result -- user-task listener corrections or denial, or
+    /// the elements an ad-hoc sub-process activates -- optionally with output variables.
+    ///
+    /// Build it with [`JobAction::complete_with_result`] or
+    /// [`JobAction::complete_with_variables_and_result`]. The variant is
+    /// `#[non_exhaustive]` so further completion options can be added without breaking
+    /// callers; match it with `..`.
+    #[non_exhaustive]
+    CompleteWithResult {
+        variables: Option<Value>,
+        result: models::JobResult,
+    },
     /// Fail the job, decrementing retries (unless `retries` is set explicitly).
     Fail {
         error_message: String,
@@ -340,6 +352,36 @@ impl JobAction {
     pub fn complete_with(variables: impl Serialize) -> Self {
         JobAction::Complete {
             variables: serde_json::to_value(variables).ok(),
+        }
+    }
+
+    /// Complete the job with a job result and no output variables.
+    ///
+    /// `result` is a [`UserTaskResult`](super::job_result::UserTaskResult), an
+    /// [`AdHocSubProcessResult`](super::job_result::AdHocSubProcessResult), or a
+    /// hand-built [`models::JobResult`].
+    ///
+    /// ```
+    /// use camunda_orchestration_sdk::{JobAction, UserTaskResult};
+    ///
+    /// let action = JobAction::complete_with_result(UserTaskResult::deny("Incomplete"));
+    /// # let _ = action;
+    /// ```
+    pub fn complete_with_result(result: impl Into<models::JobResult>) -> Self {
+        JobAction::CompleteWithResult {
+            variables: None,
+            result: result.into(),
+        }
+    }
+
+    /// Complete the job with output variables and a job result.
+    pub fn complete_with_variables_and_result(
+        variables: impl Serialize,
+        result: impl Into<models::JobResult>,
+    ) -> Self {
+        JobAction::CompleteWithResult {
+            variables: serde_json::to_value(variables).ok(),
+            result: result.into(),
         }
     }
 
@@ -780,7 +822,10 @@ fn apply_action_falcon(
             worker.replenish(1);
         }
         JobAction::Complete { variables } => {
-            worker.complete(job_key, variables.and_then(value_to_obj));
+            worker.complete(job_key, variables.and_then(value_to_obj), None);
+        }
+        JobAction::CompleteWithResult { variables, result } => {
+            worker.complete(job_key, variables.and_then(value_to_obj), Some(&result));
         }
         JobAction::Fail {
             error_message,
@@ -817,7 +862,11 @@ async fn apply_action(
     match action {
         JobAction::Leave => Ok(()),
         JobAction::Complete { variables } => {
-            let request = build_completion_request(variables, lease_token);
+            let request = build_completion_request(variables, None, lease_token);
+            client.complete_job(job_key, request).await
+        }
+        JobAction::CompleteWithResult { variables, result } => {
+            let request = build_completion_request(variables, Some(result), lease_token);
             client.complete_job(job_key, request).await
         }
         JobAction::Fail {
@@ -866,18 +915,19 @@ fn enforce_lease_presence(with_lease: bool, jobs: &[models::ActivatedJobResult])
 }
 
 /// Build the optional completion body. A completion needs a body only when it carries
-/// output variables or a lease token to present back; without either, `None` lets the
-/// worker complete with an empty request.
+/// output variables, a job result, or a lease token to present back; without any of them,
+/// `None` lets the worker complete with an empty request.
 fn build_completion_request(
     variables: Option<Value>,
+    result: Option<models::JobResult>,
     lease_token: Option<&str>,
 ) -> Option<models::JobCompletionRequest> {
-    if variables.is_none() && lease_token.is_none() {
+    if variables.is_none() && result.is_none() && lease_token.is_none() {
         return None;
     }
     Some(models::JobCompletionRequest {
         variables: variables.map(value_to_map),
-        result: None,
+        result: result.map(Box::new),
         job_lease_token: lease_token_field(lease_token),
         business_id: None,
     })
@@ -989,6 +1039,114 @@ mod tests {
             }
             _ => panic!("expected Complete with variables"),
         }
+    }
+
+    /// The JSON body the REST worker path sends for a completion action.
+    fn completion_body(action: JobAction) -> Value {
+        let (variables, result) = match action {
+            JobAction::Complete { variables } => (variables, None),
+            JobAction::CompleteWithResult { variables, result } => (variables, Some(result)),
+            other => panic!("expected a completion, got {other:?}"),
+        };
+        let request = build_completion_request(variables, result, None).unwrap_or_default();
+        serde_json::to_value(request).unwrap()
+    }
+
+    #[test]
+    fn plain_completion_sends_no_result() {
+        assert_eq!(
+            completion_body(JobAction::complete()),
+            serde_json::json!({})
+        );
+        let body = completion_body(JobAction::complete_with(serde_json::json!({ "ok": true })));
+        assert_eq!(body, serde_json::json!({ "variables": { "ok": true } }));
+    }
+
+    #[test]
+    fn user_task_corrections_are_sent_as_a_user_task_result() {
+        use super::super::job_result::{UserTaskCorrections, UserTaskResult};
+        let due = chrono::DateTime::parse_from_rfc3339("2026-12-01T09:00:00+02:00").unwrap();
+        let action = JobAction::complete_with_variables_and_result(
+            serde_json::json!({ "reviewed": true }),
+            UserTaskResult::new().corrections(
+                UserTaskCorrections::new()
+                    .assignee("alice")
+                    .due_date(due)
+                    .candidate_groups(["managers"])
+                    .candidate_users(Vec::<String>::new())
+                    .priority(80),
+            ),
+        );
+        assert_eq!(
+            completion_body(action),
+            serde_json::json!({
+                "variables": { "reviewed": true },
+                "result": {
+                    "type": "userTask",
+                    "corrections": {
+                        "assignee": "alice",
+                        "dueDate": "2026-12-01T09:00:00+02:00",
+                        "candidateGroups": ["managers"],
+                        "candidateUsers": [],
+                        "priority": 80
+                    }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn user_task_denial_is_sent_with_its_reason() {
+        use super::super::job_result::UserTaskResult;
+        let action = JobAction::complete_with_result(UserTaskResult::deny("Missing documents"));
+        assert_eq!(
+            completion_body(action),
+            serde_json::json!({
+                "result": {
+                    "type": "userTask",
+                    "denied": true,
+                    "deniedReason": "Missing documents"
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn ad_hoc_result_is_sent_with_elements_and_flags() {
+        use super::super::job_result::AdHocSubProcessResult;
+        let action = JobAction::complete_with_result(
+            AdHocSubProcessResult::new()
+                .activate_element("collect")
+                .activate_element_with("review", serde_json::json!({ "reviewer": "alice" }))
+                .completion_condition_fulfilled(true)
+                .cancel_remaining_instances(false),
+        );
+        assert_eq!(
+            completion_body(action),
+            serde_json::json!({
+                "result": {
+                    "type": "adHocSubProcess",
+                    "activateElements": [
+                        { "elementId": "collect" },
+                        { "elementId": "review", "variables": { "reviewer": "alice" } }
+                    ],
+                    "isCompletionConditionFulfilled": true,
+                    "isCancelRemainingInstances": false
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn result_alone_with_lease_token_builds_a_fenced_body() {
+        use super::super::job_result::UserTaskResult;
+        let request =
+            build_completion_request(None, Some(UserTaskResult::new().into()), Some("tok"))
+                .expect("a result needs a body");
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            serde_json::json!({ "result": { "type": "userTask" }, "jobLeaseToken": "tok" })
+        );
     }
 
     #[test]
@@ -1186,7 +1344,7 @@ mod tests {
         let expected = Some(Some(models::JobLeaseToken::assume_exists("tok")));
 
         // Complete: a body is built for the token alone, even with no variables.
-        let complete = build_completion_request(None, Some("tok"));
+        let complete = build_completion_request(None, None, Some("tok"));
         assert_eq!(complete.and_then(|r| r.job_lease_token), expected);
 
         // Fail: the token rides the fail request.
@@ -1201,10 +1359,10 @@ mod tests {
     #[test]
     fn no_lease_token_leaves_commands_unbranded() {
         // No variables and no token => no completion body at all (unchanged behaviour).
-        assert!(build_completion_request(None, None).is_none());
+        assert!(build_completion_request(None, None, None).is_none());
         assert_eq!(lease_token_field(None), None);
         // Variables but no token => body present, token field empty.
-        let complete = build_completion_request(Some(serde_json::json!({ "k": 1 })), None);
+        let complete = build_completion_request(Some(serde_json::json!({ "k": 1 })), None, None);
         assert_eq!(complete.and_then(|r| r.job_lease_token), None);
         // Fail and error unbranded when no lease.
         assert_eq!(

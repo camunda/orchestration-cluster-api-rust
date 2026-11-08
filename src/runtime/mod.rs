@@ -10,6 +10,7 @@ pub mod errors;
 pub mod eventual;
 pub mod facade_generated;
 pub mod falcon;
+pub mod job_result;
 pub mod job_worker;
 pub mod logging;
 mod present_when;
