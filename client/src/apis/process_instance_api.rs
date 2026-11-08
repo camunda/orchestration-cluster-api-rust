@@ -941,7 +941,7 @@ pub async fn cancel_process_instance(
     }
 }
 
-/// Cancels multiple active or suspended process instances. Only ACTIVE and SUSPENDED root instances can be cancelled. A state filter narrows the batch to the given states. Requesting any state other than ACTIVE or SUSPENDED through the `$eq` or `$in` operators is rejected. Other state operators (`$neq`, `$exists`, `$like`) are applied as given, and the batch remains limited to ACTIVE and SUSPENDED instances. Without a state filter, both ACTIVE and SUSPENDED instances are selected. Filters on parentProcessInstanceKey are preserved and combined with the root-only restriction. Filters selecting only child instances therefore match no instances, as children are cancelled together with their root instance. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
+/// Cancels multiple active or suspended process instances. Only ACTIVE and SUSPENDED root instances are cancelled; child instances are cancelled together with their root instance. The given filter only narrows the batch, so a filter on parentProcessInstanceKey matches no instances. Other `state` operators (`$neq`, `$notIn`, `$exists`, `$like`) are applied as given and are not validated. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
 pub async fn cancel_process_instances_batch_operation(
     configuration: &configuration::Configuration,
     params: CancelProcessInstancesBatchOperationParams,
@@ -1759,7 +1759,7 @@ pub async fn resume_process_instance(
     }
 }
 
-/// Resumes multiple suspended process instances. Any given filter for state or parentProcessInstanceKey is ignored and overridden, as only SUSPENDED process instances can be resumed and resumption does not cascade between parent and child instances, so child instances are resumed independently of their parent or root instance. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
+/// Resumes multiple suspended process instances. Only SUSPENDED process instances are resumed. The given filter only narrows the batch. Other `state` operators (`$neq`, `$notIn`, `$exists`, `$like`) are applied as given and are not validated. Resumption does not cascade, so child instances are resumed independently of their parent or root instance. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
 pub async fn resume_process_instances_batch_operation(
     configuration: &configuration::Configuration,
     params: ResumeProcessInstancesBatchOperationParams,
@@ -1966,7 +1966,7 @@ pub async fn suspend_process_instance(
     }
 }
 
-/// Suspends multiple running process instances. Any given filter for state or parentProcessInstanceKey is ignored and overridden, as only ACTIVE process instances can be suspended and suspension does not cascade between parent and child instances, so child instances are suspended independently of their parent or root instance. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
+/// Suspends multiple running process instances. Only ACTIVE process instances are suspended. The given filter only narrows the batch. Other `state` operators (`$neq`, `$notIn`, `$exists`, `$like`) are applied as given and are not validated. Suspension does not cascade, so child instances are suspended independently of their parent or root instance. This is done asynchronously, the progress can be tracked using the batchOperationKey from the response and the batch operation status endpoint (/batch-operations/{batchOperationKey}).
 pub async fn suspend_process_instances_batch_operation(
     configuration: &configuration::Configuration,
     params: SuspendProcessInstancesBatchOperationParams,

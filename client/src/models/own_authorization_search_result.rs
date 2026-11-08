@@ -18,7 +18,7 @@ pub struct OwnAuthorizationSearchResult {
     /// The matching authorizations.
     #[serde(rename = "items")]
     pub items: Vec<models::AuthorizationResult>,
-    /// Indicates whether authorization checks are enabled for the cluster.
+    /// Indicates whether authorization checks are enabled for the physical tenant of the request.
     #[serde(rename = "authorizationsEnabled")]
     pub authorizations_enabled: bool,
 }
