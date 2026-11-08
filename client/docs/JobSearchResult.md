@@ -22,6 +22,7 @@ Name | Type | Description | Notes
 **process_instance_key** | **models::ProcessInstanceKey** | The process instance key associated with the job. | 
 **root_process_instance_key** | Option<**models::ProcessInstanceKey**> | The key of the root process instance. The root process instance is the top-level ancestor in the process instance hierarchy. This field is only present for data belonging to process instance hierarchies created in version 8.9 or later.  | 
 **business_id** | Option<**String**> | The business ID of the owning process instance, inherited when the job was created. This is `null` for jobs created before version 8.10 and for jobs whose owning process instance has no business ID.  | 
+**storage_ordinal** | Option<**i32**> | The storage ordinal this job's data belongs to. This is `null` for data exported before storage ordinals were introduced in version 8.11.  | 
 **retries** | **i32** | The amount of retries left to this job. | 
 **state** | [**models::JobStateEnum**](JobStateEnum.md) |  | 
 **tenant_id** | **String** | The unique identifier of the tenant. | 

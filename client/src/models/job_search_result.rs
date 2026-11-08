@@ -74,6 +74,9 @@ pub struct JobSearchResult {
     /// The business ID of the owning process instance, inherited when the job was created. This is `null` for jobs created before version 8.10 and for jobs whose owning process instance has no business ID.
     #[serde(rename = "businessId", deserialize_with = "Option::deserialize")]
     pub business_id: Option<models::BusinessId>,
+    /// The storage ordinal this job's data belongs to. This is `null` for data exported before storage ordinals were introduced in version 8.11.
+    #[serde(rename = "storageOrdinal", deserialize_with = "Option::deserialize")]
+    pub storage_ordinal: Option<i32>,
     /// The amount of retries left to this job.
     #[serde(rename = "retries")]
     pub retries: i32,
@@ -119,6 +122,7 @@ impl JobSearchResult {
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
         business_id: Option<models::BusinessId>,
+        storage_ordinal: Option<i32>,
         retries: i32,
         state: models::JobStateEnum,
         tenant_id: models::TenantId,
@@ -155,6 +159,7 @@ impl JobSearchResult {
                 None
             },
             business_id,
+            storage_ordinal,
             retries,
             state,
             tenant_id,
