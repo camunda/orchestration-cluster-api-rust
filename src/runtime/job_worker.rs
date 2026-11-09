@@ -838,8 +838,9 @@ trait StreamCommands {
     fn fail(&self, job_key: &str, retries: Option<i32>, error_message: Option<String>);
     fn throw_error(&self, job_key: &str, error_code: &str, error_message: Option<String>);
     fn replenish(&self, n: i64);
-    /// The endpoint of the gateway the stream is connected to.
-    fn current_endpoint(&self) -> Option<String>;
+    /// The endpoint of the gateway the stream is connected to, waiting for the stream to
+    /// reconnect if it is between connections.
+    async fn live_endpoint(&self) -> Option<String>;
 }
 
 impl StreamCommands for super::falcon::FalconStreamWorker {
@@ -855,8 +856,8 @@ impl StreamCommands for super::falcon::FalconStreamWorker {
     fn replenish(&self, n: i64) {
         super::falcon::FalconStreamWorker::replenish(self, n);
     }
-    fn current_endpoint(&self) -> Option<String> {
-        super::falcon::FalconStreamWorker::current_endpoint(self)
+    async fn live_endpoint(&self) -> Option<String> {
+        super::falcon::FalconStreamWorker::live_endpoint(self).await
     }
 }
 
@@ -868,6 +869,8 @@ impl StreamCommands for super::falcon::FalconStreamWorker {
 /// result and, for a user task listener, silently approve work the handler denied. The
 /// REST call goes to the gateway the stream is connected to -- the one that delivered
 /// the job -- since after a failover the configured gateway may be the one that is down.
+/// If the stream is between connections, it waits for the new one (up to the command ack
+/// deadline) rather than targeting the node that just dropped.
 /// The delivery credit a frame would have replenished is topped up afterwards, whether
 /// or not the REST call succeeded, so the push window stays full.
 async fn apply_action_stream(
@@ -895,7 +898,7 @@ async fn apply_action_stream(
                     return;
                 }
             };
-            let endpoint = stream.current_endpoint();
+            let endpoint = stream.live_endpoint().await;
             if let Err(e) = client
                 .complete_job_with_body(job_key, &body, endpoint.as_deref())
                 .await
@@ -1418,7 +1421,7 @@ mod tests {
         fn replenish(&self, n: i64) {
             self.calls.lock().unwrap().push(format!("replenish {n}"));
         }
-        fn current_endpoint(&self) -> Option<String> {
+        async fn live_endpoint(&self) -> Option<String> {
             None
         }
     }
@@ -1598,20 +1601,27 @@ mod tests {
     /// A stub nanobpmn node on one port: WebSocket upgrades are command-stream
     /// connections (reported once their subscribe frame arrives), anything else is a REST
     /// request (reported with its request line and body, answered `204`). Firing `kill`
-    /// closes the open stream and the listener, so the node is gone.
+    /// closes the open stream and the listener, so the node is gone. A node started
+    /// `held` reports each upgrade request on `upgrading` but completes no handshake until
+    /// `gate` is opened, so a test can hold a client mid-reconnect.
     struct StubNode {
         endpoint: String,
+        upgrading: tokio::sync::mpsc::UnboundedReceiver<()>,
         subscribed: tokio::sync::mpsc::UnboundedReceiver<()>,
         rest: tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
         kill: Option<tokio::sync::oneshot::Sender<()>>,
+        gate: tokio::sync::watch::Sender<bool>,
     }
 
-    async fn stub_node() -> StubNode {
+    async fn stub_node(held: bool) -> StubNode {
         use futures_util::StreamExt;
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (sub_tx, subscribed) = tokio::sync::mpsc::unbounded_channel();
+        let (upgrading_tx, upgrading) = tokio::sync::mpsc::unbounded_channel();
+        let (gate, _) = tokio::sync::watch::channel(!held);
+        let gate_rx = gate.subscribe();
         let (rest_tx, rest) = tokio::sync::mpsc::unbounded_channel();
         let (kill_tx, mut kill_rx) = tokio::sync::oneshot::channel::<()>();
         let (closed_tx, _) = tokio::sync::watch::channel(false);
@@ -1639,7 +1649,12 @@ mod tests {
                 if b"GET ".starts_with(&peek[..n]) {
                     let sub_tx = sub_tx.clone();
                     let mut closed = closed_tx.subscribe();
+                    let _ = upgrading_tx.send(());
+                    let mut gate = gate_rx.clone();
                     tokio::spawn(async move {
+                        if gate.wait_for(|open| *open).await.is_err() {
+                            return;
+                        }
                         let Ok(mut ws) = tokio_tungstenite::accept_async(sock).await else {
                             return;
                         };
@@ -1695,9 +1710,11 @@ mod tests {
         });
         StubNode {
             endpoint: format!("ws://{addr}/falcon"),
+            upgrading,
             subscribed,
             rest,
             kill: Some(kill_tx),
+            gate,
         }
     }
 
@@ -1724,8 +1741,8 @@ mod tests {
     #[tokio::test]
     async fn stream_result_completion_follows_a_failover() {
         use super::super::job_result::UserTaskResult;
-        let mut first = stub_node().await;
-        let mut second = stub_node().await;
+        let mut first = stub_node(false).await;
+        let mut second = stub_node(false).await;
 
         // The client is configured with the first node's REST address.
         let first_rest = first
@@ -1762,7 +1779,7 @@ mod tests {
         bounded("the failover subscribe", second.subscribed.recv())
             .await
             .expect("the stream re-subscribes on the second node");
-        assert_eq!(worker.current_endpoint(), Some(second.endpoint.clone()));
+        assert_eq!(worker.live_endpoint().await, Some(second.endpoint.clone()));
 
         let action = JobAction::complete_with_result(UserTaskResult::deny("no"));
         bounded(
@@ -1789,6 +1806,79 @@ mod tests {
         assert!(
             first.rest.try_recv().is_err(),
             "nothing reached the dead node"
+        );
+    }
+
+    /// Regression: a result-bearing completion made while the stream is between
+    /// connections waits for the new connection and goes to that gateway, rather than to
+    /// the node that just dropped (or the configured one).
+    #[tokio::test]
+    async fn stream_result_completion_waits_out_a_reconnect() {
+        use super::super::job_result::UserTaskResult;
+        use futures_util::FutureExt;
+        let mut first = stub_node(false).await;
+        let mut second = stub_node(true).await;
+        let first_rest = first
+            .endpoint
+            .replacen("ws://", "http://", 1)
+            .replace("/falcon", "");
+        let client = CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", first_rest)
+                .with("CAMUNDA_FALCON", "false"),
+        )
+        .unwrap();
+
+        let worker = bounded(
+            "the first connection",
+            super::super::falcon::FalconStreamWorker::subscribe(
+                vec![first.endpoint.clone(), second.endpoint.clone()],
+                "t",
+                1,
+                None,
+                None,
+                None,
+                Arc::new(FirstEndpoint),
+            ),
+        )
+        .await
+        .expect("the stream connects to the first node");
+        bounded("the first subscribe", first.subscribed.recv())
+            .await
+            .expect("subscribed on the first node");
+
+        // The first node goes away. Once the stream is dialling the second, it is between
+        // connections: the second holds the handshake.
+        first.kill.take().unwrap().send(()).unwrap();
+        bounded("the reconnect dial", second.upgrading.recv())
+            .await
+            .expect("the stream dials the second node");
+
+        let action = JobAction::complete_with_result(UserTaskResult::deny("no"));
+        let mut completion = Box::pin(apply_action_stream(
+            &worker,
+            &client,
+            "42",
+            Some("tok"),
+            action,
+        ));
+        assert!(
+            (&mut completion).now_or_never().is_none(),
+            "the completion waits for the stream to reconnect"
+        );
+
+        second.gate.send_replace(true);
+        bounded("the completion", completion).await;
+
+        let (line, body) = second
+            .rest
+            .try_recv()
+            .expect("the completion went to the gateway the stream reconnected to");
+        assert!(line.starts_with("POST /v2/jobs/42/completion "), "{line}");
+        assert_eq!(body["jobLeaseToken"], "tok");
+        assert!(
+            first.rest.try_recv().is_err(),
+            "nothing reached the node that dropped"
         );
     }
 
