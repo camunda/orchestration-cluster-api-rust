@@ -854,24 +854,14 @@ impl CamundaClient {
     /// Complete a job with an already-built JSON body, for a body the generated
     /// [`models::JobCompletionRequest`] cannot express (a correction date cleared with
     /// `""`). Mirrors the generated `complete_job` call, including its error mapping.
-    ///
-    /// `stream_endpoint` is the command-stream endpoint that delivered the job, when it
-    /// came over the stream: the request then goes to that gateway (same base path,
-    /// headers and auth) rather than the configured one, which may be the node the
-    /// stream failed over away from.
     pub(crate) async fn complete_job_with_body(
         &self,
         job_key: &str,
         body: &serde_json::Value,
-        stream_endpoint: Option<&str>,
     ) -> Result<()> {
         use camunda_orchestration_api_client::apis::{urlencode, Error, ResponseContent};
         let cfg = self.configuration().await?;
-        let base = match stream_endpoint {
-            Some(endpoint) => super::falcon::rest_base_for_endpoint(&cfg.base_path, endpoint),
-            None => cfg.base_path.clone(),
-        };
-        let uri = format!("{base}/jobs/{}/completion", urlencode(job_key));
+        let uri = format!("{}/jobs/{}/completion", cfg.base_path, urlencode(job_key));
         let mut req = cfg.client.post(&uri).json(body);
         if let Some(user_agent) = &cfg.user_agent {
             req = req.header(reqwest::header::USER_AGENT, user_agent.clone());

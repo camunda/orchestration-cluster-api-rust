@@ -321,6 +321,10 @@ pub enum JobAction {
     /// [`JobAction::complete_with_variables_and_result`]. The variant is
     /// `#[non_exhaustive]` so further completion options can be added without breaking
     /// callers; match it with `..`.
+    ///
+    /// Job results are sent over REST only. On the Falcon command stream (nanobpmn
+    /// gateways), whose completion frame cannot carry a result, the job is failed instead
+    /// with a message naming the workaround: set `CAMUNDA_FORCE_REST=true`.
     #[non_exhaustive]
     CompleteWithResult {
         variables: Option<Value>,
@@ -813,12 +817,10 @@ impl JobWorker {
             let job = self.wrap_job(activated);
             let handler = handler.clone();
             let worker = worker.clone();
-            let client = self.client.clone();
             tokio::spawn(async move {
                 let key = job.key().to_string();
-                let lease_token = job.lease_token().map(str::to_owned);
                 let action = handler(job).await;
-                apply_action_stream(&*worker, &client, &key, lease_token.as_deref(), action).await;
+                apply_action_falcon(&worker, &key, action);
             });
         }
     }
@@ -831,81 +833,35 @@ enum FalconStartError {
     SubscribeFailed(CamundaError),
 }
 
-/// The command-stream operations the stream worker path drives. A seam so the routing
-/// in [`apply_action_stream`] is testable without a live gateway.
-trait StreamCommands {
-    fn complete(&self, job_key: &str, variables: Option<serde_json::Map<String, Value>>);
-    fn fail(&self, job_key: &str, retries: Option<i32>, error_message: Option<String>);
-    fn throw_error(&self, job_key: &str, error_code: &str, error_message: Option<String>);
-    fn replenish(&self, n: i64);
-    /// The endpoint of the gateway the stream is connected to, waiting for the stream to
-    /// reconnect if it is between connections.
-    async fn live_endpoint(&self) -> Option<String>;
-}
+/// The fail message for a result-bearing completion on the Falcon command stream.
+pub(crate) const FALCON_JOB_RESULT_UNSUPPORTED: &str = "Job results (user task \
+corrections or denial, ad-hoc sub-process results) cannot be sent over the Falcon command \
+stream; set CAMUNDA_FORCE_REST=true to use the REST transport";
 
-impl StreamCommands for super::falcon::FalconStreamWorker {
-    fn complete(&self, job_key: &str, variables: Option<serde_json::Map<String, Value>>) {
-        super::falcon::FalconStreamWorker::complete(self, job_key, variables);
-    }
-    fn fail(&self, job_key: &str, retries: Option<i32>, error_message: Option<String>) {
-        super::falcon::FalconStreamWorker::fail(self, job_key, retries, error_message);
-    }
-    fn throw_error(&self, job_key: &str, error_code: &str, error_message: Option<String>) {
-        super::falcon::FalconStreamWorker::throw_error(self, job_key, error_code, error_message);
-    }
-    fn replenish(&self, n: i64) {
-        super::falcon::FalconStreamWorker::replenish(self, n);
-    }
-    async fn live_endpoint(&self) -> Option<String> {
-        super::falcon::FalconStreamWorker::live_endpoint(self).await
-    }
-}
-
-/// Apply a [`JobAction`] on the stream worker path. Each command-stream frame also
-/// replenishes one delivery credit.
-///
-/// The command stream's `completeJob` frame has no `result` field, so a completion that
-/// carries a job result goes over REST instead: sending it as a frame would drop the
-/// result and, for a user task listener, silently approve work the handler denied. The
-/// REST call goes to the gateway the stream is connected to -- the one that delivered
-/// the job -- since after a failover the configured gateway may be the one that is down.
-/// If the stream is between connections, it waits for the new one (up to the command ack
-/// deadline) rather than targeting the node that just dropped.
-/// The delivery credit a frame would have replenished is topped up afterwards, whether
-/// or not the REST call succeeded, so the push window stays full.
-async fn apply_action_stream(
-    stream: &impl StreamCommands,
-    client: &CamundaClient,
+/// Translate a [`JobAction`] into a fire-and-forget command-stream frame (each frame
+/// also replenishes one delivery credit).
+fn apply_action_falcon(
+    worker: &super::falcon::FalconStreamWorker,
     job_key: &str,
-    lease_token: Option<&str>,
     action: JobAction,
 ) {
     match action {
         JobAction::Leave => {
-            // No completion frame is sent, so replenish the consumed credit directly to
-            // keep the delivery window full.
-            stream.replenish(1);
+            // No completion frame would be sent, so replenish the consumed credit
+            // directly to keep the delivery window full.
+            worker.replenish(1);
         }
         JobAction::Complete { variables } => {
-            stream.complete(job_key, variables.and_then(value_to_obj));
+            worker.complete(job_key, variables.and_then(value_to_obj));
         }
-        JobAction::CompleteWithResult { variables, result } => {
-            let body = match build_result_completion_body(variables, &result, lease_token) {
-                Ok(body) => body,
-                Err(e) => {
-                    // The fail frame replenishes the credit itself.
-                    stream.fail(job_key, None, Some(result_serialization_failure(&e)));
-                    return;
-                }
-            };
-            let endpoint = stream.live_endpoint().await;
-            if let Err(e) = client
-                .complete_job_with_body(job_key, &body, endpoint.as_deref())
-                .await
-            {
-                tracing::warn!(error = %e, "failed to apply job action");
-            }
-            stream.replenish(1);
+        JobAction::CompleteWithResult { .. } => {
+            // The command stream's completeJob frame has no result field. Completing
+            // without the result would silently approve a denied task, so fail instead.
+            worker.fail(
+                job_key,
+                None,
+                Some(FALCON_JOB_RESULT_UNSUPPORTED.to_string()),
+            );
         }
         JobAction::Fail {
             error_message,
@@ -913,14 +869,14 @@ async fn apply_action_stream(
             variables: _,
             retry_backoff_ms: _,
         } => {
-            stream.fail(job_key, retries, Some(error_message));
+            worker.fail(job_key, retries, Some(error_message));
         }
         JobAction::Error {
             error_code,
             error_message,
             variables: _,
         } => {
-            stream.throw_error(job_key, &error_code, error_message);
+            worker.throw_error(job_key, &error_code, error_message);
         }
     }
 }
@@ -947,7 +903,7 @@ async fn apply_action(
         }
         JobAction::CompleteWithResult { variables, result } => {
             match build_result_completion_body(variables, &result, lease_token) {
-                Ok(body) => client.complete_job_with_body(job_key, &body, None).await,
+                Ok(body) => client.complete_job_with_body(job_key, &body).await,
                 Err(e) => {
                     let request = build_fail_request(
                         result_serialization_failure(&e),
@@ -1395,37 +1351,6 @@ mod tests {
         );
     }
 
-    /// Records the command-stream calls the stream worker path makes.
-    #[derive(Default)]
-    struct RecordingStream {
-        calls: std::sync::Mutex<Vec<String>>,
-    }
-
-    impl StreamCommands for RecordingStream {
-        fn complete(&self, job_key: &str, variables: Option<serde_json::Map<String, Value>>) {
-            let vars = variables.map(Value::Object).unwrap_or(Value::Null);
-            self.calls
-                .lock()
-                .unwrap()
-                .push(format!("complete {job_key} {vars}"));
-        }
-        fn fail(&self, job_key: &str, _: Option<i32>, _: Option<String>) {
-            self.calls.lock().unwrap().push(format!("fail {job_key}"));
-        }
-        fn throw_error(&self, job_key: &str, error_code: &str, _: Option<String>) {
-            self.calls
-                .lock()
-                .unwrap()
-                .push(format!("throw_error {job_key} {error_code}"));
-        }
-        fn replenish(&self, n: i64) {
-            self.calls.lock().unwrap().push(format!("replenish {n}"));
-        }
-        async fn live_endpoint(&self) -> Option<String> {
-            None
-        }
-    }
-
     /// Serve REST requests on a local port, answering each with `204 No Content` and
     /// reporting its request line and body.
     async fn recording_rest_server() -> (
@@ -1484,40 +1409,6 @@ mod tests {
         )
         .expect("client should build from an address alone");
         (client, rx)
-    }
-
-    #[tokio::test]
-    async fn stream_path_sends_result_completions_over_rest() {
-        use super::super::job_result::UserTaskResult;
-        let (client, mut rest) = recording_rest_server().await;
-        let stream = RecordingStream::default();
-
-        let action = JobAction::complete_with_variables_and_result(
-            serde_json::json!({ "reviewed": true }),
-            UserTaskResult::deny("Missing documents"),
-        );
-        apply_action_stream(&stream, &client, "2251799813685249", Some("tok"), action).await;
-
-        let (request_line, body) = rest.try_recv().expect("the completion went over REST");
-        assert!(
-            request_line.starts_with("POST ")
-                && request_line.contains("/jobs/2251799813685249/completion"),
-            "unexpected request: {request_line}"
-        );
-        assert_eq!(
-            body,
-            serde_json::json!({
-                "variables": { "reviewed": true },
-                "result": {
-                    "type": "userTask",
-                    "denied": true,
-                    "deniedReason": "Missing documents"
-                },
-                "jobLeaseToken": "tok"
-            })
-        );
-        // No completeJob frame; the consumed delivery credit is topped up instead.
-        assert_eq!(*stream.calls.lock().unwrap(), ["replenish 1"]);
     }
 
     /// A value whose `Serialize` impl always fails.
@@ -1591,131 +1482,19 @@ mod tests {
         assert_eq!(body["jobLeaseToken"], "tok");
         assert!(rest.try_recv().is_err());
 
-        // Stream path: a fail frame, and no REST completion.
-        let stream = RecordingStream::default();
-        apply_action_stream(&stream, &client, "8", None, action()).await;
-        assert_eq!(*stream.calls.lock().unwrap(), ["fail 8"]);
+        // Stream path: a fail frame naming the serialization failure.
+        let (worker, mut frames) = falcon_worker().await;
+        apply_action_falcon(&worker, "8", action());
+        let frame = bounded("the fail frame", frames.recv()).await.unwrap();
+        assert_eq!(frame["type"], "failJob");
+        assert_eq!(frame["jobKey"], "8");
+        assert!(
+            frame["errorMessage"]
+                .as_str()
+                .is_some_and(|m| m.contains("element 'review'")),
+            "{frame}"
+        );
         assert!(rest.try_recv().is_err());
-    }
-
-    /// A stub nanobpmn node on one port: WebSocket upgrades are command-stream
-    /// connections (reported once their subscribe frame arrives), anything else is a REST
-    /// request (reported with its request line and body, answered `204`). Firing `kill`
-    /// closes the open stream and the listener, so the node is gone. A node started
-    /// `held` reports each upgrade request on `upgrading` but completes no handshake until
-    /// `gate` is opened, so a test can hold a client mid-reconnect.
-    struct StubNode {
-        endpoint: String,
-        upgrading: tokio::sync::mpsc::UnboundedReceiver<()>,
-        subscribed: tokio::sync::mpsc::UnboundedReceiver<()>,
-        rest: tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
-        kill: Option<tokio::sync::oneshot::Sender<()>>,
-        gate: tokio::sync::watch::Sender<bool>,
-    }
-
-    async fn stub_node(held: bool) -> StubNode {
-        use futures_util::StreamExt;
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let (sub_tx, subscribed) = tokio::sync::mpsc::unbounded_channel();
-        let (upgrading_tx, upgrading) = tokio::sync::mpsc::unbounded_channel();
-        let (gate, _) = tokio::sync::watch::channel(!held);
-        let gate_rx = gate.subscribe();
-        let (rest_tx, rest) = tokio::sync::mpsc::unbounded_channel();
-        let (kill_tx, mut kill_rx) = tokio::sync::oneshot::channel::<()>();
-        let (closed_tx, _) = tokio::sync::watch::channel(false);
-        tokio::spawn(async move {
-            loop {
-                let (sock, _) = tokio::select! {
-                    _ = &mut kill_rx => {
-                        let _ = closed_tx.send(true);
-                        return;
-                    }
-                    accepted = listener.accept() => match accepted {
-                        Ok(pair) => pair,
-                        Err(_) => return,
-                    },
-                };
-                // `peek` may return only part of the request line. The two kinds of
-                // client here differ in their first byte (`GET` upgrade vs `POST`), so
-                // any nonempty prefix of `GET ` is decisive; the handshake parser then
-                // reads the complete request itself.
-                let mut peek = [0u8; 4];
-                let n = sock.peek(&mut peek).await.unwrap_or(0);
-                if n == 0 {
-                    continue;
-                }
-                if b"GET ".starts_with(&peek[..n]) {
-                    let sub_tx = sub_tx.clone();
-                    let mut closed = closed_tx.subscribe();
-                    let _ = upgrading_tx.send(());
-                    let mut gate = gate_rx.clone();
-                    tokio::spawn(async move {
-                        if gate.wait_for(|open| *open).await.is_err() {
-                            return;
-                        }
-                        let Ok(mut ws) = tokio_tungstenite::accept_async(sock).await else {
-                            return;
-                        };
-                        if ws.next().await.is_some() {
-                            let _ = sub_tx.send(());
-                        }
-                        tokio::select! {
-                            _ = closed.wait_for(|c| *c) => {}
-                            _ = async { while ws.next().await.is_some() {} } => {}
-                        }
-                    });
-                    continue;
-                }
-                let rest_tx = rest_tx.clone();
-                let mut sock = sock;
-                tokio::spawn(async move {
-                    let mut buf = Vec::new();
-                    let mut tmp = [0u8; 1024];
-                    let header_end = loop {
-                        match sock.read(&mut tmp).await {
-                            Ok(0) | Err(_) => return,
-                            Ok(n) => {
-                                buf.extend_from_slice(&tmp[..n]);
-                                if let Some(p) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
-                                    break p + 4;
-                                }
-                            }
-                        }
-                    };
-                    let head = String::from_utf8_lossy(&buf[..header_end]).to_string();
-                    let len = head
-                        .lines()
-                        .find_map(|l| {
-                            l.to_ascii_lowercase()
-                                .strip_prefix("content-length:")
-                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
-                        })
-                        .unwrap_or(0);
-                    while buf.len() < header_end + len {
-                        match sock.read(&mut tmp).await {
-                            Ok(0) | Err(_) => break,
-                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
-                        }
-                    }
-                    let line = head.lines().next().unwrap_or_default().to_string();
-                    let body = serde_json::from_slice(&buf[header_end..]).unwrap_or(Value::Null);
-                    let _ = rest_tx.send((line, body));
-                    let _ = sock
-                        .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
-                        .await;
-                });
-            }
-        });
-        StubNode {
-            endpoint: format!("ws://{addr}/falcon"),
-            upgrading,
-            subscribed,
-            rest,
-            kill: Some(kill_tx),
-            gate,
-        }
     }
 
     /// Await `fut`, failing the test rather than hanging if it does not finish in time.
@@ -1725,180 +1504,99 @@ mod tests {
             .unwrap_or_else(|_| panic!("timed out waiting for {what}"))
     }
 
-    /// Always draws the same value, so the first dial deterministically picks the first
-    /// directory entry.
-    #[derive(Debug)]
-    struct FirstEndpoint;
-
-    impl Random for FirstEndpoint {
-        fn next_f64(&self) -> f64 {
-            0.0
-        }
-    }
-
-    /// Regression: after the stream fails over, a result-bearing completion must go to
-    /// the surviving gateway the stream is connected to, not to the configured one.
-    #[tokio::test]
-    async fn stream_result_completion_follows_a_failover() {
-        use super::super::job_result::UserTaskResult;
-        let mut first = stub_node(false).await;
-        let mut second = stub_node(false).await;
-
-        // The client is configured with the first node's REST address.
-        let first_rest = first
-            .endpoint
-            .replacen("ws://", "http://", 1)
-            .replace("/falcon", "");
-        let client = CamundaClient::new(
-            super::super::client::CamundaOptions::new()
-                .with("CAMUNDA_REST_ADDRESS", first_rest)
-                .with("CAMUNDA_FALCON", "false"),
-        )
-        .unwrap();
-
+    /// A Falcon stream worker subscribed to a local stub gateway, and the frames the stub
+    /// receives after the subscribe.
+    async fn falcon_worker() -> (
+        super::super::falcon::FalconStreamWorker,
+        tokio::sync::mpsc::UnboundedReceiver<Value>,
+    ) {
+        use futures_util::StreamExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("ws://{}/falcon", listener.local_addr().unwrap());
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            let Ok((sock, _)) = listener.accept().await else {
+                return;
+            };
+            let Ok(mut ws) = tokio_tungstenite::accept_async(sock).await else {
+                return;
+            };
+            while let Some(Ok(msg)) = ws.next().await {
+                if let Ok(text) = msg.into_text() {
+                    if let Ok(frame) = serde_json::from_str::<Value>(&text) {
+                        let _ = tx.send(frame);
+                    }
+                }
+            }
+        });
         let worker = bounded(
-            "the first connection",
+            "the stream to connect",
             super::super::falcon::FalconStreamWorker::subscribe(
-                vec![first.endpoint.clone(), second.endpoint.clone()],
+                vec![endpoint],
                 "t",
                 1,
                 None,
                 None,
                 None,
-                Arc::new(FirstEndpoint),
+                Arc::new(super::super::random::LiveRandom),
             ),
         )
         .await
-        .expect("the stream connects to the first node");
-        bounded("the first subscribe", first.subscribed.recv())
-            .await
-            .expect("subscribed on the first node");
-
-        // The first node goes away; the stream fails over to the second.
-        first.kill.take().unwrap().send(()).unwrap();
-        bounded("the failover subscribe", second.subscribed.recv())
-            .await
-            .expect("the stream re-subscribes on the second node");
-        assert_eq!(worker.live_endpoint().await, Some(second.endpoint.clone()));
-
-        let action = JobAction::complete_with_result(UserTaskResult::deny("no"));
-        bounded(
-            "the completion",
-            apply_action_stream(&worker, &client, "42", Some("tok"), action),
-        )
-        .await;
-
-        let (line, body) = second
-            .rest
-            .try_recv()
-            .expect("the completion went to the surviving gateway");
-        assert!(
-            line.starts_with("POST /v2/jobs/42/completion "),
-            "base path kept: {line}"
-        );
-        assert_eq!(
-            body,
-            serde_json::json!({
-                "result": { "type": "userTask", "denied": true, "deniedReason": "no" },
-                "jobLeaseToken": "tok"
-            })
-        );
-        assert!(
-            first.rest.try_recv().is_err(),
-            "nothing reached the dead node"
-        );
+        .expect("the stream connects to the stub");
+        let subscribe = bounded("the subscribe frame", rx.recv()).await.unwrap();
+        assert_eq!(subscribe["type"], "subscribe");
+        (worker, rx)
     }
 
-    /// Regression: a result-bearing completion made while the stream is between
-    /// connections waits for the new connection and goes to that gateway, rather than to
-    /// the node that just dropped (or the configured one).
     #[tokio::test]
-    async fn stream_result_completion_waits_out_a_reconnect() {
+    async fn stream_path_fails_result_completions() {
         use super::super::job_result::UserTaskResult;
-        use futures_util::FutureExt;
-        let mut first = stub_node(false).await;
-        let mut second = stub_node(true).await;
-        let first_rest = first
-            .endpoint
-            .replacen("ws://", "http://", 1)
-            .replace("/falcon", "");
-        let client = CamundaClient::new(
-            super::super::client::CamundaOptions::new()
-                .with("CAMUNDA_REST_ADDRESS", first_rest)
-                .with("CAMUNDA_FALCON", "false"),
-        )
-        .unwrap();
-
-        let worker = bounded(
-            "the first connection",
-            super::super::falcon::FalconStreamWorker::subscribe(
-                vec![first.endpoint.clone(), second.endpoint.clone()],
-                "t",
-                1,
-                None,
-                None,
-                None,
-                Arc::new(FirstEndpoint),
-            ),
-        )
-        .await
-        .expect("the stream connects to the first node");
-        bounded("the first subscribe", first.subscribed.recv())
-            .await
-            .expect("subscribed on the first node");
-
-        // The first node goes away. Once the stream is dialling the second, it is between
-        // connections: the second holds the handshake.
-        first.kill.take().unwrap().send(()).unwrap();
-        bounded("the reconnect dial", second.upgrading.recv())
-            .await
-            .expect("the stream dials the second node");
+        let (worker, mut frames) = falcon_worker().await;
 
         let action = JobAction::complete_with_result(UserTaskResult::deny("no"));
-        let mut completion = Box::pin(apply_action_stream(
-            &worker,
-            &client,
-            "42",
-            Some("tok"),
-            action,
-        ));
-        assert!(
-            (&mut completion).now_or_never().is_none(),
-            "the completion waits for the stream to reconnect"
-        );
+        apply_action_falcon(&worker, "42", action);
 
-        second.gate.send_replace(true);
-        bounded("the completion", completion).await;
-
-        let (line, body) = second
-            .rest
-            .try_recv()
-            .expect("the completion went to the gateway the stream reconnected to");
-        assert!(line.starts_with("POST /v2/jobs/42/completion "), "{line}");
-        assert_eq!(body["jobLeaseToken"], "tok");
+        // The job is failed, never completed (that would approve a denied task); the fail
+        // frame names the limitation and the workaround. `apply_action_falcon` has no
+        // client, so nothing can go over REST.
+        let fail = bounded("the fail frame", frames.recv()).await.unwrap();
+        assert_eq!(fail["type"], "failJob");
+        assert_eq!(fail["jobKey"], "42");
+        assert_eq!(fail["errorMessage"], FALCON_JOB_RESULT_UNSUPPORTED);
+        assert!(fail.get("retries").is_none());
+        let credit = bounded("the credit frame", frames.recv()).await.unwrap();
+        assert_eq!(credit["type"], "jobCredits");
+        assert_eq!(credit["n"], 1);
         assert!(
-            first.rest.try_recv().is_err(),
-            "nothing reached the node that dropped"
+            FALCON_JOB_RESULT_UNSUPPORTED.contains("CAMUNDA_FORCE_REST=true"),
+            "the message names the workaround"
         );
     }
 
     #[tokio::test]
     async fn stream_path_sends_plain_completions_as_frames() {
-        let (client, mut rest) = recording_rest_server().await;
-        let stream = RecordingStream::default();
+        let (worker, mut frames) = falcon_worker().await;
 
-        apply_action_stream(&stream, &client, "1", None, JobAction::complete()).await;
-        let action = JobAction::complete_with(serde_json::json!({ "ok": true }));
-        apply_action_stream(&stream, &client, "2", Some("tok"), action).await;
+        apply_action_falcon(&worker, "1", JobAction::complete());
+        apply_action_falcon(
+            &worker,
+            "2",
+            JobAction::complete_with(serde_json::json!({ "ok": true })),
+        );
 
-        assert_eq!(
-            *stream.calls.lock().unwrap(),
-            ["complete 1 null", r#"complete 2 {"ok":true}"#]
-        );
-        assert!(
-            rest.try_recv().is_err(),
-            "a plain completion must not use REST"
-        );
+        let mut completes = Vec::new();
+        while completes.len() < 2 {
+            let frame = bounded("the completion frames", frames.recv())
+                .await
+                .unwrap();
+            if frame["type"] == "completeJob" {
+                completes.push(frame);
+            }
+        }
+        assert_eq!(completes[0]["jobKey"], "1");
+        assert!(completes[0].get("variables").is_none());
+        assert_eq!(completes[1]["jobKey"], "2");
+        assert_eq!(completes[1]["variables"], serde_json::json!({ "ok": true }));
     }
 
     #[test]

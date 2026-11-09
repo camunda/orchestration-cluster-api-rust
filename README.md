@@ -353,6 +353,14 @@ Both builders convert into a `CompletionResult`, which wraps the generated
 `models::JobResult` is accepted too, but the generated model types the dates as date-times
 and so cannot clear them — use `UserTaskCorrections` for that.
 
+> **Falcon command stream (nanobpmn gateways):** job results are sent over REST only. The
+> Falcon command stream's completion frame has no field for a result, so when a worker is
+> receiving jobs over the stream, a handler that returns a job result has its job
+> **failed** (never completed — that would approve a denied task) with a message saying
+> so. To use job results against a nanobpmn gateway, set `CAMUNDA_FORCE_REST=true` so
+> workers use the REST transport. Against stock Camunda the stream is never used, so this
+> does not apply.
+
 ## Eventual consistency
 
 Camunda's read APIs are eventually consistent. Wrap a read in `eventual` to poll through

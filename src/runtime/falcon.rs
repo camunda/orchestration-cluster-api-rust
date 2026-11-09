@@ -43,11 +43,6 @@ const DEFAULT_COMMAND_STREAM_PATH: &str = "/falcon";
 /// How long to wait for a create `CommandResult` before giving up.
 const CREATE_ACK_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// How long a REST command routed through the stream's gateway waits for the stream to
-/// reconnect before falling back to the last connected endpoint: the same deadline a
-/// command sent over the stream is given for its ack.
-pub const LIVE_ENDPOINT_WAIT: Duration = CREATE_ACK_TIMEOUT;
-
 /// Detected nanobpmn capabilities, derived from `GET /v2/topology`.
 #[derive(Debug, Clone)]
 pub struct FalconCaps {
@@ -235,24 +230,6 @@ pub fn ws_url(rest_address: &str, exact: bool, path: &str) -> String {
     format!("{ws_origin}{path}")
 }
 
-/// Move a REST base URL onto the gateway behind a command-stream endpoint: the
-/// endpoint's origin (`ws`→`http`, `wss`→`https`) with the REST base's path kept, so
-/// `http://a:8080/v2` and `ws://b:9090/falcon` give `http://b:9090/v2`. The inverse of
-/// [`ws_url`] for the origin, which serves both the REST API and the command stream.
-pub fn rest_base_for_endpoint(rest_base: &str, endpoint: &str) -> String {
-    let rest_base = rest_base.trim_end_matches('/');
-    let path = &rest_base[origin_of(rest_base).len()..];
-    let origin = origin_of(endpoint);
-    let origin = if let Some(rest) = origin.strip_prefix("wss://") {
-        format!("https://{rest}")
-    } else if let Some(rest) = origin.strip_prefix("ws://") {
-        format!("http://{rest}")
-    } else {
-        origin.to_string()
-    };
-    format!("{origin}{path}")
-}
-
 /// The writer sender and decoded-frame receiver produced by [`dial`].
 type DialPair = (
     mpsc::UnboundedSender<Message>,
@@ -377,10 +354,8 @@ struct LinkInner {
     writer: Mutex<Option<mpsc::UnboundedSender<Message>>>,
     /// The failover directory (≥1 endpoint).
     endpoints: Vec<String>,
-    /// Endpoint of the current connection, or of the last one while reconnecting.
+    /// Endpoint currently connected (for observability).
     current: Mutex<Option<String>>,
-    /// Endpoint of the live connection; `None` while disconnected/reconnecting.
-    live: tokio::sync::watch::Sender<Option<String>>,
     /// Total successful (re)connections; `connects - 1` = failovers.
     connects: AtomicU64,
     /// Picks the endpoint to dial on each (re)connect.
@@ -412,7 +387,6 @@ impl SupervisedLink {
             writer: Mutex::new(None),
             endpoints,
             current: Mutex::new(None),
-            live: tokio::sync::watch::channel(None).0,
             connects: AtomicU64::new(0),
             random,
         });
@@ -427,22 +401,6 @@ impl SupervisedLink {
             Ok(Err(e)) => Err(e),
             Err(_) => Err(CamundaError::Config("falcon link supervisor exited".into())),
         }
-    }
-
-    /// The endpoint of the current (or, while reconnecting, the last) connection.
-    fn current_endpoint(&self) -> Option<String> {
-        self.inner.current.lock().unwrap().clone()
-    }
-
-    /// The endpoint of the live connection, waiting up to `wait` for one while the link
-    /// reconnects. When the wait expires, the last connected endpoint.
-    async fn live_endpoint(&self, wait: Duration) -> Option<String> {
-        let mut live = self.inner.live.subscribe();
-        let live = tokio::time::timeout(wait, live.wait_for(Option::is_some))
-            .await
-            .ok()
-            .and_then(|endpoint| endpoint.ok().and_then(|e| e.clone()));
-        live.or_else(|| self.current_endpoint())
     }
 
     /// Send a frame on the current socket. Returns an error while disconnected.
@@ -490,7 +448,6 @@ async fn supervise(inner: Arc<LinkInner>, hooks: LinkHooks, ready_tx: oneshot::S
             Ok((tx, mut frames)) => {
                 *inner.writer.lock().unwrap() = Some(tx.clone());
                 *inner.current.lock().unwrap() = Some(url.clone());
-                inner.live.send_replace(Some(url.clone()));
                 let n = inner.connects.fetch_add(1, Ordering::SeqCst) + 1;
                 if n == 1 {
                     if let Some(rt) = ready_tx.take() {
@@ -533,7 +490,6 @@ async fn supervise(inner: Arc<LinkInner>, hooks: LinkHooks, ready_tx: oneshot::S
                 }
 
                 *inner.writer.lock().unwrap() = None;
-                inner.live.send_replace(None);
                 (hooks.on_disconnect)();
                 last_failed = Some(url);
             }
@@ -901,15 +857,6 @@ impl FalconStreamWorker {
         })
     }
 
-    /// The endpoint of the live connection: the gateway that delivers this worker's jobs,
-    /// and so the one to route a REST command for them to after a failover. While the stream reconnects after a failover, waits up to
-    /// [`LIVE_ENDPOINT_WAIT`] (the command ack deadline) for the new connection rather
-    /// than targeting the node that just dropped; when that expires, falls back to the
-    /// last connected endpoint.
-    pub async fn live_endpoint(&self) -> Option<String> {
-        self.link.live_endpoint(LIVE_ENDPOINT_WAIT).await
-    }
-
     /// Await the next pushed job, or `None` if no job arrives within `wait`.
     pub async fn next_job(&self, wait: Duration) -> Option<models::ActivatedJobResult> {
         let mut rx = self.jobs.lock().await;
@@ -973,26 +920,6 @@ impl FalconStreamWorker {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rest_base_moves_onto_the_endpoint_origin_and_keeps_the_path() {
-        assert_eq!(
-            rest_base_for_endpoint("http://a:8080/v2", "ws://b:9090/falcon"),
-            "http://b:9090/v2"
-        );
-        assert_eq!(
-            rest_base_for_endpoint("http://proxy/custom/", "ws://other/falcon"),
-            "http://other/custom"
-        );
-        assert_eq!(
-            rest_base_for_endpoint("https://a/v2", "wss://b:443/falcon"),
-            "https://b:443/v2"
-        );
-        assert_eq!(
-            rest_base_for_endpoint("http://a:8080", "ws://b:9090/falcon"),
-            "http://b:9090"
-        );
-    }
 
     #[test]
     fn ws_url_strips_v2_and_swaps_scheme() {
@@ -1199,48 +1126,6 @@ mod tests {
                 .await
                 .is_err(),
             "a draw selecting the dead node should fail the first dial"
-        );
-    }
-
-    /// While the link is between connections and no reconnect succeeds within the wait,
-    /// the live endpoint falls back to the last connected one.
-    #[tokio::test]
-    async fn live_endpoint_falls_back_to_the_last_connection_when_the_wait_expires() {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let url = format!("ws://{}/falcon", listener.local_addr().unwrap());
-        let (drop_tx, drop_rx) = oneshot::channel::<()>();
-        tokio::spawn(async move {
-            if let Ok((stream, _)) = listener.accept().await {
-                if let Ok(ws) = tokio_tungstenite::accept_async(stream).await {
-                    // Close the socket and the listener: the node is gone.
-                    let _ = drop_rx.await;
-                    drop(ws);
-                }
-            }
-        });
-        let hooks = LinkHooks {
-            on_frame: Box::new(|_| {}),
-            on_connect: Box::new(|_| {}),
-            on_disconnect: Box::new(|| {}),
-        };
-        let link = SupervisedLink::start(vec![url.clone()], hooks, Arc::new(Fixed(0.0)))
-            .await
-            .unwrap();
-        assert_eq!(
-            link.live_endpoint(Duration::from_secs(5)).await,
-            Some(url.clone())
-        );
-
-        drop_tx.send(()).unwrap();
-        let mut live = link.inner.live.subscribe();
-        tokio::time::timeout(Duration::from_secs(5), live.wait_for(Option::is_none))
-            .await
-            .expect("the link notices the disconnect")
-            .unwrap();
-        assert_eq!(
-            link.live_endpoint(Duration::from_millis(20)).await,
-            Some(url),
-            "falls back to the last connected endpoint"
         );
     }
 
