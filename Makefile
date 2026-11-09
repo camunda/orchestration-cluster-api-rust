@@ -1,4 +1,4 @@
-.PHONY: help bundle bundle-spec generate build test lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check publish-dry-run docs-json docs-md test-docs print-docs-toolchain
+.PHONY: help bundle bundle-spec generate build test test-live lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check publish-dry-run docs-json docs-md test-docs print-docs-toolchain
 
 SPEC_REF ?= main
 
@@ -19,6 +19,7 @@ help:
 	@echo "  make vendor DEST=<dir>  Export a self-contained SDK copy for vendoring into a downstream repo"
 	@echo "  make build       Build the whole workspace"
 	@echo "  make test        Run all tests (unit + doctests)"
+	@echo "  make test-live   Run the live-cluster tests (needs a running cluster)"
 	@echo "  make examples    Type-check the example programs (incl. README snippet sources)"
 	@echo "  make lint        Run clippy"
 	@echo "  make fmt         Format all crates"
@@ -56,6 +57,11 @@ build:
 
 test:
 	cargo test --workspace
+
+# Live-cluster tests are #[ignore]d so `make test` stays hermetic. They need a running,
+# unauthenticated cluster at CAMUNDA_REST_ADDRESS (default http://localhost:8080).
+test-live:
+	cargo test --test 'live_*' -- --ignored
 
 # Type-check the example programs. The README snippets are injected from these files
 # (examples/readme.rs), so a green build guarantees the README cannot drift from the API.
