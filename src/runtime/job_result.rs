@@ -22,6 +22,8 @@
 use std::collections::HashMap;
 
 use camunda_orchestration_api_client::models;
+
+use super::errors::CamundaError;
 use chrono::{DateTime, FixedOffset};
 use serde::Serialize;
 use serde_json::Value;
@@ -266,10 +268,18 @@ impl AdHocSubProcessResult {
         self
     }
 
-    /// The underlying generated model. A variables serialization failure from
-    /// [`activate_element_with`](Self::activate_element_with) is not carried into it.
-    pub fn into_inner(self) -> models::JobResultAdHocSubProcess {
-        self.inner
+    /// The underlying generated model.
+    ///
+    /// # Errors
+    ///
+    /// [`CamundaError::Validation`] if element variables passed to
+    /// [`activate_element_with`](Self::activate_element_with) failed to serialize: the
+    /// model would activate that element without them.
+    pub fn into_inner(self) -> Result<models::JobResultAdHocSubProcess, CamundaError> {
+        match self.error {
+            Some(error) => Err(CamundaError::Validation(error)),
+            None => Ok(self.inner),
+        }
     }
 }
 
@@ -285,6 +295,12 @@ struct DateClears {
 ///
 /// Build one from a [`UserTaskResult`], an [`AdHocSubProcessResult`], or a
 /// [`models::JobResult`]. It serializes to the wire form of the completion `result`.
+///
+/// If a builder failed to serialize part of the result, every way of turning it into a
+/// payload fails rather than dropping that part: serializing returns a serde error,
+/// [`model`](Self::model) returns the error, and
+/// [`JobAction::complete_with_result`](super::job_worker::JobAction::complete_with_result)
+/// fails the job.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompletionResult {
     model: models::JobResult,
@@ -295,12 +311,20 @@ pub struct CompletionResult {
 
 impl CompletionResult {
     /// The generated model. A cleared due or follow-up date is not represented in it.
-    pub fn model(&self) -> &models::JobResult {
-        &self.model
+    ///
+    /// # Errors
+    ///
+    /// [`CamundaError::Validation`] if a builder failed to serialize part of the result
+    /// (see [`error`](Self::error)): the model is missing that part.
+    pub fn model(&self) -> Result<&models::JobResult, CamundaError> {
+        match &self.error {
+            Some(error) => Err(CamundaError::Validation(error.clone())),
+            None => Ok(&self.model),
+        }
     }
 
     /// Why this result cannot be sent, if a builder failed to serialize part of it.
-    pub(crate) fn error(&self) -> Option<&str> {
+    pub fn error(&self) -> Option<&str> {
         self.error.as_deref()
     }
 
@@ -317,6 +341,9 @@ impl CompletionResult {
     /// The wire form: the generated model's JSON, with each cleared date written as `""`
     /// in `corrections`.
     pub(crate) fn to_wire(&self) -> serde_json::Result<Value> {
+        if let Some(error) = &self.error {
+            return Err(serde::ser::Error::custom(error));
+        }
         let mut wire = serde_json::to_value(&self.model)?;
         let cleared = [
             ("dueDate", self.clears.due_date),
@@ -376,5 +403,62 @@ impl From<AdHocSubProcessResult> for CompletionResult {
             clears: DateClears::default(),
             error: result.error,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A value whose `Serialize` impl always fails.
+    struct Unserializable;
+
+    impl Serialize for Unserializable {
+        fn serialize<S: serde::Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
+            Err(serde::ser::Error::custom("boom"))
+        }
+    }
+
+    fn broken() -> AdHocSubProcessResult {
+        AdHocSubProcessResult::new()
+            .activate_element("first")
+            .activate_element_with("review", Unserializable)
+    }
+
+    #[test]
+    fn a_builder_error_blocks_every_payload_path() {
+        let result = CompletionResult::from(broken());
+        let expected = "failed to serialize variables for element 'review': boom";
+        assert_eq!(result.error(), Some(expected));
+
+        let serialized = serde_json::to_value(&result).unwrap_err().to_string();
+        assert!(serialized.contains(expected), "{serialized}");
+        assert!(result.to_wire().is_err());
+        assert!(
+            matches!(result.model(), Err(CamundaError::Validation(m)) if m == expected),
+            "model() must not expose the incomplete model"
+        );
+        assert!(matches!(
+            broken().into_inner(),
+            Err(CamundaError::Validation(m)) if m == expected
+        ));
+    }
+
+    #[test]
+    fn a_sound_result_serializes_and_exposes_its_model() {
+        let result = CompletionResult::from(
+            AdHocSubProcessResult::new()
+                .activate_element_with("review", serde_json::json!({"a": 1})),
+        );
+        assert_eq!(result.error(), None);
+        assert!(result.model().is_ok());
+        assert_eq!(
+            serde_json::to_value(&result).unwrap(),
+            serde_json::json!({
+                "type": "adHocSubProcess",
+                "activateElements": [{ "elementId": "review", "variables": { "a": 1 } }]
+            })
+        );
+        assert!(AdHocSubProcessResult::new().into_inner().is_ok());
     }
 }
