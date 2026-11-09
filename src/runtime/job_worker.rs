@@ -369,22 +369,41 @@ impl JobAction {
     /// let action = JobAction::complete_with_result(UserTaskResult::deny("Incomplete"));
     /// # let _ = action;
     /// ```
+    ///
+    /// If part of the result failed to serialize (for example, element variables passed
+    /// to [`AdHocSubProcessResult::activate_element_with`]), this returns a
+    /// [`JobAction::Fail`] naming the failure instead: completing without that data would
+    /// silently change what the job did, and leaving the job to time out would only
+    /// redeliver it into the same failure.
+    ///
+    /// [`AdHocSubProcessResult::activate_element_with`]: super::job_result::AdHocSubProcessResult::activate_element_with
     pub fn complete_with_result(result: impl Into<CompletionResult>) -> Self {
-        JobAction::CompleteWithResult {
-            variables: None,
-            result: result.into(),
-        }
+        Self::result_completion(Ok(None), result.into())
     }
 
     /// Complete the job with output variables and a job result.
+    ///
+    /// As with [`complete_with_result`](Self::complete_with_result), this returns a
+    /// [`JobAction::Fail`] if `variables` or part of the result fails to serialize.
     pub fn complete_with_variables_and_result(
         variables: impl Serialize,
         result: impl Into<CompletionResult>,
     ) -> Self {
-        JobAction::CompleteWithResult {
-            variables: serde_json::to_value(variables).ok(),
-            result: result.into(),
+        Self::result_completion(serde_json::to_value(variables).map(Some), result.into())
+    }
+
+    fn result_completion(
+        variables: serde_json::Result<Option<Value>>,
+        result: CompletionResult,
+    ) -> Self {
+        let variables = match variables {
+            Ok(variables) => variables,
+            Err(e) => return Self::fail(format!("failed to serialize job variables: {e}")),
+        };
+        if let Some(error) = result.error() {
+            return Self::fail(format!("failed to build job result: {error}"));
         }
+        JobAction::CompleteWithResult { variables, result }
     }
 
     /// Fail the job with an error message (retries are decremented by the engine).
@@ -868,16 +887,19 @@ async fn apply_action_stream(
             stream.complete(job_key, variables.and_then(value_to_obj));
         }
         JobAction::CompleteWithResult { variables, result } => {
-            let endpoint = stream.current_endpoint();
-            let sent = match build_result_completion_body(variables, &result, lease_token) {
-                Ok(body) => {
-                    client
-                        .complete_job_with_body(job_key, &body, endpoint.as_deref())
-                        .await
+            let body = match build_result_completion_body(variables, &result, lease_token) {
+                Ok(body) => body,
+                Err(e) => {
+                    // The fail frame replenishes the credit itself.
+                    stream.fail(job_key, None, Some(result_serialization_failure(&e)));
+                    return;
                 }
-                Err(e) => Err(e),
             };
-            if let Err(e) = sent {
+            let endpoint = stream.current_endpoint();
+            if let Err(e) = client
+                .complete_job_with_body(job_key, &body, endpoint.as_deref())
+                .await
+            {
                 tracing::warn!(error = %e, "failed to apply job action");
             }
             stream.replenish(1);
@@ -921,8 +943,19 @@ async fn apply_action(
             client.complete_job(job_key, request).await
         }
         JobAction::CompleteWithResult { variables, result } => {
-            let body = build_result_completion_body(variables, &result, lease_token)?;
-            client.complete_job_with_body(job_key, &body, None).await
+            match build_result_completion_body(variables, &result, lease_token) {
+                Ok(body) => client.complete_job_with_body(job_key, &body, None).await,
+                Err(e) => {
+                    let request = build_fail_request(
+                        result_serialization_failure(&e),
+                        None,
+                        None,
+                        None,
+                        lease_token,
+                    );
+                    client.fail_job(job_key, Some(request)).await
+                }
+            }
         }
         JobAction::Fail {
             error_message,
@@ -1006,6 +1039,11 @@ fn build_result_completion_body(
         obj.insert("result".into(), result.to_wire()?);
     }
     Ok(body)
+}
+
+/// The fail message for a result completion whose body could not be serialized.
+fn result_serialization_failure(error: &CamundaError) -> String {
+    format!("failed to serialize job result: {error}")
 }
 
 /// Build a fail-job request, threading the lease token so the engine can fence it.
@@ -1477,6 +1515,84 @@ mod tests {
         );
         // No completeJob frame; the consumed delivery credit is topped up instead.
         assert_eq!(*stream.calls.lock().unwrap(), ["replenish 1"]);
+    }
+
+    /// A value whose `Serialize` impl always fails.
+    struct Unserializable;
+
+    impl Serialize for Unserializable {
+        fn serialize<S: serde::Serializer>(&self, _: S) -> std::result::Result<S::Ok, S::Error> {
+            Err(serde::ser::Error::custom("boom"))
+        }
+    }
+
+    fn fail_message(action: &JobAction) -> &str {
+        match action {
+            JobAction::Fail {
+                error_message,
+                retries: None,
+                ..
+            } => error_message,
+            other => panic!("expected a fail action, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unserializable_result_variables_fail_the_job() {
+        use super::super::job_result::{AdHocSubProcessResult, UserTaskResult};
+        let action =
+            JobAction::complete_with_variables_and_result(Unserializable, UserTaskResult::new());
+        let message = fail_message(&action);
+        assert!(
+            message.contains("failed to serialize job variables") && message.contains("boom"),
+            "{message}"
+        );
+
+        let action = JobAction::complete_with_result(
+            AdHocSubProcessResult::new()
+                .activate_element("first")
+                .activate_element_with("review", Unserializable),
+        );
+        let message = fail_message(&action);
+        assert!(
+            message.contains("element 'review'") && message.contains("boom"),
+            "{message}"
+        );
+    }
+
+    #[tokio::test]
+    async fn unserializable_results_fail_the_job_on_both_paths() {
+        use super::super::job_result::AdHocSubProcessResult;
+        let action = || {
+            JobAction::complete_with_result(
+                AdHocSubProcessResult::new().activate_element_with("review", Unserializable),
+            )
+        };
+
+        // REST worker path: a fail request, carrying the lease token, and no completion.
+        let (client, mut rest) = recording_rest_server().await;
+        apply_action(&client, "7", Some("tok"), action())
+            .await
+            .unwrap();
+        let (line, body) = rest.try_recv().expect("the job was failed over REST");
+        assert!(
+            line.starts_with("POST ") && line.contains("/jobs/7/failure"),
+            "{line}"
+        );
+        assert!(
+            body["errorMessage"]
+                .as_str()
+                .is_some_and(|m| m.contains("element 'review'")),
+            "{body}"
+        );
+        assert_eq!(body["jobLeaseToken"], "tok");
+        assert!(rest.try_recv().is_err());
+
+        // Stream path: a fail frame, and no REST completion.
+        let stream = RecordingStream::default();
+        apply_action_stream(&stream, &client, "8", None, action()).await;
+        assert_eq!(*stream.calls.lock().unwrap(), ["fail 8"]);
+        assert!(rest.try_recv().is_err());
     }
 
     /// A stub nanobpmn node on one port: WebSocket upgrades are command-stream

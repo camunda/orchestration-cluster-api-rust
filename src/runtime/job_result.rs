@@ -197,6 +197,8 @@ impl UserTaskCorrections {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct AdHocSubProcessResult {
     inner: models::JobResultAdHocSubProcess,
+    /// The first element-variables serialization failure, if any.
+    error: Option<String>,
 }
 
 impl AdHocSubProcessResult {
@@ -211,17 +213,30 @@ impl AdHocSubProcessResult {
     }
 
     /// Activate the element with this id, with variables scoped to it. `variables` must
-    /// serialize to a JSON object; anything else is sent without variables.
+    /// serialize to a JSON object; any other value is sent without variables.
+    ///
+    /// If `variables` fails to serialize, completing the job with this result fails the
+    /// job instead (see [`JobAction::complete_with_result`]), rather than activating the
+    /// element without the variables it was meant to have.
+    ///
+    /// [`JobAction::complete_with_result`]: super::job_worker::JobAction::complete_with_result
     pub fn activate_element_with(
-        self,
+        mut self,
         element_id: impl Into<String>,
         variables: impl Serialize,
     ) -> Self {
+        let element_id = element_id.into();
         let variables = match serde_json::to_value(variables) {
             Ok(Value::Object(map)) => Some(map.into_iter().collect()),
-            _ => None,
+            Ok(_) => None,
+            Err(e) => {
+                self.error.get_or_insert_with(|| {
+                    format!("failed to serialize variables for element '{element_id}': {e}")
+                });
+                None
+            }
         };
-        self.push_element(element_id.into(), variables)
+        self.push_element(element_id, variables)
     }
 
     fn push_element(
@@ -251,15 +266,10 @@ impl AdHocSubProcessResult {
         self
     }
 
-    /// The underlying generated model.
+    /// The underlying generated model. A variables serialization failure from
+    /// [`activate_element_with`](Self::activate_element_with) is not carried into it.
     pub fn into_inner(self) -> models::JobResultAdHocSubProcess {
         self.inner
-    }
-}
-
-impl From<AdHocSubProcessResult> for models::JobResult {
-    fn from(result: AdHocSubProcessResult) -> Self {
-        models::JobResult::AdHocSubProcess(Box::new(result.inner))
     }
 }
 
@@ -279,12 +289,19 @@ struct DateClears {
 pub struct CompletionResult {
     model: models::JobResult,
     clears: DateClears,
+    /// Why the result cannot be sent (a serialization failure in a builder).
+    error: Option<String>,
 }
 
 impl CompletionResult {
     /// The generated model. A cleared due or follow-up date is not represented in it.
     pub fn model(&self) -> &models::JobResult {
         &self.model
+    }
+
+    /// Why this result cannot be sent, if a builder failed to serialize part of it.
+    pub(crate) fn error(&self) -> Option<&str> {
+        self.error.as_deref()
     }
 
     /// Whether the due date is cleared.
@@ -337,6 +354,7 @@ impl From<models::JobResult> for CompletionResult {
         Self {
             model,
             clears: DateClears::default(),
+            error: None,
         }
     }
 }
@@ -346,12 +364,17 @@ impl From<UserTaskResult> for CompletionResult {
         Self {
             model: models::JobResult::UserTask(Box::new(result.inner)),
             clears: result.clears,
+            error: None,
         }
     }
 }
 
 impl From<AdHocSubProcessResult> for CompletionResult {
     fn from(result: AdHocSubProcessResult) -> Self {
-        models::JobResult::from(result).into()
+        Self {
+            model: models::JobResult::AdHocSubProcess(Box::new(result.inner)),
+            clears: DateClears::default(),
+            error: result.error,
+        }
     }
 }
