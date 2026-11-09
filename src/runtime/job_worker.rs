@@ -1402,9 +1402,12 @@ mod tests {
                 });
             }
         });
+        // Pin auth off: overrides beat the environment, so OAuth configured in the
+        // developer's shell cannot send this client to a real token endpoint first.
         let client = CamundaClient::new(
             super::super::client::CamundaOptions::new()
                 .with("CAMUNDA_REST_ADDRESS", format!("http://{addr}"))
+                .with("CAMUNDA_AUTH_STRATEGY", "NONE")
                 .with("CAMUNDA_FALCON", "false"),
         )
         .expect("client should build from an address alone");
