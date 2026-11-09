@@ -87,6 +87,7 @@ The hooks are **idempotent** and fix: missing/broken semantic keys, collapsed se
 ```bash
 make build         # cargo build --workspace
 make test          # cargo test --workspace  (unit + doctests)
+make test-live     # live-cluster tests (#[ignore]d; needs a running cluster)
 make examples      # cargo build --examples  (type-checks README snippet sources)
 make lint          # cargo clippy --workspace --all-targets
 make fmt           # cargo fmt --all
@@ -97,6 +98,15 @@ make check         # full local CI gate (build, test, examples, lint, fmt-check,
 
 CI (`.github/workflows/ci.yml`) runs the same gate (clippy with `-D warnings`) plus a
 non-blocking generation-drift job that regenerates from upstream and reports any diff.
+
+### Live-cluster tests
+
+Tests that need a running cluster live in `tests/live_*.rs` and are marked
+`#[ignore = "needs a live Camunda cluster; ..."]`, so `make test` and CI stay hermetic.
+`make test-live` runs them against `CAMUNDA_REST_ADDRESS` (default
+`http://localhost:8080`, auth from the usual env vars). Give every process id, job type and
+element id a unique suffix — the cluster may be shared — and wait with the SDK's eventual
+polling (`eventual_until`), never a sleep.
 
 ### README examples are compiled (no drift)
 

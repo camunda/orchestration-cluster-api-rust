@@ -33,6 +33,7 @@ use super::client::CamundaClient;
 use super::clock::Clock;
 use super::config::WorkerDefaults;
 use super::errors::{CamundaError, Result};
+use super::job_result::CompletionResult;
 
 /// Upper bound on how many credits the REST poller materializes — and jobs it asks
 /// for — in a single `activate_jobs` request. `max_jobs_to_activate` is a positive
@@ -313,6 +314,22 @@ impl Job {
 pub enum JobAction {
     /// Complete the job, optionally with output variables.
     Complete { variables: Option<Value> },
+    /// Complete the job with a job result -- user-task listener corrections or denial, or
+    /// the elements an ad-hoc sub-process activates -- optionally with output variables.
+    ///
+    /// Build it with [`JobAction::complete_with_result`] or
+    /// [`JobAction::complete_with_variables_and_result`]. The variant is
+    /// `#[non_exhaustive]` so further completion options can be added without breaking
+    /// callers; match it with `..`.
+    ///
+    /// Job results are sent over REST only. On the Falcon command stream (nanobpmn
+    /// gateways), whose completion frame cannot carry a result, the job is failed instead
+    /// with a message naming the workaround: set `CAMUNDA_FORCE_REST=true`.
+    #[non_exhaustive]
+    CompleteWithResult {
+        variables: Option<Value>,
+        result: CompletionResult,
+    },
     /// Fail the job, decrementing retries (unless `retries` is set explicitly).
     Fail {
         error_message: String,
@@ -341,6 +358,56 @@ impl JobAction {
         JobAction::Complete {
             variables: serde_json::to_value(variables).ok(),
         }
+    }
+
+    /// Complete the job with a job result and no output variables.
+    ///
+    /// `result` is a [`UserTaskResult`](super::job_result::UserTaskResult), an
+    /// [`AdHocSubProcessResult`](super::job_result::AdHocSubProcessResult), or a
+    /// hand-built [`models::JobResult`] (anything that converts into a
+    /// [`CompletionResult`]).
+    ///
+    /// ```
+    /// use camunda_orchestration_sdk::{JobAction, UserTaskResult};
+    ///
+    /// let action = JobAction::complete_with_result(UserTaskResult::deny("Incomplete"));
+    /// # let _ = action;
+    /// ```
+    ///
+    /// If part of the result failed to serialize (for example, element variables passed
+    /// to [`AdHocSubProcessResult::activate_element_with`]), this returns a
+    /// [`JobAction::Fail`] naming the failure instead: completing without that data would
+    /// silently change what the job did, and leaving the job to time out would only
+    /// redeliver it into the same failure.
+    ///
+    /// [`AdHocSubProcessResult::activate_element_with`]: super::job_result::AdHocSubProcessResult::activate_element_with
+    pub fn complete_with_result(result: impl Into<CompletionResult>) -> Self {
+        Self::result_completion(Ok(None), result.into())
+    }
+
+    /// Complete the job with output variables and a job result.
+    ///
+    /// As with [`complete_with_result`](Self::complete_with_result), this returns a
+    /// [`JobAction::Fail`] if `variables` or part of the result fails to serialize.
+    pub fn complete_with_variables_and_result(
+        variables: impl Serialize,
+        result: impl Into<CompletionResult>,
+    ) -> Self {
+        Self::result_completion(serde_json::to_value(variables).map(Some), result.into())
+    }
+
+    fn result_completion(
+        variables: serde_json::Result<Option<Value>>,
+        result: CompletionResult,
+    ) -> Self {
+        let variables = match variables {
+            Ok(variables) => variables,
+            Err(e) => return Self::fail(format!("failed to serialize job variables: {e}")),
+        };
+        if let Some(error) = result.error() {
+            return Self::fail(format!("failed to build job result: {error}"));
+        }
+        JobAction::CompleteWithResult { variables, result }
     }
 
     /// Fail the job with an error message (retries are decremented by the engine).
@@ -766,6 +833,11 @@ enum FalconStartError {
     SubscribeFailed(CamundaError),
 }
 
+/// The fail message for a result-bearing completion on the Falcon command stream.
+pub(crate) const FALCON_JOB_RESULT_UNSUPPORTED: &str = "Job results (user task \
+corrections or denial, ad-hoc sub-process results) cannot be sent over the Falcon command \
+stream; set CAMUNDA_FORCE_REST=true to use the REST transport";
+
 /// Translate a [`JobAction`] into a fire-and-forget command-stream frame (each frame
 /// also replenishes one delivery credit).
 fn apply_action_falcon(
@@ -781,6 +853,15 @@ fn apply_action_falcon(
         }
         JobAction::Complete { variables } => {
             worker.complete(job_key, variables.and_then(value_to_obj));
+        }
+        JobAction::CompleteWithResult { .. } => {
+            // The command stream's completeJob frame has no result field. Completing
+            // without the result would silently approve a denied task, so fail instead.
+            worker.fail(
+                job_key,
+                None,
+                Some(FALCON_JOB_RESULT_UNSUPPORTED.to_string()),
+            );
         }
         JobAction::Fail {
             error_message,
@@ -819,6 +900,21 @@ async fn apply_action(
         JobAction::Complete { variables } => {
             let request = build_completion_request(variables, lease_token);
             client.complete_job(job_key, request).await
+        }
+        JobAction::CompleteWithResult { variables, result } => {
+            match build_result_completion_body(variables, &result, lease_token) {
+                Ok(body) => client.complete_job_with_body(job_key, &body).await,
+                Err(e) => {
+                    let request = build_fail_request(
+                        result_serialization_failure(&e),
+                        None,
+                        None,
+                        None,
+                        lease_token,
+                    );
+                    client.fail_job(job_key, Some(request)).await
+                }
+            }
         }
         JobAction::Fail {
             error_message,
@@ -881,6 +977,32 @@ fn build_completion_request(
         job_lease_token: lease_token_field(lease_token),
         business_id: None,
     })
+}
+
+/// Build the JSON body for a completion carrying a job result. It is the generated
+/// request's JSON with `result` set to the result's wire form, so a cleared correction
+/// date -- which the generated model types as a date-time -- goes out as `""`.
+fn build_result_completion_body(
+    variables: Option<Value>,
+    result: &CompletionResult,
+    lease_token: Option<&str>,
+) -> Result<Value> {
+    let request = models::JobCompletionRequest {
+        variables: variables.map(value_to_map),
+        result: None,
+        job_lease_token: lease_token_field(lease_token),
+        business_id: None,
+    };
+    let mut body = serde_json::to_value(request)?;
+    if let Some(obj) = body.as_object_mut() {
+        obj.insert("result".into(), result.to_wire()?);
+    }
+    Ok(body)
+}
+
+/// The fail message for a result completion whose body could not be serialized.
+fn result_serialization_failure(error: &CamundaError) -> String {
+    format!("failed to serialize job result: {error}")
 }
 
 /// Build a fail-job request, threading the lease token so the engine can fence it.
@@ -989,6 +1111,495 @@ mod tests {
             }
             _ => panic!("expected Complete with variables"),
         }
+    }
+
+    /// The JSON body the REST worker path sends for a completion action.
+    fn completion_body(action: JobAction) -> Value {
+        let (variables, result) = match action {
+            JobAction::Complete { variables } => (variables, None),
+            JobAction::CompleteWithResult { variables, result } => (variables, Some(result)),
+            other => panic!("expected a completion, got {other:?}"),
+        };
+        match result {
+            Some(result) => build_result_completion_body(variables, &result, None).unwrap(),
+            None => {
+                serde_json::to_value(build_completion_request(variables, None).unwrap_or_default())
+                    .unwrap()
+            }
+        }
+    }
+
+    #[test]
+    fn plain_completion_sends_no_result() {
+        assert_eq!(
+            completion_body(JobAction::complete()),
+            serde_json::json!({})
+        );
+        let body = completion_body(JobAction::complete_with(serde_json::json!({ "ok": true })));
+        assert_eq!(body, serde_json::json!({ "variables": { "ok": true } }));
+    }
+
+    #[test]
+    fn user_task_corrections_are_sent_as_a_user_task_result() {
+        use super::super::job_result::{UserTaskCorrections, UserTaskResult};
+        let due = chrono::DateTime::parse_from_rfc3339("2026-12-01T09:00:00+02:00").unwrap();
+        let action = JobAction::complete_with_variables_and_result(
+            serde_json::json!({ "reviewed": true }),
+            UserTaskResult::new().corrections(
+                UserTaskCorrections::new()
+                    .assignee("alice")
+                    .due_date(due)
+                    .candidate_groups(["managers"])
+                    .candidate_users(Vec::<String>::new())
+                    .priority(80),
+            ),
+        );
+        assert_eq!(
+            completion_body(action),
+            serde_json::json!({
+                "variables": { "reviewed": true },
+                "result": {
+                    "type": "userTask",
+                    "corrections": {
+                        "assignee": "alice",
+                        "dueDate": "2026-12-01T09:00:00+02:00",
+                        "candidateGroups": ["managers"],
+                        "candidateUsers": [],
+                        "priority": 80
+                    }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn user_task_denial_is_sent_with_its_reason() {
+        use super::super::job_result::UserTaskResult;
+        let action = JobAction::complete_with_result(UserTaskResult::deny("Missing documents"));
+        assert_eq!(
+            completion_body(action),
+            serde_json::json!({
+                "result": {
+                    "type": "userTask",
+                    "denied": true,
+                    "deniedReason": "Missing documents"
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn ad_hoc_result_is_sent_with_elements_and_flags() {
+        use super::super::job_result::AdHocSubProcessResult;
+        let action = JobAction::complete_with_result(
+            AdHocSubProcessResult::new()
+                .activate_element("collect")
+                .activate_element_with("review", serde_json::json!({ "reviewer": "alice" }))
+                .completion_condition_fulfilled(true)
+                .cancel_remaining_instances(false),
+        );
+        assert_eq!(
+            completion_body(action),
+            serde_json::json!({
+                "result": {
+                    "type": "adHocSubProcess",
+                    "activateElements": [
+                        { "elementId": "collect" },
+                        { "elementId": "review", "variables": { "reviewer": "alice" } }
+                    ],
+                    "isCompletionConditionFulfilled": true,
+                    "isCancelRemainingInstances": false
+                }
+            })
+        );
+    }
+
+    /// The completion body for a user-task result carrying only these corrections.
+    fn corrections_body(corrections: super::super::job_result::UserTaskCorrections) -> Value {
+        use super::super::job_result::UserTaskResult;
+        completion_body(JobAction::complete_with_result(
+            UserTaskResult::new().corrections(corrections),
+        ))
+    }
+
+    #[test]
+    fn cleared_due_date_is_sent_as_an_empty_string() {
+        use super::super::job_result::UserTaskCorrections;
+        assert_eq!(
+            corrections_body(UserTaskCorrections::new().clear_due_date()),
+            serde_json::json!({
+                "result": { "type": "userTask", "corrections": { "dueDate": "" } }
+            })
+        );
+    }
+
+    #[test]
+    fn cleared_follow_up_date_is_sent_as_an_empty_string() {
+        use super::super::job_result::UserTaskCorrections;
+        assert_eq!(
+            corrections_body(UserTaskCorrections::new().clear_follow_up_date()),
+            serde_json::json!({
+                "result": { "type": "userTask", "corrections": { "followUpDate": "" } }
+            })
+        );
+    }
+
+    #[test]
+    fn set_dates_keep_their_iso_form_and_unset_dates_are_omitted() {
+        use super::super::job_result::UserTaskCorrections;
+        let due = chrono::DateTime::parse_from_rfc3339("2026-12-01T09:00:00+02:00").unwrap();
+        assert_eq!(
+            corrections_body(UserTaskCorrections::new().due_date(due)),
+            serde_json::json!({
+                "result": {
+                    "type": "userTask",
+                    "corrections": { "dueDate": "2026-12-01T09:00:00+02:00" }
+                }
+            })
+        );
+        assert_eq!(
+            corrections_body(UserTaskCorrections::new().assignee("alice")),
+            serde_json::json!({
+                "result": { "type": "userTask", "corrections": { "assignee": "alice" } }
+            })
+        );
+    }
+
+    #[test]
+    fn date_clears_combine_with_other_corrections() {
+        use super::super::job_result::{UserTaskCorrections, UserTaskResult};
+        let follow_up = chrono::DateTime::parse_from_rfc3339("2026-11-20T08:30:00+00:00").unwrap();
+        let action = JobAction::complete_with_variables_and_result(
+            serde_json::json!({ "reviewed": true }),
+            UserTaskResult::new().corrections(
+                UserTaskCorrections::new()
+                    .assignee("")
+                    .clear_due_date()
+                    .follow_up_date(follow_up)
+                    .candidate_groups(["managers"])
+                    .priority(80),
+            ),
+        );
+        assert_eq!(
+            completion_body(action),
+            serde_json::json!({
+                "variables": { "reviewed": true },
+                "result": {
+                    "type": "userTask",
+                    "corrections": {
+                        "assignee": "",
+                        "dueDate": "",
+                        "followUpDate": "2026-11-20T08:30:00Z",
+                        "candidateGroups": ["managers"],
+                        "priority": 80
+                    }
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn setting_and_clearing_a_date_is_last_call_wins() {
+        use super::super::job_result::UserTaskCorrections;
+        let date = chrono::DateTime::parse_from_rfc3339("2026-12-01T09:00:00+00:00").unwrap();
+        assert_eq!(
+            corrections_body(UserTaskCorrections::new().due_date(date).clear_due_date()),
+            serde_json::json!({
+                "result": { "type": "userTask", "corrections": { "dueDate": "" } }
+            })
+        );
+        assert_eq!(
+            corrections_body(
+                UserTaskCorrections::new()
+                    .clear_follow_up_date()
+                    .follow_up_date(date)
+            ),
+            serde_json::json!({
+                "result": {
+                    "type": "userTask",
+                    "corrections": { "followUpDate": "2026-12-01T09:00:00Z" }
+                }
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn cleared_date_reaches_the_rest_endpoint_as_an_empty_string() {
+        use super::super::job_result::{UserTaskCorrections, UserTaskResult};
+        let (client, mut rest) = recording_rest_server().await;
+        let action = JobAction::complete_with_result(
+            UserTaskResult::new().corrections(UserTaskCorrections::new().clear_due_date()),
+        );
+        apply_action(&client, "1", None, action).await.unwrap();
+        let (_, body) = rest.try_recv().expect("the completion reached REST");
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "result": { "type": "userTask", "corrections": { "dueDate": "" } }
+            })
+        );
+    }
+
+    #[test]
+    fn result_alone_with_lease_token_builds_a_fenced_body() {
+        use super::super::job_result::UserTaskResult;
+        let request =
+            build_result_completion_body(None, &UserTaskResult::new().into(), Some("tok")).unwrap();
+        assert_eq!(
+            request,
+            serde_json::json!({ "result": { "type": "userTask" }, "jobLeaseToken": "tok" })
+        );
+    }
+
+    /// Serve REST requests on a local port, answering each with `204 No Content` and
+    /// reporting its request line and body.
+    async fn recording_rest_server() -> (
+        CamundaClient,
+        tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
+    ) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            while let Ok((mut sock, _)) = listener.accept().await {
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    let mut tmp = [0u8; 1024];
+                    let header_end = loop {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => {
+                                buf.extend_from_slice(&tmp[..n]);
+                                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                                    break pos + 4;
+                                }
+                            }
+                        }
+                    };
+                    let head = String::from_utf8_lossy(&buf[..header_end]).to_string();
+                    let content_len = head
+                        .lines()
+                        .find_map(|l| {
+                            l.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                        })
+                        .unwrap_or(0);
+                    while buf.len() < header_end + content_len {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => break,
+                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                        }
+                    }
+                    let request_line = head.lines().next().unwrap_or_default().to_string();
+                    let body = serde_json::from_slice(&buf[header_end..]).unwrap_or(Value::Null);
+                    let _ = tx.send((request_line, body));
+                    let _ = sock
+                        .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
+                        .await;
+                });
+            }
+        });
+        // Pin auth off: overrides beat the environment, so OAuth configured in the
+        // developer's shell cannot send this client to a real token endpoint first.
+        let client = CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", format!("http://{addr}"))
+                .with("CAMUNDA_AUTH_STRATEGY", "NONE")
+                .with("CAMUNDA_FALCON", "false"),
+        )
+        .expect("client should build from an address alone");
+        (client, rx)
+    }
+
+    /// A value whose `Serialize` impl always fails.
+    struct Unserializable;
+
+    impl Serialize for Unserializable {
+        fn serialize<S: serde::Serializer>(&self, _: S) -> std::result::Result<S::Ok, S::Error> {
+            Err(serde::ser::Error::custom("boom"))
+        }
+    }
+
+    fn fail_message(action: &JobAction) -> &str {
+        match action {
+            JobAction::Fail {
+                error_message,
+                retries: None,
+                ..
+            } => error_message,
+            other => panic!("expected a fail action, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unserializable_result_variables_fail_the_job() {
+        use super::super::job_result::{AdHocSubProcessResult, UserTaskResult};
+        let action =
+            JobAction::complete_with_variables_and_result(Unserializable, UserTaskResult::new());
+        let message = fail_message(&action);
+        assert!(
+            message.contains("failed to serialize job variables") && message.contains("boom"),
+            "{message}"
+        );
+
+        let action = JobAction::complete_with_result(
+            AdHocSubProcessResult::new()
+                .activate_element("first")
+                .activate_element_with("review", Unserializable),
+        );
+        let message = fail_message(&action);
+        assert!(
+            message.contains("element 'review'") && message.contains("boom"),
+            "{message}"
+        );
+    }
+
+    #[tokio::test]
+    async fn unserializable_results_fail_the_job_on_both_paths() {
+        use super::super::job_result::AdHocSubProcessResult;
+        let action = || {
+            JobAction::complete_with_result(
+                AdHocSubProcessResult::new().activate_element_with("review", Unserializable),
+            )
+        };
+
+        // REST worker path: a fail request, carrying the lease token, and no completion.
+        let (client, mut rest) = recording_rest_server().await;
+        apply_action(&client, "7", Some("tok"), action())
+            .await
+            .unwrap();
+        let (line, body) = rest.try_recv().expect("the job was failed over REST");
+        assert!(
+            line.starts_with("POST ") && line.contains("/jobs/7/failure"),
+            "{line}"
+        );
+        assert!(
+            body["errorMessage"]
+                .as_str()
+                .is_some_and(|m| m.contains("element 'review'")),
+            "{body}"
+        );
+        assert_eq!(body["jobLeaseToken"], "tok");
+        assert!(rest.try_recv().is_err());
+
+        // Stream path: a fail frame naming the serialization failure.
+        let (worker, mut frames) = falcon_worker().await;
+        apply_action_falcon(&worker, "8", action());
+        let frame = bounded("the fail frame", frames.recv()).await.unwrap();
+        assert_eq!(frame["type"], "failJob");
+        assert_eq!(frame["jobKey"], "8");
+        assert!(
+            frame["errorMessage"]
+                .as_str()
+                .is_some_and(|m| m.contains("element 'review'")),
+            "{frame}"
+        );
+        assert!(rest.try_recv().is_err());
+    }
+
+    /// Await `fut`, failing the test rather than hanging if it does not finish in time.
+    async fn bounded<T>(what: &str, fut: impl Future<Output = T>) -> T {
+        tokio::time::timeout(Duration::from_secs(10), fut)
+            .await
+            .unwrap_or_else(|_| panic!("timed out waiting for {what}"))
+    }
+
+    /// A Falcon stream worker subscribed to a local stub gateway, and the frames the stub
+    /// receives after the subscribe.
+    async fn falcon_worker() -> (
+        super::super::falcon::FalconStreamWorker,
+        tokio::sync::mpsc::UnboundedReceiver<Value>,
+    ) {
+        use futures_util::StreamExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("ws://{}/falcon", listener.local_addr().unwrap());
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            let Ok((sock, _)) = listener.accept().await else {
+                return;
+            };
+            let Ok(mut ws) = tokio_tungstenite::accept_async(sock).await else {
+                return;
+            };
+            while let Some(Ok(msg)) = ws.next().await {
+                if let Ok(text) = msg.into_text() {
+                    if let Ok(frame) = serde_json::from_str::<Value>(&text) {
+                        let _ = tx.send(frame);
+                    }
+                }
+            }
+        });
+        let worker = bounded(
+            "the stream to connect",
+            super::super::falcon::FalconStreamWorker::subscribe(
+                vec![endpoint],
+                "t",
+                1,
+                None,
+                None,
+                None,
+                Arc::new(super::super::random::LiveRandom),
+            ),
+        )
+        .await
+        .expect("the stream connects to the stub");
+        let subscribe = bounded("the subscribe frame", rx.recv()).await.unwrap();
+        assert_eq!(subscribe["type"], "subscribe");
+        (worker, rx)
+    }
+
+    #[tokio::test]
+    async fn stream_path_fails_result_completions() {
+        use super::super::job_result::UserTaskResult;
+        let (worker, mut frames) = falcon_worker().await;
+
+        let action = JobAction::complete_with_result(UserTaskResult::deny("no"));
+        apply_action_falcon(&worker, "42", action);
+
+        // The job is failed, never completed (that would approve a denied task); the fail
+        // frame names the limitation and the workaround. `apply_action_falcon` has no
+        // client, so nothing can go over REST.
+        let fail = bounded("the fail frame", frames.recv()).await.unwrap();
+        assert_eq!(fail["type"], "failJob");
+        assert_eq!(fail["jobKey"], "42");
+        assert_eq!(fail["errorMessage"], FALCON_JOB_RESULT_UNSUPPORTED);
+        assert!(fail.get("retries").is_none());
+        let credit = bounded("the credit frame", frames.recv()).await.unwrap();
+        assert_eq!(credit["type"], "jobCredits");
+        assert_eq!(credit["n"], 1);
+        assert!(
+            FALCON_JOB_RESULT_UNSUPPORTED.contains("CAMUNDA_FORCE_REST=true"),
+            "the message names the workaround"
+        );
+    }
+
+    #[tokio::test]
+    async fn stream_path_sends_plain_completions_as_frames() {
+        let (worker, mut frames) = falcon_worker().await;
+
+        apply_action_falcon(&worker, "1", JobAction::complete());
+        apply_action_falcon(
+            &worker,
+            "2",
+            JobAction::complete_with(serde_json::json!({ "ok": true })),
+        );
+
+        let mut completes = Vec::new();
+        while completes.len() < 2 {
+            let frame = bounded("the completion frames", frames.recv())
+                .await
+                .unwrap();
+            if frame["type"] == "completeJob" {
+                completes.push(frame);
+            }
+        }
+        assert_eq!(completes[0]["jobKey"], "1");
+        assert!(completes[0].get("variables").is_none());
+        assert_eq!(completes[1]["jobKey"], "2");
+        assert_eq!(completes[1]["variables"], serde_json::json!({ "ok": true }));
     }
 
     #[test]

@@ -153,6 +153,7 @@ version = "11.0.0-alpha.1"
 dependencies = [
  "async-trait",
  "camunda-orchestration-api-client",
+ "chrono",
  "futures-util",
  "reqwest",
  "serde",

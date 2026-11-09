@@ -37,6 +37,9 @@ pub use runtime::clock::{live_clock, Clock, ClockController, EngineClock, LiveCl
 pub use runtime::config::{CamundaConfig, LogLevel, RetryConfig, TlsConfig, WorkerDefaults};
 pub use runtime::errors::{CamundaError, Result};
 pub use runtime::eventual::ConsistencyOptions;
+pub use runtime::job_result::{
+    AdHocSubProcessResult, CompletionResult, UserTaskCorrections, UserTaskResult,
+};
 pub use runtime::job_worker::{
     Job, JobAction, JobHandler, JobWorker, JobWorkerConfig, JobWorkerHandle, ReadyCallback,
 };
