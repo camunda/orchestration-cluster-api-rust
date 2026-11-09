@@ -866,6 +866,10 @@ WORKER_TYPES = [
     "JobWorkerHandle",
     "Job",
     "JobAction",
+    "CompletionResult",
+    "UserTaskResult",
+    "UserTaskCorrections",
+    "AdHocSubProcessResult",
     "JobHandler",
     "ReadyCallback",
 ]
