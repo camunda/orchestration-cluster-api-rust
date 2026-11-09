@@ -819,6 +819,8 @@ trait StreamCommands {
     fn fail(&self, job_key: &str, retries: Option<i32>, error_message: Option<String>);
     fn throw_error(&self, job_key: &str, error_code: &str, error_message: Option<String>);
     fn replenish(&self, n: i64);
+    /// The endpoint of the gateway the stream is connected to.
+    fn current_endpoint(&self) -> Option<String>;
 }
 
 impl StreamCommands for super::falcon::FalconStreamWorker {
@@ -834,6 +836,9 @@ impl StreamCommands for super::falcon::FalconStreamWorker {
     fn replenish(&self, n: i64) {
         super::falcon::FalconStreamWorker::replenish(self, n);
     }
+    fn current_endpoint(&self) -> Option<String> {
+        super::falcon::FalconStreamWorker::current_endpoint(self)
+    }
 }
 
 /// Apply a [`JobAction`] on the stream worker path. Each command-stream frame also
@@ -842,8 +847,10 @@ impl StreamCommands for super::falcon::FalconStreamWorker {
 /// The command stream's `completeJob` frame has no `result` field, so a completion that
 /// carries a job result goes over REST instead: sending it as a frame would drop the
 /// result and, for a user task listener, silently approve work the handler denied. The
-/// delivery credit a frame would have replenished is topped up afterwards, whether or
-/// not the REST call succeeded, so the push window stays full.
+/// REST call goes to the gateway the stream is connected to -- the one that delivered
+/// the job -- since after a failover the configured gateway may be the one that is down.
+/// The delivery credit a frame would have replenished is topped up afterwards, whether
+/// or not the REST call succeeded, so the push window stays full.
 async fn apply_action_stream(
     stream: &impl StreamCommands,
     client: &CamundaClient,
@@ -860,8 +867,17 @@ async fn apply_action_stream(
         JobAction::Complete { variables } => {
             stream.complete(job_key, variables.and_then(value_to_obj));
         }
-        action @ JobAction::CompleteWithResult { .. } => {
-            if let Err(e) = apply_action(client, job_key, lease_token, action).await {
+        JobAction::CompleteWithResult { variables, result } => {
+            let endpoint = stream.current_endpoint();
+            let sent = match build_result_completion_body(variables, &result, lease_token) {
+                Ok(body) => {
+                    client
+                        .complete_job_with_body(job_key, &body, endpoint.as_deref())
+                        .await
+                }
+                Err(e) => Err(e),
+            };
+            if let Err(e) = sent {
                 tracing::warn!(error = %e, "failed to apply job action");
             }
             stream.replenish(1);
@@ -906,7 +922,7 @@ async fn apply_action(
         }
         JobAction::CompleteWithResult { variables, result } => {
             let body = build_result_completion_body(variables, &result, lease_token)?;
-            client.complete_job_with_body(job_key, &body).await
+            client.complete_job_with_body(job_key, &body, None).await
         }
         JobAction::Fail {
             error_message,
@@ -1364,6 +1380,9 @@ mod tests {
         fn replenish(&self, n: i64) {
             self.calls.lock().unwrap().push(format!("replenish {n}"));
         }
+        fn current_endpoint(&self) -> Option<String> {
+            None
+        }
     }
 
     /// Serve REST requests on a local port, answering each with `204 No Content` and
@@ -1458,6 +1477,186 @@ mod tests {
         );
         // No completeJob frame; the consumed delivery credit is topped up instead.
         assert_eq!(*stream.calls.lock().unwrap(), ["replenish 1"]);
+    }
+
+    /// A stub nanobpmn node on one port: WebSocket upgrades are command-stream
+    /// connections (reported once their subscribe frame arrives), anything else is a REST
+    /// request (reported with its request line and body, answered `204`). Firing `kill`
+    /// closes the open stream and the listener, so the node is gone.
+    struct StubNode {
+        endpoint: String,
+        subscribed: tokio::sync::mpsc::UnboundedReceiver<()>,
+        rest: tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
+        kill: Option<tokio::sync::oneshot::Sender<()>>,
+    }
+
+    async fn stub_node() -> StubNode {
+        use futures_util::StreamExt;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (sub_tx, subscribed) = tokio::sync::mpsc::unbounded_channel();
+        let (rest_tx, rest) = tokio::sync::mpsc::unbounded_channel();
+        let (kill_tx, mut kill_rx) = tokio::sync::oneshot::channel::<()>();
+        let (closed_tx, _) = tokio::sync::watch::channel(false);
+        tokio::spawn(async move {
+            loop {
+                let (sock, _) = tokio::select! {
+                    _ = &mut kill_rx => {
+                        let _ = closed_tx.send(true);
+                        return;
+                    }
+                    accepted = listener.accept() => match accepted {
+                        Ok(pair) => pair,
+                        Err(_) => return,
+                    },
+                };
+                let mut peek = [0u8; 4];
+                let n = sock.peek(&mut peek).await.unwrap_or(0);
+                if &peek[..n] == b"GET " {
+                    let sub_tx = sub_tx.clone();
+                    let mut closed = closed_tx.subscribe();
+                    tokio::spawn(async move {
+                        let Ok(mut ws) = tokio_tungstenite::accept_async(sock).await else {
+                            return;
+                        };
+                        if ws.next().await.is_some() {
+                            let _ = sub_tx.send(());
+                        }
+                        tokio::select! {
+                            _ = closed.wait_for(|c| *c) => {}
+                            _ = async { while ws.next().await.is_some() {} } => {}
+                        }
+                    });
+                    continue;
+                }
+                let rest_tx = rest_tx.clone();
+                let mut sock = sock;
+                tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    let mut tmp = [0u8; 1024];
+                    let header_end = loop {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => {
+                                buf.extend_from_slice(&tmp[..n]);
+                                if let Some(p) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                                    break p + 4;
+                                }
+                            }
+                        }
+                    };
+                    let head = String::from_utf8_lossy(&buf[..header_end]).to_string();
+                    let len = head
+                        .lines()
+                        .find_map(|l| {
+                            l.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                        })
+                        .unwrap_or(0);
+                    while buf.len() < header_end + len {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => break,
+                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                        }
+                    }
+                    let line = head.lines().next().unwrap_or_default().to_string();
+                    let body = serde_json::from_slice(&buf[header_end..]).unwrap_or(Value::Null);
+                    let _ = rest_tx.send((line, body));
+                    let _ = sock
+                        .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
+                        .await;
+                });
+            }
+        });
+        StubNode {
+            endpoint: format!("ws://{addr}/falcon"),
+            subscribed,
+            rest,
+            kill: Some(kill_tx),
+        }
+    }
+
+    /// Always draws the same value, so the first dial deterministically picks the first
+    /// directory entry.
+    #[derive(Debug)]
+    struct FirstEndpoint;
+
+    impl Random for FirstEndpoint {
+        fn next_f64(&self) -> f64 {
+            0.0
+        }
+    }
+
+    /// Regression: after the stream fails over, a result-bearing completion must go to
+    /// the surviving gateway the stream is connected to, not to the configured one.
+    #[tokio::test]
+    async fn stream_result_completion_follows_a_failover() {
+        use super::super::job_result::UserTaskResult;
+        let mut first = stub_node().await;
+        let mut second = stub_node().await;
+
+        // The client is configured with the first node's REST address.
+        let first_rest = first
+            .endpoint
+            .replacen("ws://", "http://", 1)
+            .replace("/falcon", "");
+        let client = CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", first_rest)
+                .with("CAMUNDA_FALCON", "false"),
+        )
+        .unwrap();
+
+        let worker = super::super::falcon::FalconStreamWorker::subscribe(
+            vec![first.endpoint.clone(), second.endpoint.clone()],
+            "t",
+            1,
+            None,
+            None,
+            None,
+            Arc::new(FirstEndpoint),
+        )
+        .await
+        .expect("the stream connects to the first node");
+        first
+            .subscribed
+            .recv()
+            .await
+            .expect("subscribed on the first node");
+
+        // The first node goes away; the stream fails over to the second.
+        first.kill.take().unwrap().send(()).unwrap();
+        second
+            .subscribed
+            .recv()
+            .await
+            .expect("the stream re-subscribes on the second node");
+        assert_eq!(worker.current_endpoint(), Some(second.endpoint.clone()));
+
+        let action = JobAction::complete_with_result(UserTaskResult::deny("no"));
+        apply_action_stream(&worker, &client, "42", Some("tok"), action).await;
+
+        let (line, body) = second
+            .rest
+            .try_recv()
+            .expect("the completion went to the surviving gateway");
+        assert!(
+            line.starts_with("POST /v2/jobs/42/completion "),
+            "base path kept: {line}"
+        );
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "result": { "type": "userTask", "denied": true, "deniedReason": "no" },
+                "jobLeaseToken": "tok"
+            })
+        );
+        assert!(
+            first.rest.try_recv().is_err(),
+            "nothing reached the dead node"
+        );
     }
 
     #[tokio::test]

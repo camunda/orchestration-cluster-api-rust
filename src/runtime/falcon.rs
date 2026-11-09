@@ -230,6 +230,24 @@ pub fn ws_url(rest_address: &str, exact: bool, path: &str) -> String {
     format!("{ws_origin}{path}")
 }
 
+/// Move a REST base URL onto the gateway behind a command-stream endpoint: the
+/// endpoint's origin (`ws`→`http`, `wss`→`https`) with the REST base's path kept, so
+/// `http://a:8080/v2` and `ws://b:9090/falcon` give `http://b:9090/v2`. The inverse of
+/// [`ws_url`] for the origin, which serves both the REST API and the command stream.
+pub fn rest_base_for_endpoint(rest_base: &str, endpoint: &str) -> String {
+    let rest_base = rest_base.trim_end_matches('/');
+    let path = &rest_base[origin_of(rest_base).len()..];
+    let origin = origin_of(endpoint);
+    let origin = if let Some(rest) = origin.strip_prefix("wss://") {
+        format!("https://{rest}")
+    } else if let Some(rest) = origin.strip_prefix("ws://") {
+        format!("http://{rest}")
+    } else {
+        origin.to_string()
+    };
+    format!("{origin}{path}")
+}
+
 /// The writer sender and decoded-frame receiver produced by [`dial`].
 type DialPair = (
     mpsc::UnboundedSender<Message>,
@@ -401,6 +419,11 @@ impl SupervisedLink {
             Ok(Err(e)) => Err(e),
             Err(_) => Err(CamundaError::Config("falcon link supervisor exited".into())),
         }
+    }
+
+    /// The endpoint of the current (or, while reconnecting, the last) connection.
+    fn current_endpoint(&self) -> Option<String> {
+        self.inner.current.lock().unwrap().clone()
     }
 
     /// Send a frame on the current socket. Returns an error while disconnected.
@@ -857,6 +880,13 @@ impl FalconStreamWorker {
         })
     }
 
+    /// The command-stream endpoint this worker is connected to (the last one while it
+    /// reconnects). It is the gateway that delivered the worker's jobs, and so the one to
+    /// send any REST command for them to after a failover.
+    pub fn current_endpoint(&self) -> Option<String> {
+        self.link.current_endpoint()
+    }
+
     /// Await the next pushed job, or `None` if no job arrives within `wait`.
     pub async fn next_job(&self, wait: Duration) -> Option<models::ActivatedJobResult> {
         let mut rx = self.jobs.lock().await;
@@ -920,6 +950,26 @@ impl FalconStreamWorker {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rest_base_moves_onto_the_endpoint_origin_and_keeps_the_path() {
+        assert_eq!(
+            rest_base_for_endpoint("http://a:8080/v2", "ws://b:9090/falcon"),
+            "http://b:9090/v2"
+        );
+        assert_eq!(
+            rest_base_for_endpoint("http://proxy/custom/", "ws://other/falcon"),
+            "http://other/custom"
+        );
+        assert_eq!(
+            rest_base_for_endpoint("https://a/v2", "wss://b:443/falcon"),
+            "https://b:443/v2"
+        );
+        assert_eq!(
+            rest_base_for_endpoint("http://a:8080", "ws://b:9090/falcon"),
+            "http://b:9090"
+        );
+    }
 
     #[test]
     fn ws_url_strips_v2_and_swaps_scheme() {
