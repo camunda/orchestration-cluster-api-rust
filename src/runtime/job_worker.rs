@@ -1627,9 +1627,16 @@ mod tests {
                         Err(_) => return,
                     },
                 };
+                // `peek` may return only part of the request line. The two kinds of
+                // client here differ in their first byte (`GET` upgrade vs `POST`), so
+                // any nonempty prefix of `GET ` is decisive; the handshake parser then
+                // reads the complete request itself.
                 let mut peek = [0u8; 4];
                 let n = sock.peek(&mut peek).await.unwrap_or(0);
-                if &peek[..n] == b"GET " {
+                if n == 0 {
+                    continue;
+                }
+                if b"GET ".starts_with(&peek[..n]) {
                     let sub_tx = sub_tx.clone();
                     let mut closed = closed_tx.subscribe();
                     tokio::spawn(async move {
@@ -1694,6 +1701,13 @@ mod tests {
         }
     }
 
+    /// Await `fut`, failing the test rather than hanging if it does not finish in time.
+    async fn bounded<T>(what: &str, fut: impl Future<Output = T>) -> T {
+        tokio::time::timeout(Duration::from_secs(10), fut)
+            .await
+            .unwrap_or_else(|_| panic!("timed out waiting for {what}"))
+    }
+
     /// Always draws the same value, so the first dial deterministically picks the first
     /// directory entry.
     #[derive(Debug)]
@@ -1725,34 +1739,37 @@ mod tests {
         )
         .unwrap();
 
-        let worker = super::super::falcon::FalconStreamWorker::subscribe(
-            vec![first.endpoint.clone(), second.endpoint.clone()],
-            "t",
-            1,
-            None,
-            None,
-            None,
-            Arc::new(FirstEndpoint),
+        let worker = bounded(
+            "the first connection",
+            super::super::falcon::FalconStreamWorker::subscribe(
+                vec![first.endpoint.clone(), second.endpoint.clone()],
+                "t",
+                1,
+                None,
+                None,
+                None,
+                Arc::new(FirstEndpoint),
+            ),
         )
         .await
         .expect("the stream connects to the first node");
-        first
-            .subscribed
-            .recv()
+        bounded("the first subscribe", first.subscribed.recv())
             .await
             .expect("subscribed on the first node");
 
         // The first node goes away; the stream fails over to the second.
         first.kill.take().unwrap().send(()).unwrap();
-        second
-            .subscribed
-            .recv()
+        bounded("the failover subscribe", second.subscribed.recv())
             .await
             .expect("the stream re-subscribes on the second node");
         assert_eq!(worker.current_endpoint(), Some(second.endpoint.clone()));
 
         let action = JobAction::complete_with_result(UserTaskResult::deny("no"));
-        apply_action_stream(&worker, &client, "42", Some("tok"), action).await;
+        bounded(
+            "the completion",
+            apply_action_stream(&worker, &client, "42", Some("tok"), action),
+        )
+        .await;
 
         let (line, body) = second
             .rest
