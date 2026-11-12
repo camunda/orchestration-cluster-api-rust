@@ -2,5 +2,5 @@
 # produce byte-reproducible output across machines and CI. rustfmt + clippy are
 # required by the generate pipeline and `make lint`.
 [toolchain]
-channel = "1.99.1"
+channel = "1.100.0"
 components = ["rustfmt", "clippy"]
