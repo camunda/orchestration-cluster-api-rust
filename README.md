@@ -51,7 +51,8 @@ helps close that gap.
 │   └── src/models/                  #   request/response models + camunda_keys.rs (domain types)
 ├── external-spec/bundled/           # bundled OpenAPI spec + metadata (generator input)
 ├── scripts/
-│   ├── generate.sh                  # bundle → openapi-generator → post-process → build
+│   ├── generate.sh                  # bundle → preprocess → openapi-generator → post-process → build
+│   ├── preprocess.py                # derives the generator input spec from the bundle
 │   ├── postprocess.py               # orchestrates the numbered post-processing hooks
 │   └── hooks/                       # numbered hooks: Domain Type System, semantic fields, fixups
 ├── openapi-generator-config.yaml
@@ -327,6 +328,33 @@ JobAction::complete_with_result(UserTaskResult::deny("Insufficient documentation
 An attribute you do not set preserves the persisted value. A cleared date is sent as
 `""`; setting and clearing the same date overrides each other, so the last call wins.
 
+The API clears a date with an empty string, while `null` or omitting it preserves the
+value. The generated models that carry such dates (`models::JobResultCorrections`, and
+`models::Changeset` for updating a user task) keep them typed as
+`Option<Option<chrono::DateTime<FixedOffset>>>`: `None` preserves the value,
+`Some(Some(date))` sets it, and `Some(None)` clears it and is sent as `""`. Each such model
+has `clear_<field>()` and `is_<field>_cleared()` for this:
+
+<!-- snippet-source: examples/readme.rs | regions: UpdateUserTaskDates -->
+```rust
+use camunda_orchestration_sdk::apis::user_task_api::UpdateUserTaskParams;
+use camunda_orchestration_sdk::models::{Changeset, UserTaskUpdateRequest};
+
+let mut changeset = Changeset::new();
+changeset.clear_due_date(); // sent as "dueDate": ""
+changeset.follow_up_date = Some(Some("2026-12-01T09:00:00+01:00".parse()?));
+
+client
+    .update_user_task(UpdateUserTaskParams {
+        user_task_key,
+        user_task_update_request: Some(UserTaskUpdateRequest {
+            changeset: Some(Some(changeset)),
+            ..UserTaskUpdateRequest::new()
+        }),
+    })
+    .await?;
+```
+
 ### Ad-hoc sub-process results
 
 A job worker for an
@@ -349,9 +377,9 @@ JobAction::complete_with_result(
 
 Both builders convert into a `CompletionResult`, which wraps the generated
 `models::JobResult` (whose variant sets the `type` discriminator, `userTask` /
-`adHocSubProcess`, on the wire) together with any cleared dates. A hand-built
-`models::JobResult` is accepted too, but the generated model types the dates as date-times
-and so cannot clear them — use `UserTaskCorrections` for that.
+`adHocSubProcess`, on the wire). A hand-built `models::JobResult` is accepted too; clear
+a date in it with `JobResultCorrections::clear_due_date()` /
+`clear_follow_up_date()`.
 
 > **Falcon command stream (nanobpmn gateways):** job results are sent over REST only. The
 > Falcon command stream's completion frame has no field for a result, so when a worker is
@@ -568,8 +596,11 @@ make lint
 The generation pipeline (`scripts/generate.sh`):
 
 1. (`--bundle` only) `camunda-schema-bundler` fetches and bundles the upstream OpenAPI spec.
-2. `openapi-generator` produces the `client/` crate (reqwest + serde, async).
-3. `scripts/postprocess.py` runs the numbered hooks under `scripts/hooks/`: generate the
+2. `scripts/preprocess.py` derives the generator input from the bundle (gitignored
+   `external-spec/generator/`), rewriting shapes the generator cannot type — such as
+   `x-clearable` date-times — into ones it can.
+3. `openapi-generator` produces the `client/` crate (reqwest + serde, async).
+4. `scripts/postprocess.py` runs the numbered hooks under `scripts/hooks/`: generate the
    Domain Type System, apply semantic newtypes to fields the generator collapsed to
    `String`, fix known generator output bugs (doubled `models::models::` paths, bare
    `Object` placeholders, lint noise), and generate the full-surface ergonomic facade
