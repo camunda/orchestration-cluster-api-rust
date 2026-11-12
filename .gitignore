@@ -5,6 +5,9 @@
 # Transient upstream spec clone (never commit — see camunda-schema-bundler)
 external-spec/upstream/
 
+# Generator input derived from the bundle by scripts/preprocess.py
+external-spec/generator/
+
 # Side-effect report written by check-example-coverage.py on every run
 external-spec/missing-examples.json
 

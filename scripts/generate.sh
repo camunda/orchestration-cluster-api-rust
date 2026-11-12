@@ -4,8 +4,10 @@
 #
 # Pipeline:
 #   1. (optional) bundle:spec  — fetch + bundle upstream spec via camunda-schema-bundler
-#   2. openapi-generator         — generate the `client/` crate (reqwest + serde, async)
-#   3. postprocess              — run the numbered hooks: Domain Type System, semantic
+#   2. preprocess               — derive the generator input from the bundle (x-clearable
+#                                  date-times → nullable date-times); see scripts/preprocess.py
+#   3. openapi-generator         — generate the `client/` crate (reqwest + serde, async)
+#   4. postprocess              — run the numbered hooks: Domain Type System, semantic
 #                                  field types, known openapi-generator output fixes, and
 #                                  the flat full-surface ergonomic facade
 #
@@ -22,6 +24,8 @@ SPEC_REF_DEFAULT="main"
 SPEC_REF="${SPEC_REF:-$SPEC_REF_DEFAULT}"
 BUNDLED_SPEC="external-spec/bundled/rest-api.bundle.json"
 BUNDLED_META="external-spec/bundled/spec-metadata.json"
+# Derived, gitignored generator input (openapi-generator-config.yaml `inputSpec`).
+GENERATOR_SPEC="external-spec/generator/rest-api.json"
 
 if [[ "${1:-}" == "--bundle" || "${1:-}" == "--bundle-only" ]]; then
   echo "==> Bundling upstream spec (ref: ${SPEC_REF}) via camunda-schema-bundler..."
@@ -38,6 +42,9 @@ if [[ "${1:-}" == "--bundle-only" ]]; then
   echo "==> Bundled spec written to $BUNDLED_SPEC (stopping before codegen)."
   exit 0
 fi
+
+echo "==> Preparing the generator input spec..."
+python3 scripts/preprocess.py --spec "$BUNDLED_SPEC" --out "$GENERATOR_SPEC"
 
 echo "==> Generating Rust client crate with openapi-generator..."
 npx --yes @openapitools/openapi-generator-cli generate \
