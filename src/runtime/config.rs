@@ -544,6 +544,17 @@ mod tests {
     /// sentinel value and the config field it lands in. Driving the redaction tests off one
     /// table is what makes them class-scoped: a new credential variable is added here, and
     /// every assertion below covers it automatically.
+    /// Why these assertions do not print the string they just scanned.
+    ///
+    /// A failure here means a credential survived redaction. Interpolating the rendered
+    /// output into the panic message would then copy that credential into the CI log — the
+    /// test would leak the secret it exists to catch, into a place that is kept and often
+    /// world-readable. CodeQL flags it as cleartext logging of sensitive information, and
+    /// it is right to. The variable name says which credential leaked, which is what a
+    /// maintainer needs; reproducing it locally shows the rest.
+    const DO_NOT_PRINT: &str =
+        "rendered output withheld: it contains the credential that leaked; run the test locally";
+
     const SECRET_ENV: &[(&str, &str)] = &[
         ("CAMUNDA_CLIENT_SECRET", "SENTINEL-CLIENT-SECRET-d41d8c"),
         (
@@ -583,7 +594,7 @@ mod tests {
         for (var, sentinel) in SECRET_ENV {
             assert!(
                 !rendered.contains(sentinel),
-                "{var} leaked into CamundaConfig's Debug output: {rendered}"
+                "{var} leaked into CamundaConfig's Debug output ({DO_NOT_PRINT})"
             );
         }
     }
@@ -597,7 +608,7 @@ mod tests {
         for (var, sentinel) in SECRET_ENV {
             assert!(
                 !rendered.contains(sentinel),
-                "{var} leaked into TlsConfig's Debug output: {rendered}"
+                "{var} leaked into TlsConfig's Debug output ({DO_NOT_PRINT})"
             );
         }
     }
@@ -612,19 +623,19 @@ mod tests {
 
         assert!(
             rendered.contains("https://cluster.example"),
-            "the REST address is not a secret and must stay readable: {rendered}"
+            "the REST address is not a secret and must stay readable ({DO_NOT_PRINT})"
         );
         assert!(
             rendered.contains("demo-user"),
-            "the basic-auth username is not a secret and must stay readable: {rendered}"
+            "the basic-auth username is not a secret and must stay readable ({DO_NOT_PRINT})"
         );
         assert!(
             rendered.contains("/etc/camunda/ca.pem"),
-            "a path to TLS material is not the material; it must stay readable: {rendered}"
+            "a path to TLS material is not the material; it must stay readable ({DO_NOT_PRINT})"
         );
         assert!(
             rendered.contains("<redacted>"),
-            "a set credential must still show as present: {rendered}"
+            "a set credential must still show as present ({DO_NOT_PRINT})"
         );
 
         // An unset credential reads as `None`, not as a redacted placeholder — otherwise
