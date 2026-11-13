@@ -594,7 +594,8 @@ mod tests {
             for rendered in [&display, &debug] {
                 assert!(
                     !rendered.contains(SENTINEL),
-                    "token-endpoint error leaked response-body or credential material: {rendered}"
+                    "token-endpoint error leaked response-body or credential material \
+                     (rendered error withheld: it contains the leaked text)"
                 );
             }
         }
@@ -617,7 +618,7 @@ mod tests {
             );
             assert!(
                 format!("{err}").contains("401"),
-                "the status is the diagnostic we do keep: {err}"
+                "the status is the diagnostic we do keep (rendered error withheld)"
             );
             assert_no_leak(&err);
         }
@@ -637,6 +638,35 @@ mod tests {
                 "expected CamundaError::Auth, got {err:?}"
             );
             assert_no_leak(&err);
+        }
+
+        /// serde quotes the rejected value of a wrongly typed *known* field
+        /// (`invalid type: string "<value>", expected u64`) and of a top-level value of the
+        /// wrong shape. An unknown field is skipped before any diagnostic is built, so it
+        /// cannot exercise this; these bodies put the sentinel where serde reports it.
+        #[tokio::test]
+        async fn decoding_failures_do_not_quote_rejected_values() {
+            let bodies = [
+                // Wrongly typed known field: the sentinel is the rejected value.
+                format!(r#"{{"access_token":"t","expires_in":"{SENTINEL}"}}"#),
+                // Top-level JSON string where an object is expected.
+                format!(r#""{SENTINEL}""#),
+                // A wrongly typed access_token field.
+                format!(r#"{{"access_token":["{SENTINEL}"]}}"#),
+            ];
+            for body in bodies {
+                let url = serve_once("200 OK", body).await;
+                let err = auth_for(url)
+                    .fetch_token()
+                    .await
+                    .expect_err("a malformed token response must fail");
+
+                assert!(
+                    matches!(err, CamundaError::Auth(_)),
+                    "expected CamundaError::Auth, got {err:?}"
+                );
+                assert_no_leak(&err);
+            }
         }
     }
 
