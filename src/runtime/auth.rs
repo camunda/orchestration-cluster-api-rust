@@ -351,21 +351,35 @@ fn create_cache_dir(dir: &std::path::Path) -> std::io::Result<()> {
 /// in which the credential sits on disk world-readable, and this file is the staging file
 /// for the atomic rename, so that window is exactly where it matters.
 ///
+/// Creation is **exclusive** (`O_EXCL`), because a mode is only applied to a file this call
+/// actually creates. Opening an existing path would adopt whatever permissions it already
+/// had — so a `0644` staging file left behind by an interrupted write under an older SDK,
+/// met again when the process id repeats (pid 1 after a container restart is the easy case),
+/// would receive the new token and keep its world-readable mode straight through the rename.
+/// Any stale staging file is removed first, and the exclusive create then guarantees the
+/// inode written to is one this call made.
+///
 /// Windows has no mode bit to set. There the file inherits the directory's ACL, which is
 /// why `CAMUNDA_OAUTH_CACHE_DIR` should point at a per-user location on that platform.
 fn write_owner_only(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
 
+    // Best-effort: a missing file is the normal case and not an error.
+    match std::fs::remove_file(path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e),
+    }
+
     let mut options = std::fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
+    options.write(true).create_new(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    // An existing file keeps its own mode, so a cache written by an older SDK version is
-    // replaced rather than reused: the rename below swaps in this file's inode, and with it
-    // this file's mode.
+    // The rename that follows swaps in this file's inode, and with it this file's mode — so
+    // a cache left at 0644 by an older SDK version is replaced rather than written into.
     let mut file = options.open(path)?;
     file.write_all(bytes)
 }
@@ -522,6 +536,46 @@ mod tests {
             assert!(
                 leftovers.is_empty(),
                 "a staging file was left behind: {leftovers:?}"
+            );
+        }
+
+        /// A mode is only applied to a file the open actually creates, so a staging file
+        /// left behind by an interrupted write is the hole: reopening it would adopt its
+        /// permissions and the rename would commit the token still world-readable. The
+        /// process id is in the staging name, which repeats readily enough — pid 1 after a
+        /// container restart. Writing over a pre-created `0644` staging file must still end
+        /// at `0600`.
+        #[cfg(unix)]
+        #[test]
+        fn a_stale_world_readable_staging_file_does_not_taint_the_mode() {
+            use std::os::unix::fs::PermissionsExt;
+
+            let dir = CacheDir::new("stale-staging");
+            let auth = auth_with_cache(&dir.0);
+            let path = auth.cache_file_path().expect("a cache dir is configured");
+
+            // Exactly what an interrupted write under an older SDK would have left.
+            std::fs::create_dir_all(&dir.0).expect("pre-create the cache directory");
+            let stale = path.with_extension(format!("tmp-{}", std::process::id()));
+            std::fs::write(&stale, b"{}").expect("pre-create the staging file");
+            std::fs::set_permissions(&stale, std::fs::Permissions::from_mode(0o644))
+                .expect("make the staging file world-readable");
+
+            auth.write_disk_token(&token_for(&auth));
+
+            let mode = std::fs::metadata(&path)
+                .expect("the token cache file was written")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(
+                mode, 0o600,
+                "a stale world-readable staging file must not carry its mode into the \
+                 committed cache, got {mode:o}"
+            );
+            assert!(
+                !stale.exists(),
+                "the staging file must not survive a successful commit"
             );
         }
 
