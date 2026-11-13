@@ -487,6 +487,35 @@ mod tests {
             );
             assert_no_leak(&err);
         }
+
+        /// serde quotes the rejected value of a wrongly typed *known* field
+        /// (`invalid type: string "<value>", expected u64`) and of a top-level value of the
+        /// wrong shape. An unknown field is skipped before any diagnostic is built, so it
+        /// cannot exercise this; these bodies put the sentinel where serde reports it.
+        #[tokio::test]
+        async fn decoding_failures_do_not_quote_rejected_values() {
+            let bodies = [
+                // Wrongly typed known field: the sentinel is the rejected value.
+                format!(r#"{{"access_token":"t","expires_in":"{SENTINEL}"}}"#),
+                // Top-level JSON string where an object is expected.
+                format!(r#""{SENTINEL}""#),
+                // A wrongly typed access_token field.
+                format!(r#"{{"access_token":["{SENTINEL}"]}}"#),
+            ];
+            for body in bodies {
+                let url = serve_once("200 OK", body).await;
+                let err = auth_for(url)
+                    .fetch_token()
+                    .await
+                    .expect_err("a malformed token response must fail");
+
+                assert!(
+                    matches!(err, CamundaError::Auth(_)),
+                    "expected CamundaError::Auth, got {err:?}"
+                );
+                assert_no_leak(&err);
+            }
+        }
     }
 
     /// OAuth tokens must be written to `bearer_access_token` — the only field the
