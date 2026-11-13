@@ -105,13 +105,13 @@ jobs:
           examples-dir: examples
           key-style: camelCase
 
-  # Non-blocking: regenerate the client from upstream and report any drift, mirroring the
-  # sibling SDKs. Does not fail the build — drift is surfaced for a follow-up regen PR.
+  # Blocking: regenerate the client from upstream and fail when the committed output has drifted.
+  # The drift patch is still uploaded so the fix is `git apply` + commit (or `make bundle`).
   generation-drift:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: true
+    continue-on-error: false
     steps:
       - uses: actions/checkout@v6
         with:
@@ -142,7 +142,7 @@ jobs:
           git add -A -N
           if ! git diff --quiet; then
             echo 'drift=true' >> "$GITHUB_OUTPUT"
-            echo '::warning::Regeneration produced changes (reporting only). Run `make bundle` and commit.'
+            echo '::error::Regeneration produced changes. Run `make bundle` and commit, or apply the uploaded generation-drift patch.'
             git diff --name-only | sed 's/^/CHANGED: /'
             git diff > _generation-drift.patch || true
           else
@@ -156,3 +156,8 @@ jobs:
         with:
           name: generation-drift
           path: _generation-drift.patch
+
+      # Last, so the patch above is uploaded before the job fails.
+      - name: Fail on generation drift
+        if: steps.drift.outputs.drift == 'true'
+        run: exit 1

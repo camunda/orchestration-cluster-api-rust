@@ -113,7 +113,9 @@ make check         # full local CI gate (build, test, examples, lint, fmt-check,
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same gate (clippy with `-D warnings`) plus a
-non-blocking generation-drift job that regenerates from upstream and reports any diff.
+required generation-drift job that regenerates from upstream and fails on any diff. It uploads
+the diff as the `generation-drift` artifact; `make bundle` (or applying that patch) and committing
+the result clears it.
 
 ### Live-cluster tests
 
