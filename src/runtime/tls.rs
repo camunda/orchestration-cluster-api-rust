@@ -121,6 +121,17 @@ mod tests {
         apply_tls(reqwest::Client::builder(), tls)
     }
 
+    /// How a path appears inside `read_pem`'s error message.
+    ///
+    /// `read_pem` formats the path with `{p:?}`, which quotes it and escapes separators. On
+    /// unix that is the raw path in quotes, so a naive substring check passes; on Windows
+    /// `C:\dir\material.pem` becomes `"C:\\dir\\material.pem"` and the same check fails
+    /// against correct behaviour. Comparing against the Debug form keeps these assertions
+    /// about the message and not about the platform's separator.
+    fn as_reported(path: &str) -> String {
+        format!("{path:?}")
+    }
+
     /// Unwrap the message of a `CamundaError::Config`, failing the test on any other
     /// variant — every misconfiguration branch in this module is a configuration error, and
     /// a branch that started returning something else would be a behaviour change worth
@@ -179,7 +190,7 @@ mod tests {
             ..TlsConfig::default()
         }));
         assert!(
-            msg.contains(&path),
+            msg.contains(&as_reported(&path)),
             "the error should name the unreadable file: {msg}"
         );
         assert!(
@@ -197,7 +208,7 @@ mod tests {
             ..TlsConfig::default()
         }));
         assert!(
-            msg.contains(&path) && msg.contains("client certificate"),
+            msg.contains(&as_reported(&path)) && msg.contains("client certificate"),
             "the error should name the unreadable client certificate: {msg}"
         );
     }
@@ -211,7 +222,7 @@ mod tests {
             ..TlsConfig::default()
         }));
         assert!(
-            msg.contains(&path) && msg.contains("client key"),
+            msg.contains(&as_reported(&path)) && msg.contains("client key"),
             "the error should name the unreadable client key: {msg}"
         );
     }
@@ -287,7 +298,7 @@ mod tests {
             ..TlsConfig::default()
         }));
         assert!(
-            !msg.contains(&path),
+            !msg.contains(&as_reported(&path)),
             "the unreadable path must never have been opened: {msg}"
         );
         assert!(
