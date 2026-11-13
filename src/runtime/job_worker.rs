@@ -1706,6 +1706,12 @@ mod tests {
         CamundaClient::new(
             crate::CamundaOptions::new()
                 .with("CAMUNDA_REST_ADDRESS", format!("http://{addr}"))
+                // Pinned, as `recording_rest_server` does: configuration merges these
+                // overrides with the process environment, so exported `CAMUNDA_*` OAuth
+                // settings on a developer's machine would otherwise send these tests to a
+                // real token endpoint and fail them before the local response is ever
+                // parsed.
+                .with("CAMUNDA_AUTH_STRATEGY", "NONE")
                 .with("CAMUNDA_FALCON", "false"),
         )
         .expect("client should build from an address alone")
