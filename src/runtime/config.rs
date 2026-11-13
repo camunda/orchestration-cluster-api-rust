@@ -42,6 +42,18 @@ impl std::fmt::Debug for Redacted<'_> {
 /// (a typo, a bare host) must render as itself rather than vanish or be normalised into
 /// something the operator did not type.
 fn redact_userinfo(raw: &str) -> std::borrow::Cow<'_, str> {
+    // URL parsers discard tab, carriage return and line feed wherever they occur, so
+    // `https:\n//user:password@host` is the URL `https://user:password@host`. Looking for
+    // the scheme separator in the raw text would miss it and print the password. Dropping
+    // those three characters first matches what a parser would accept; it only ever changes
+    // a value that already contains them, which are not meaningful in a URL.
+    if raw.contains(['\t', '\r', '\n']) {
+        let cleaned: String = raw
+            .chars()
+            .filter(|c| !matches!(c, '\t' | '\r' | '\n'))
+            .collect();
+        return std::borrow::Cow::Owned(redact_userinfo(&cleaned).into_owned());
+    }
     let Some(scheme_end) = raw.find("://") else {
         return std::borrow::Cow::Borrowed(raw);
     };
@@ -734,6 +746,31 @@ mod tests {
             rendered.contains("cluster.example") && rendered.contains("login.example"),
             "the host is the diagnostic and must survive redaction ({DO_NOT_PRINT})"
         );
+    }
+
+    /// URL parsers discard tab, carriage return and line feed wherever they occur, so
+    /// `https:\n//user:password@host` is the URL `https://user:password@host`, and the
+    /// config stores the value verbatim. A scheme separator split by one of those
+    /// characters must not hide the userinfo from redaction.
+    #[test]
+    fn debug_redacts_userinfo_behind_a_split_scheme_separator() {
+        const URL_PASSWORD: &str = "SENTINEL-URL-PASSWORD-7d793037";
+        for split in ["https:\n//", "https:\t//", "https:/\r/", "https\n://"] {
+            for var in ["CAMUNDA_REST_ADDRESS", "CAMUNDA_OAUTH_URL"] {
+                let value = format!("{split}admin:{URL_PASSWORD}@cluster.example/v2");
+                let config = cfg(&[(var, value.as_str())]).unwrap();
+                let rendered = format!("{config:?}");
+                assert!(
+                    !rendered.contains(URL_PASSWORD),
+                    "a password behind a split scheme separator leaked from {var} \
+                     ({DO_NOT_PRINT})"
+                );
+                assert!(
+                    rendered.contains("cluster.example"),
+                    "the host is the diagnostic and must survive redaction ({DO_NOT_PRINT})"
+                );
+            }
+        }
     }
 
     /// The redaction is a string operation, not a parse, so values that are not URLs must
