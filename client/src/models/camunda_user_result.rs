@@ -13,16 +13,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CamundaUserResult {
-    /// The username of the user.
-    #[serde(rename = "username")]
-    pub username: models::Username,
+    /// Whether the caller has no identity. Only an unprotected API answers an anonymous caller; a protected API returns `401` instead. When `true`, `username`, `displayName` and `email` are `null` and the lists are empty.
+    #[serde(rename = "isAnonymous")]
+    pub is_anonymous: bool,
+    /// The username of the user. `null` when `isAnonymous` is `true`.
+    #[serde(rename = "username", deserialize_with = "Option::deserialize")]
+    pub username: Option<models::Username>,
     /// The display name of the user.
     #[serde(rename = "displayName", deserialize_with = "Option::deserialize")]
     pub display_name: Option<String>,
     /// The email of the user.
     #[serde(rename = "email", deserialize_with = "Option::deserialize")]
     pub email: Option<String>,
-    /// The web components the user is authorized to use. When authorizations are disabled for the cluster, this always returns `[\"*\"]`, regardless of the user's actual permissions, since access is not restricted in that case.
+    /// The web components the user is authorized to use. When authorizations are disabled for the cluster, this always returns `[\"*\"]`, regardless of the user's actual permissions, since access is not restricted in that case. An anonymous caller of an unprotected API also gets `[\"*\"]`, for the same reason.
     #[serde(rename = "authorizedComponents")]
     pub authorized_components: Vec<String>,
     /// The tenants the user is a member of.
@@ -47,7 +50,8 @@ pub struct CamundaUserResult {
 
 impl CamundaUserResult {
     pub fn new(
-        username: models::Username,
+        is_anonymous: bool,
+        username: Option<models::Username>,
         display_name: Option<String>,
         email: Option<String>,
         authorized_components: Vec<String>,
@@ -59,6 +63,7 @@ impl CamundaUserResult {
         can_logout: bool,
     ) -> CamundaUserResult {
         CamundaUserResult {
+            is_anonymous,
             username,
             display_name,
             email,

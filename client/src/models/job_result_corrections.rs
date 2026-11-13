@@ -22,7 +22,7 @@ pub struct JobResultCorrections {
         skip_serializing_if = "Option::is_none"
     )]
     pub assignee: Option<Option<String>>,
-    /// The due date of the task.
+    /// The due date of the task. Clear by providing an empty String.
     ///
     /// `None` preserves the persisted value, `Some(Some(date))` sets it and `Some(None)` clears it (sent as `""`; see [`Self::clear_due_date`]).
     #[serde(
@@ -32,7 +32,7 @@ pub struct JobResultCorrections {
         skip_serializing_if = "Option::is_none"
     )]
     pub due_date: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
-    /// The follow-up date of the task.
+    /// The follow-up date of the task. Clear by providing an empty String.
     ///
     /// `None` preserves the persisted value, `Some(Some(date))` sets it and `Some(None)` clears it (sent as `""`; see [`Self::clear_follow_up_date`]).
     #[serde(
