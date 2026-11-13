@@ -30,6 +30,9 @@ impl std::fmt::Debug for Redacted<'_> {
     }
 }
 
+/// What is printed for a value that may carry userinfo but that no URL parser can place.
+const WITHHELD_URL: &str = "<unparseable url withheld: it may carry credentials>";
+
 /// Strip any userinfo from a URL-shaped string, keeping scheme, host and path.
 ///
 /// `CAMUNDA_REST_ADDRESS` and `CAMUNDA_OAUTH_URL` are accepted verbatim, and
@@ -38,39 +41,40 @@ impl std::fmt::Debug for Redacted<'_> {
 /// arrived by a different route. The host and path are the diagnostic worth keeping, so only
 /// the userinfo is replaced.
 ///
-/// Deliberately a string operation rather than a parse: a value that is not a URL at all
-/// (a typo, a bare host) must render as itself rather than vanish or be normalised into
-/// something the operator did not type.
+/// Where the userinfo sits is decided by the HTTP client's own URL parser, not by a
+/// hand-written scan: the parser accepts spellings a scan misses (missing or extra slashes
+/// after the scheme, backslashes for slashes, tab/CR/LF anywhere, surrounding whitespace),
+/// and the client will read the password out of every one of them.
+///
+/// A value without userinfo renders as itself, byte for byte, so a typo or a bare host is
+/// not normalised into something the operator did not type. A value the parser rejects (or
+/// reads as having no host) but that contains an `@` is withheld whole: it can still be a
+/// mistyped credential-bearing URL, and failing closed costs a diagnostic, not a secret.
 fn redact_userinfo(raw: &str) -> std::borrow::Cow<'_, str> {
-    // URL parsers discard tab, carriage return and line feed wherever they occur, so
-    // `https:\n//user:password@host` is the URL `https://user:password@host`. Looking for
-    // the scheme separator in the raw text would miss it and print the password. Dropping
-    // those three characters first matches what a parser would accept; it only ever changes
-    // a value that already contains them, which are not meaningful in a URL.
-    if raw.contains(['\t', '\r', '\n']) {
-        let cleaned: String = raw
-            .chars()
-            .filter(|c| !matches!(c, '\t' | '\r' | '\n'))
-            .collect();
-        return std::borrow::Cow::Owned(redact_userinfo(&cleaned).into_owned());
-    }
-    let Some(scheme_end) = raw.find("://") else {
-        return std::borrow::Cow::Borrowed(raw);
+    use std::borrow::Cow;
+    let Ok(mut url) = reqwest::Url::parse(raw) else {
+        return if raw.contains('@') {
+            Cow::Borrowed(WITHHELD_URL)
+        } else {
+            Cow::Borrowed(raw)
+        };
     };
-    let authority_start = scheme_end + 3;
-    let authority_end = raw[authority_start..]
-        .find(['/', '?', '#'])
-        .map_or(raw.len(), |i| authority_start + i);
-    let authority = &raw[authority_start..authority_end];
-    // The last `@` in the authority separates userinfo from host.
-    match authority.rfind('@') {
-        None => std::borrow::Cow::Borrowed(raw),
-        Some(at) => std::borrow::Cow::Owned(format!(
-            "{}<redacted>@{}{}",
-            &raw[..authority_start],
-            &authority[at + 1..],
-            &raw[authority_end..]
-        )),
+    if url.username().is_empty() && url.password().is_none() {
+        // `admin:secret@host` parses as a URL whose scheme is `admin` and which has no host,
+        // so "no userinfo found" is only trustworthy when there is a host to have had it.
+        return if url.host().is_none() && raw.contains('@') {
+            Cow::Borrowed(WITHHELD_URL)
+        } else {
+            Cow::Borrowed(raw)
+        };
+    }
+    // Userinfo is only ever settable on a URL with a host, so these cannot fail here.
+    let _ = url.set_username("");
+    let _ = url.set_password(None);
+    let rest = url.as_str();
+    match rest.find("://") {
+        Some(i) => Cow::Owned(format!("{}<redacted>@{}", &rest[..i + 3], &rest[i + 3..])),
+        None => Cow::Borrowed(WITHHELD_URL),
     }
 }
 
@@ -773,7 +777,75 @@ mod tests {
         }
     }
 
-    /// The redaction is a string operation, not a parse, so values that are not URLs must
+    /// The HTTP client accepts far more spellings of a credential-bearing URL than the
+    /// canonical `scheme://user:password@host`: missing or extra slashes after the scheme,
+    /// backslashes in place of slashes, a mixed-case scheme, surrounding whitespace. The
+    /// config stores the value verbatim, so redaction has to agree with the client's own URL
+    /// parser about where the userinfo is, not with a hand-written idea of it.
+    #[test]
+    fn debug_redacts_userinfo_in_every_spelling_the_url_parser_accepts() {
+        const URL_PASSWORD: &str = "SENTINEL-URL-PASSWORD-5b0c2e91";
+        for prefix in [
+            "https:/",
+            "https:///",
+            "https:////",
+            "https:\\\\",
+            "https:\\/",
+            "https:/\\",
+            "HTTPS://",
+            "  https://",
+        ] {
+            for var in ["CAMUNDA_REST_ADDRESS", "CAMUNDA_OAUTH_URL"] {
+                let value = format!("{prefix}admin:{URL_PASSWORD}@cluster.example/v2");
+                // The point of the table is that the client accepts every spelling in it.
+                assert!(
+                    reqwest::Url::parse(value.trim()).is_ok_and(|u| u.password().is_some()),
+                    "test premise: the URL parser must read a password in {prefix:?}"
+                );
+                let config = cfg(&[(var, value.as_str())]).unwrap();
+                let rendered = format!("{config:?}");
+                let pretty = format!("{config:#?}");
+                for output in [&rendered, &pretty] {
+                    assert!(
+                        !output.contains(URL_PASSWORD),
+                        "a password behind the {prefix:?} spelling leaked from {var} \
+                         ({DO_NOT_PRINT})"
+                    );
+                    assert!(
+                        output.contains("cluster.example"),
+                        "the host is the diagnostic and must survive redaction ({DO_NOT_PRINT})"
+                    );
+                }
+            }
+        }
+    }
+
+    /// A value the parser rejects can still carry a password a human typed, and it is
+    /// printed verbatim by a derived-style `Debug`. Anything that holds an `@` and does not
+    /// parse to a host is withheld whole rather than guessed at.
+    #[test]
+    fn debug_withholds_unparseable_values_that_may_carry_userinfo() {
+        const URL_PASSWORD: &str = "SENTINEL-URL-PASSWORD-9e4a7c13";
+        for template in [
+            // Invalid port: the parser rejects the whole URL.
+            "https://admin:{pw}@cluster.example:notaport/v2",
+            // No scheme: a scheme-relative reference and a bare userinfo-and-host.
+            "//admin:{pw}@cluster.example/v2",
+            "admin:{pw}@cluster.example",
+        ] {
+            for var in ["CAMUNDA_REST_ADDRESS", "CAMUNDA_OAUTH_URL"] {
+                let value = template.replace("{pw}", URL_PASSWORD);
+                let config = cfg(&[(var, value.as_str())]).unwrap();
+                let rendered = format!("{config:?}");
+                assert!(
+                    !rendered.contains(URL_PASSWORD),
+                    "a password in an unparseable {var} leaked ({DO_NOT_PRINT})"
+                );
+            }
+        }
+    }
+
+    /// Values that carry no userinfo are rendered as typed, so values that are not URLs must
     /// render as themselves rather than vanish or come back normalised into something the
     /// operator never typed.
     #[test]
