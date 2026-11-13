@@ -585,29 +585,68 @@ fn resolved_config_debug_does_not_leak() {
     }
 }
 
-/// URL parsers drop tab, carriage return and line feed wherever they occur, so
-/// `https:\n//user:password@host` is the URL `https://user:password@host` — and the config
-/// stores the value verbatim. A separator split by one of those characters must not hide the
-/// userinfo from redaction.
+/// The HTTP client accepts far more spellings of a credential-bearing URL than the canonical
+/// `scheme://user:password@host`, and the config stores the value verbatim: a tab, CR or LF
+/// split into the separator (URL parsers drop them), missing or extra slashes after the
+/// scheme, backslashes for slashes, a mixed-case scheme, surrounding whitespace. Each of
+/// these must be redacted from both URL fields, in compact and pretty output. Values the
+/// parser rejects outright must not print the password either. The premise (the client's
+/// parser reads a password out of each accepted spelling) is asserted, so the table cannot
+/// drift into spellings that were never credential-bearing.
 #[test]
-fn urls_with_control_characters_in_the_scheme_separator_do_not_leak() {
+fn urls_in_every_spelling_the_client_accepts_do_not_leak() {
     let needles = sentinels();
-    for split in ["https:\n//", "https:\t//", "https:/\r/", "https\n://"] {
+    let accepted = [
+        "https:\n//",
+        "https:\t//",
+        "https:/\r/",
+        "https\n://",
+        "https:/",
+        "https:///",
+        "https:////",
+        "https:\\\\",
+        "https:\\/",
+        "https:/\\",
+        "HTTPS://",
+        "  https://",
+    ];
+    for prefix in accepted {
         for var in ["CAMUNDA_REST_ADDRESS", "CAMUNDA_OAUTH_URL"] {
-            let overrides: HashMap<String, String> = [(
-                var.to_string(),
-                format!("{split}sentinel-user:{URL_PASSWORD}@cluster.example/v2"),
-            )]
-            .into();
-            let config =
-                CamundaConfig::from_env_with_overrides(&overrides).expect("config resolves");
-            assert_clean(
-                &format!("CamundaConfig Debug of a {var} with a split scheme separator"),
-                &format!("{config:?}"),
-                &needles,
+            let value = format!("{prefix}sentinel-user:{URL_PASSWORD}@cluster.example/v2");
+            assert!(
+                reqwest::Url::parse(&value).is_ok_and(|u| u.password().is_some()),
+                "test premise: the URL parser must read a password in {prefix:?}"
             );
+            assert_url_field_clean(var, &value, &needles);
         }
     }
+    // Rejected by the parser (bad port, no scheme, scheme-relative) but still a mistyped
+    // credential-bearing URL a person could have written.
+    for template in [
+        "https://sentinel-user:{pw}@cluster.example:notaport/v2",
+        "//sentinel-user:{pw}@cluster.example/v2",
+        "sentinel-user:{pw}@cluster.example",
+    ] {
+        for var in ["CAMUNDA_REST_ADDRESS", "CAMUNDA_OAUTH_URL"] {
+            assert_url_field_clean(var, &template.replace("{pw}", URL_PASSWORD), &needles);
+        }
+    }
+}
+
+/// Resolve `value` as `var` and scan every rendering of the config for the sentinels.
+fn assert_url_field_clean(var: &str, value: &str, needles: &[Needle]) {
+    let overrides: HashMap<String, String> = [(var.to_string(), value.to_string())].into();
+    let config = CamundaConfig::from_env_with_overrides(&overrides).expect("config resolves");
+    assert_clean(
+        &format!("CamundaConfig Debug of an awkwardly spelled {var}"),
+        &format!("{config:?}"),
+        needles,
+    );
+    assert_clean(
+        &format!("CamundaConfig pretty Debug of an awkwardly spelled {var}"),
+        &format!("{config:#?}"),
+        needles,
+    );
 }
 
 /// Minimal standard base64, so the test needs no dependency to look for an encoded header.
