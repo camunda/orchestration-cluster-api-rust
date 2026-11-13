@@ -2265,14 +2265,20 @@ mod tests {
 
         /// A panicking handler must not take the worker down with it, and — the part worth
         /// pinning hardest — must not leak its credit. The permit is released by `_permit`
-        /// dropping with the panicking task, so a run of panicking handlers has to keep the
-        /// poller's window open. Here four consecutive handlers panic against a two-credit
-        /// window: if the permit were leaked instead of dropped, the poller would park
-        /// forever after the second panic and the fifth job would never be dispatched.
+        /// dropping with the panicking task, so a run of panicking handlers has to leave the
+        /// poller's window intact.
+        ///
+        /// Four consecutive handlers panic against a two-credit window, and then the next
+        /// two handlers each wait until *both* are running before either returns. That
+        /// barrier is what makes the test prove the whole window survived rather than merely
+        /// some of it: reaching a completion requires two handlers in flight at once, which
+        /// requires two credits. Asserting only that a later job completed would also pass
+        /// with one credit permanently leaked, since a single credit can serve every
+        /// subsequent job sequentially — a silent halving of the worker's capacity.
         ///
         /// The panic is reported rather than swallowed (what the `JoinSet` is for, per the
-        /// comment at the top of `run_rest_poll`), and the job is left neither completed nor
-        /// failed, so it waits for the server-side activation timeout.
+        /// comment at the top of `run_rest_poll`), and the panicked job is left neither
+        /// completed nor failed, so it waits for the server-side activation timeout.
         #[tokio::test]
         async fn a_panicking_handler_neither_stops_the_worker_nor_leaks_its_credit() {
             let stub = JobStub::start(StubBehaviour {
@@ -2284,18 +2290,34 @@ mod tests {
 
             let panicked = Arc::new(AtomicUsize::new(0));
             let completed = Arc::new(AtomicUsize::new(0));
+            // Counts handlers that have reached the barrier. It only ever rises, so once two
+            // have met, later handlers pass straight through and shutdown cannot deadlock on
+            // a straggler waiting for a partner that will never come.
+            let (arrived_tx, arrived_rx) = tokio::sync::watch::channel(0usize);
+            let arrived_tx = Arc::new(arrived_tx);
 
             let worker =
                 client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
             let handle = {
                 let (panicked, completed) = (panicked.clone(), completed.clone());
+                let arrived_tx = arrived_tx.clone();
                 worker.spawn(move |job| {
                     let (panicked, completed) = (panicked.clone(), completed.clone());
+                    let arrived_tx = arrived_tx.clone();
+                    let mut arrived_rx = arrived_rx.clone();
                     let key: usize = job.key().parse().expect("the stub numbers its jobs");
                     async move {
                         if key <= 4 {
                             panicked.fetch_add(1, Ordering::SeqCst);
                             panic!("handler panics on job {key}");
+                        }
+                        // Hold the credit until a second handler is running too. With only
+                        // one credit left this never releases, and the wait below fails.
+                        arrived_tx.send_modify(|n| *n += 1);
+                        while *arrived_rx.borrow_and_update() < 2 {
+                            if arrived_rx.changed().await.is_err() {
+                                break;
+                            }
                         }
                         completed.fetch_add(1, Ordering::SeqCst);
                         JobAction::complete()
@@ -2303,18 +2325,18 @@ mod tests {
                 })
             };
 
-            // The whole assertion is that this is reachable: a fifth job can only be
-            // activated, dispatched, handled and completed if every one of the four
-            // panicking handlers gave its credit back to a two-credit window.
+            // Only reachable if the window is still two wide: two handlers had to be in
+            // flight simultaneously for either to get past the barrier and complete.
             wait_for(
                 client.clock(),
-                "four panicking handlers and then a completed job",
-                || panicked.load(Ordering::SeqCst) == 4 && stub.completions() > 0,
+                "four panicking handlers, then two concurrent handlers completing \
+                 (a leaked credit would stall here)",
+                || panicked.load(Ordering::SeqCst) == 4 && stub.completions() >= 2,
             )
             .await;
 
             assert!(
-                completed.load(Ordering::SeqCst) > 0,
+                completed.load(Ordering::SeqCst) >= 2,
                 "the worker must keep dispatching and completing after a handler panics"
             );
 
