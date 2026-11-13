@@ -246,13 +246,13 @@ impl Authentication {
             return;
         };
         if let Some(parent) = path.parent() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
+            if let Err(e) = create_cache_dir(parent) {
                 tracing::warn!(error = %e, "failed to create OAuth cache directory");
                 return;
             }
         }
         let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
-        if let Err(e) = std::fs::write(&tmp, &json) {
+        if let Err(e) = write_owner_only(&tmp, &json) {
             tracing::warn!(error = %e, "failed to write OAuth cache token");
             return;
         }
@@ -324,6 +324,52 @@ impl Authentication {
     }
 }
 
+/// Create the OAuth token-cache directory, owner-only where the platform has a mode.
+///
+/// A directory the operator already created is left exactly as it is — its permissions are
+/// their decision, and silently widening or narrowing them would be worse than respecting
+/// them. Only the directories this call creates get `0700`.
+fn create_cache_dir(dir: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dir)
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::create_dir_all(dir)
+    }
+}
+
+/// Write `bytes` to `path`, creating the file readable and writable by its owner only.
+///
+/// The cached value is a live bearer token, so the mode is set **at creation** (`O_CREAT`
+/// with `0600`) rather than applied afterwards: a `write`-then-`chmod` would leave a window
+/// in which the credential sits on disk world-readable, and this file is the staging file
+/// for the atomic rename, so that window is exactly where it matters.
+///
+/// Windows has no mode bit to set. There the file inherits the directory's ACL, which is
+/// why `CAMUNDA_OAUTH_CACHE_DIR` should point at a per-user location on that platform.
+fn write_owner_only(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    // An existing file keeps its own mode, so a cache written by an older SDK version is
+    // replaced rather than reused: the rename below swaps in this file's inode, and with it
+    // this file's mode.
+    let mut file = options.open(path)?;
+    file.write_all(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -340,6 +386,156 @@ mod tests {
         );
         assert_eq!("NONE".parse::<AuthStrategy>().unwrap(), AuthStrategy::None);
         assert!("nope".parse::<AuthStrategy>().is_err());
+    }
+
+    /// The on-disk OAuth cache holds a live bearer token — a credential for the cluster,
+    /// valid until its refresh-after time. It must not be readable by other users on the
+    /// host, and neither must the temp file it is staged through.
+    mod disk_cache_is_owner_only {
+        use super::*;
+
+        /// A cache directory of our own, inside the system temp dir. Deliberately not a
+        /// `tempfile` dependency: the crate has none, and a token-cache test should not add
+        /// one. The process id keeps concurrent test binaries apart, and the label keeps
+        /// tests in this module apart from each other.
+        struct CacheDir(PathBuf);
+
+        impl CacheDir {
+            fn new(label: &str) -> Self {
+                let dir = std::env::temp_dir().join(format!(
+                    "camunda-oauth-cache-{}-{label}",
+                    std::process::id()
+                ));
+                let _ = std::fs::remove_dir_all(&dir);
+                CacheDir(dir)
+            }
+        }
+
+        impl Drop for CacheDir {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+
+        fn auth_with_cache(dir: &std::path::Path) -> Authentication {
+            Authentication {
+                inner: Arc::new(Inner {
+                    strategy: AuthStrategy::OAuth,
+                    oauth_url: Some("https://login.example/oauth/token".to_string()),
+                    client_id: Some("client".to_string()),
+                    client_secret: Some("secret".to_string()),
+                    audience: None,
+                    scope: None,
+                    basic_username: None,
+                    basic_password: None,
+                    http: reqwest::Client::new(),
+                    cache: Mutex::new(None),
+                    oauth_cache_dir: Some(dir.to_path_buf()),
+                    clock: super::super::super::clock::live_clock(),
+                }),
+            }
+        }
+
+        fn token_for(auth: &Authentication) -> CachedToken {
+            CachedToken {
+                token: "cached-bearer-token".to_string(),
+                refresh_after: auth.inner.clock.now() + Duration::from_secs(300),
+                refresh_after_wall: auth.inner.clock.now_wall() + Duration::from_secs(300),
+            }
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn cache_file_is_mode_0600() {
+            use std::os::unix::fs::PermissionsExt;
+
+            let dir = CacheDir::new("file-mode");
+            let auth = auth_with_cache(&dir.0);
+            auth.write_disk_token(&token_for(&auth));
+
+            let path = auth.cache_file_path().expect("a cache dir is configured");
+            let mode = std::fs::metadata(&path)
+                .expect("the token cache file was written")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(
+                mode, 0o600,
+                "the OAuth token cache must be readable by its owner only, got {mode:o}"
+            );
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn cache_directory_created_by_the_sdk_is_mode_0700() {
+            use std::os::unix::fs::PermissionsExt;
+
+            let dir = CacheDir::new("dir-mode");
+            let auth = auth_with_cache(&dir.0);
+            auth.write_disk_token(&token_for(&auth));
+
+            let mode = std::fs::metadata(&dir.0)
+                .expect("the cache directory was created")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(
+                mode, 0o700,
+                "a cache directory the SDK creates must not be listable by others, got {mode:o}"
+            );
+        }
+
+        /// The staging file the atomic write goes through is the same credential. Creating
+        /// it with default permissions and tightening afterwards would leave a window in
+        /// which it is world-readable, so the mode has to be set at creation. Writing to a
+        /// directory that already exists (the common case on the second run) must not
+        /// change that.
+        #[cfg(unix)]
+        #[test]
+        fn rewriting_into_an_existing_directory_keeps_mode_0600() {
+            use std::os::unix::fs::PermissionsExt;
+
+            let dir = CacheDir::new("rewrite");
+            std::fs::create_dir_all(&dir.0).expect("pre-create the cache directory");
+            let auth = auth_with_cache(&dir.0);
+            auth.write_disk_token(&token_for(&auth));
+            auth.write_disk_token(&token_for(&auth));
+
+            let path = auth.cache_file_path().expect("a cache dir is configured");
+            let mode = std::fs::metadata(&path)
+                .expect("the token cache file was written")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(
+                mode, 0o600,
+                "a rewritten token cache must still be owner-only, got {mode:o}"
+            );
+
+            // The staging file must not survive a successful commit.
+            let leftovers: Vec<_> = std::fs::read_dir(&dir.0)
+                .expect("the cache directory is readable")
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|name| name.contains("tmp-"))
+                .collect();
+            assert!(
+                leftovers.is_empty(),
+                "a staging file was left behind: {leftovers:?}"
+            );
+        }
+
+        /// The token must round-trip through the cache it is written to, so the permission
+        /// change cannot be "secure because it broke the feature".
+        #[test]
+        fn a_written_token_is_read_back() {
+            let dir = CacheDir::new("roundtrip");
+            let auth = auth_with_cache(&dir.0);
+            auth.write_disk_token(&token_for(&auth));
+
+            let read = auth.read_disk_token().expect("the token reads back");
+            assert_eq!(read.token, "cached-bearer-token");
+        }
     }
 
     /// OAuth tokens must be written to `bearer_access_token` — the only field the
