@@ -30,6 +30,59 @@ impl std::fmt::Debug for Redacted<'_> {
     }
 }
 
+/// Strip any userinfo from a URL-shaped string, keeping scheme, host and path.
+///
+/// `CAMUNDA_REST_ADDRESS` and `CAMUNDA_OAUTH_URL` are accepted verbatim, and
+/// `https://user:password@cluster.example` is a legal value for either — so redacting the
+/// dedicated credential fields alone would still have printed a password, just one that
+/// arrived by a different route. The host and path are the diagnostic worth keeping, so only
+/// the userinfo is replaced.
+///
+/// Deliberately a string operation rather than a parse: a value that is not a URL at all
+/// (a typo, a bare host) must render as itself rather than vanish or be normalised into
+/// something the operator did not type.
+fn redact_userinfo(raw: &str) -> std::borrow::Cow<'_, str> {
+    let Some(scheme_end) = raw.find("://") else {
+        return std::borrow::Cow::Borrowed(raw);
+    };
+    let authority_start = scheme_end + 3;
+    let authority_end = raw[authority_start..]
+        .find(['/', '?', '#'])
+        .map_or(raw.len(), |i| authority_start + i);
+    let authority = &raw[authority_start..authority_end];
+    // The last `@` in the authority separates userinfo from host.
+    match authority.rfind('@') {
+        None => std::borrow::Cow::Borrowed(raw),
+        Some(at) => std::borrow::Cow::Owned(format!(
+            "{}<redacted>@{}{}",
+            &raw[..authority_start],
+            &authority[at + 1..],
+            &raw[authority_end..]
+        )),
+    }
+}
+
+/// Renders a URL with any embedded credentials removed.
+struct RedactedUrl<'a>(&'a str);
+
+impl std::fmt::Debug for RedactedUrl<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", redact_userinfo(self.0))
+    }
+}
+
+/// The optional counterpart of [`RedactedUrl`], preserving the `Some`/`None` shape.
+struct RedactedOptUrl<'a>(&'a Option<String>);
+
+impl std::fmt::Debug for RedactedOptUrl<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            None => f.write_str("None"),
+            Some(raw) => write!(f, "Some({:?})", redact_userinfo(raw)),
+        }
+    }
+}
+
 /// Resolved SDK configuration.
 ///
 /// `Debug` is hand-written rather than derived: this struct holds the OAuth client secret
@@ -89,14 +142,14 @@ pub struct CamundaConfig {
 impl std::fmt::Debug for CamundaConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CamundaConfig")
-            .field("rest_address", &self.rest_address)
+            .field("rest_address", &RedactedUrl(&self.rest_address))
             .field("rest_address_exact", &self.rest_address_exact)
             .field("auth_strategy", &self.auth_strategy)
             // A client id identifies the client, it does not authenticate it; the secret
             // beside it is what must not be printed.
             .field("client_id", &self.client_id)
             .field("client_secret", &Redacted(&self.client_secret))
-            .field("oauth_url", &self.oauth_url)
+            .field("oauth_url", &RedactedOptUrl(&self.oauth_url))
             .field("token_audience", &self.token_audience)
             .field("oauth_scope", &self.oauth_scope)
             .field("oauth_cache_dir", &self.oauth_cache_dir)
@@ -651,6 +704,62 @@ mod tests {
         assert!(
             bare_rendered.contains("client_secret: None"),
             "an unset credential must read as None: {bare_rendered}"
+        );
+    }
+
+    /// Redacting the dedicated credential fields is not enough on its own: both URL
+    /// variables are accepted verbatim, and `https://user:password@host` is a legal value
+    /// for either, so a password can arrive by a route that has nothing to do with
+    /// `CAMUNDA_CLIENT_SECRET`. The host and path must survive, or the redaction costs the
+    /// diagnostic the line exists for.
+    #[test]
+    fn debug_redacts_credentials_embedded_in_urls() {
+        const URL_PASSWORD: &str = "SENTINEL-URL-PASSWORD-7d793037";
+        let rest = format!("https://admin:{URL_PASSWORD}@cluster.example/v2");
+        let oauth = format!("https://admin:{URL_PASSWORD}@login.example/oauth/token");
+        let config = cfg(&[
+            ("CAMUNDA_REST_ADDRESS", rest.as_str()),
+            ("CAMUNDA_OAUTH_URL", oauth.as_str()),
+            ("CAMUNDA_CLIENT_ID", "id"),
+            ("CAMUNDA_CLIENT_SECRET", "secret"),
+        ])
+        .unwrap();
+
+        let rendered = format!("{config:?}");
+        assert!(
+            !rendered.contains(URL_PASSWORD),
+            "a password embedded in a URL leaked into Debug output ({DO_NOT_PRINT})"
+        );
+        assert!(
+            rendered.contains("cluster.example") && rendered.contains("login.example"),
+            "the host is the diagnostic and must survive redaction ({DO_NOT_PRINT})"
+        );
+    }
+
+    /// The redaction is a string operation, not a parse, so values that are not URLs must
+    /// render as themselves rather than vanish or come back normalised into something the
+    /// operator never typed.
+    #[test]
+    fn url_redaction_leaves_everything_else_alone() {
+        for untouched in [
+            "https://cluster.example/v2",
+            "http://localhost:8080/v2",
+            "not a url at all",
+            "",
+            // An `@` outside the authority is part of the path, not userinfo.
+            "https://cluster.example/v2/users/me@example.com",
+        ] {
+            assert_eq!(
+                redact_userinfo(untouched),
+                untouched,
+                "a value with no embedded credentials must be left as-is"
+            );
+        }
+
+        // Userinfo without a password, and a port, both still resolve to the host.
+        assert_eq!(
+            redact_userinfo("https://admin@cluster.example:8443/v2"),
+            "https://<redacted>@cluster.example:8443/v2"
         );
     }
 
