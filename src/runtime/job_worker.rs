@@ -262,10 +262,13 @@ impl Job {
     ///
     /// # Untrusted input
     ///
-    /// Variables reach the handler from the server, but their content is set by whoever
-    /// started the process instance — for a process started from a public form, an inbound
-    /// connector or another team's service, that is not you. Treat this map as untrusted
-    /// input and validate it before use.
+    /// Variables reach the handler from the server, but their content is set by whoever can
+    /// write variables into the process instance, not only whoever started it: also a
+    /// message publisher, whatever completed an earlier job, user task or connector step
+    /// (including workers owned by other teams), and anyone who can set variables through
+    /// the API. For a process started from a public form, an inbound connector or another
+    /// team's service, that is not you. Treat this map as untrusted input and validate it
+    /// before use.
     ///
     /// The SDK deserializes variables only into JSON values ([`serde_json::Value`]) or into
     /// the type [`Job::variables_as`] is asked for, so a payload cannot choose what it is

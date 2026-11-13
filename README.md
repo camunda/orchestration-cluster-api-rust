@@ -253,14 +253,18 @@ The `Job` exposes `key()`, `job_type()`, `process_instance_key()`, `variables()`
 
 ### Job variables are untrusted input
 
-Job variables reach your handler from the server, but their **content is set by whoever
-started the process instance** — which, for a process started from a public form, an inbound
-connector or another team's service, is not you. Treat `job.variables()` and
-`job.variables_as::<T>()` as untrusted input and validate them before use, exactly as you
-would an HTTP request body.
+Job variables reach your handler from the server, but their **content is set by whoever can
+write variables into the process instance**, and that is not only whoever started it. It is
+also whoever published or correlated a message that carries variables, whatever completed an
+earlier job, user task or connector step with a result (including workers owned by other
+teams), and anyone who can set or update variables through the API. For a process started
+from a public form, an inbound connector or another team's service, that is not you. Treat
+`job.variables()` and `job.variables_as::<T>()` as untrusted input and validate them before
+use, exactly as you would an HTTP request body. A value that was valid when an earlier step
+produced it may have been overwritten since.
 
 Custom headers are a different trust boundary: they are authored in the BPMN model, so they
-come from whoever can deploy a process rather than from whoever started an instance. That is
+come from whoever can deploy a process rather than from whoever wrote a variable. That is
 a much smaller set of people, but it is still server-supplied data arriving over the network,
 so validate `job.custom_headers()` before acting on it too.
 
