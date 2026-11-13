@@ -432,7 +432,11 @@ async fn basic_auth_paths_do_not_leak() {
             .0
             .clone()
             .unwrap_or_default();
-        assert!(sent.starts_with("Basic "), "a Basic header must be sent");
+        assert!(
+            sent == format!("Basic {encoded}"),
+            "the Basic header must carry exactly the configured credential \
+             (headers withheld: they hold the credential)"
+        );
 
         assert_client_surfaces_clean(&client, &needles);
     }
@@ -449,28 +453,43 @@ async fn mtls_misconfiguration_does_not_leak() {
     let _guard = logs.install();
     let needles = all_secrets();
 
-    let scenarios: &[&[(&str, &str)]] = &[
+    // Each of these must fail construction with a configuration error on every backend.
+    let must_fail: &[(&str, &[(&str, &str)])] = &[
         // Certificate and key without a passphrase: the backend parses them.
-        &[
-            ("CAMUNDA_MTLS_CERT", MTLS_CERT),
-            ("CAMUNDA_MTLS_KEY", MTLS_KEY),
-        ],
+        (
+            "malformed identity",
+            &[
+                ("CAMUNDA_MTLS_CERT", MTLS_CERT),
+                ("CAMUNDA_MTLS_KEY", MTLS_KEY),
+            ],
+        ),
         // With a passphrase: rejected as unsupported before any parse.
-        &[
-            ("CAMUNDA_MTLS_CERT", MTLS_CERT),
-            ("CAMUNDA_MTLS_KEY", MTLS_KEY),
-            ("CAMUNDA_MTLS_KEY_PASSPHRASE", MTLS_PASSPHRASE),
-        ],
+        (
+            "identity with a passphrase",
+            &[
+                ("CAMUNDA_MTLS_CERT", MTLS_CERT),
+                ("CAMUNDA_MTLS_KEY", MTLS_KEY),
+                ("CAMUNDA_MTLS_KEY_PASSPHRASE", MTLS_PASSPHRASE),
+            ],
+        ),
         // A half identity.
-        &[("CAMUNDA_MTLS_KEY", MTLS_KEY)],
-        // A malformed CA.
-        &[("CAMUNDA_MTLS_CA", MTLS_CA)],
+        ("half identity", &[("CAMUNDA_MTLS_KEY", MTLS_KEY)]),
     ];
-    for pairs in scenarios {
+    for (name, pairs) in must_fail {
         match CamundaClient::new(options(pairs)) {
-            Err(err) => assert_error_clean("the mTLS configuration error", &err, &needles),
-            Ok(client) => assert_client_surfaces_clean(&client, &needles),
+            Err(err @ CamundaError::Config(_)) => {
+                assert_error_clean(&format!("the {name} error"), &err, &needles)
+            }
+            Err(_) => panic!("the {name} scenario must fail with a configuration error"),
+            Ok(_) => panic!("the {name} scenario must fail client construction"),
         }
+    }
+
+    // A malformed CA is the one backend-dependent case: `native-tls` rejects it eagerly,
+    // `rustls` defers it (see the mTLS tests in `tls.rs`). Either outcome is scanned.
+    match CamundaClient::new(options(&[("CAMUNDA_MTLS_CA", MTLS_CA)])) {
+        Err(err) => assert_error_clean("the malformed CA error", &err, &needles),
+        Ok(client) => assert_client_surfaces_clean(&client, &needles),
     }
     assert_clean("the captured logs", &logs.contents(), &needles);
 }
@@ -534,6 +553,31 @@ fn resolved_config_debug_does_not_leak() {
         ("TlsConfig pretty Debug", format!("{:#?}", config.tls)),
     ] {
         assert_clean(surface, &rendered, &needles);
+    }
+}
+
+/// URL parsers drop tab, carriage return and line feed wherever they occur, so
+/// `https:\n//user:password@host` is the URL `https://user:password@host` — and the config
+/// stores the value verbatim. A separator split by one of those characters must not hide the
+/// userinfo from redaction.
+#[test]
+fn urls_with_control_characters_in_the_scheme_separator_do_not_leak() {
+    let needles = all_secrets();
+    for split in ["https:\n//", "https:\t//", "https:/\r/", "https\n://"] {
+        for var in ["CAMUNDA_REST_ADDRESS", "CAMUNDA_OAUTH_URL"] {
+            let overrides: HashMap<String, String> = [(
+                var.to_string(),
+                format!("{split}sentinel-user:{URL_PASSWORD}@cluster.example/v2"),
+            )]
+            .into();
+            let config =
+                CamundaConfig::from_env_with_overrides(&overrides).expect("config resolves");
+            assert_clean(
+                &format!("CamundaConfig Debug of a {var} with a split scheme separator"),
+                &format!("{config:?}"),
+                &needles,
+            );
+        }
     }
 }
 

@@ -42,6 +42,18 @@ impl std::fmt::Debug for Redacted<'_> {
 /// (a typo, a bare host) must render as itself rather than vanish or be normalised into
 /// something the operator did not type.
 fn redact_userinfo(raw: &str) -> std::borrow::Cow<'_, str> {
+    // URL parsers discard tab, carriage return and line feed wherever they occur, so
+    // `https:\n//user:password@host` is the URL `https://user:password@host`. Looking for
+    // the scheme separator in the raw text would miss it and print the password. Dropping
+    // those three characters first matches what a parser would accept; it only ever changes
+    // a value that already contains them, which are not meaningful in a URL.
+    if raw.contains(['\t', '\r', '\n']) {
+        let cleaned: String = raw
+            .chars()
+            .filter(|c| !matches!(c, '\t' | '\r' | '\n'))
+            .collect();
+        return std::borrow::Cow::Owned(redact_userinfo(&cleaned).into_owned());
+    }
     let Some(scheme_end) = raw.find("://") else {
         return std::borrow::Cow::Borrowed(raw);
     };
