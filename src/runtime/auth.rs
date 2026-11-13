@@ -251,7 +251,7 @@ impl Authentication {
                 return;
             }
         }
-        let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
+        let tmp = staging_path(&path);
         if let Err(e) = write_owner_only(&tmp, &json) {
             tracing::warn!(error = %e, "failed to write OAuth cache token");
             return;
@@ -324,6 +324,24 @@ impl Authentication {
     }
 }
 
+/// A staging path for one `write_disk_token` call, unique to that call.
+///
+/// The process id alone is not enough. `access_token` releases the cache mutex before
+/// fetching, so two refreshes in one process can reach the write concurrently and would
+/// otherwise share a staging path: one writer's exclusive create fails, or — worse, had the
+/// path been cleared first — one unlinks the file the other is still writing and renames a
+/// truncated token into place. A per-call counter makes the two writers independent, and the
+/// loser of the rename race simply overwrites with an equally valid token.
+fn staging_path(path: &std::path::Path) -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    path.with_extension(format!(
+        "tmp-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
 /// Create the OAuth token-cache directory, owner-only where the platform has a mode.
 ///
 /// A directory the operator already created is left exactly as it is — its permissions are
@@ -353,23 +371,16 @@ fn create_cache_dir(dir: &std::path::Path) -> std::io::Result<()> {
 ///
 /// Creation is **exclusive** (`O_EXCL`), because a mode is only applied to a file this call
 /// actually creates. Opening an existing path would adopt whatever permissions it already
-/// had — so a `0644` staging file left behind by an interrupted write under an older SDK,
-/// met again when the process id repeats (pid 1 after a container restart is the easy case),
-/// would receive the new token and keep its world-readable mode straight through the rename.
-/// Any stale staging file is removed first, and the exclusive create then guarantees the
-/// inode written to is one this call made.
+/// had — so a `0644` file left behind by an interrupted write under an older SDK would
+/// receive the new token and keep its world-readable mode straight through the rename.
+/// Refusing is the right answer rather than deleting first: the caller treats a failed cache
+/// write as best-effort and logs it, whereas unlinking a path this call did not create could
+/// destroy a file another writer is mid-way through.
 ///
 /// Windows has no mode bit to set. There the file inherits the directory's ACL, which is
 /// why `CAMUNDA_OAUTH_CACHE_DIR` should point at a per-user location on that platform.
 fn write_owner_only(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
-
-    // Best-effort: a missing file is the normal case and not an error.
-    match std::fs::remove_file(path) {
-        Ok(()) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(e),
-    }
 
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
@@ -539,29 +550,65 @@ mod tests {
             );
         }
 
-        /// A mode is only applied to a file the open actually creates, so a staging file
-        /// left behind by an interrupted write is the hole: reopening it would adopt its
-        /// permissions and the rename would commit the token still world-readable. The
-        /// process id is in the staging name, which repeats readily enough — pid 1 after a
-        /// container restart. Writing over a pre-created `0644` staging file must still end
-        /// at `0600`.
+        /// A mode is only applied to a file the open actually creates, so adopting an
+        /// existing file is the hole: a `0644` staging file left by an interrupted write
+        /// would be written into and the rename would commit the token still world-readable.
+        /// `write_owner_only` refuses such a path outright rather than clearing it, because
+        /// a path it did not create may belong to another writer. The caller treats a failed
+        /// cache write as best-effort, so refusing costs a cache miss and never a leak.
         #[cfg(unix)]
         #[test]
-        fn a_stale_world_readable_staging_file_does_not_taint_the_mode() {
+        fn write_owner_only_refuses_an_existing_path_instead_of_adopting_its_mode() {
             use std::os::unix::fs::PermissionsExt;
 
-            let dir = CacheDir::new("stale-staging");
+            let dir = CacheDir::new("existing-path");
+            std::fs::create_dir_all(&dir.0).expect("create the cache directory");
+            let victim = dir.0.join("already-here.json");
+            std::fs::write(&victim, b"untouched").expect("pre-create the file");
+            std::fs::set_permissions(&victim, std::fs::Permissions::from_mode(0o644))
+                .expect("make it world-readable");
+
+            let err = write_owner_only(&victim, b"a-bearer-token")
+                .expect_err("an existing path must be refused, not adopted");
+            assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+
+            assert_eq!(
+                std::fs::read(&victim).expect("the file still exists"),
+                b"untouched",
+                "a path this call did not create must be left alone"
+            );
+        }
+
+        /// Two writes in one process must not share a staging path. `access_token` releases
+        /// the cache mutex before fetching, so two refreshes can reach the write at once; a
+        /// shared staging path would mean one writer's create fails, or one truncates the
+        /// file the other is still writing and renames it into place. Both writes must land
+        /// a valid cache at `0600` whichever wins the rename.
+        #[cfg(unix)]
+        #[test]
+        fn concurrent_writes_use_separate_staging_files() {
+            use std::os::unix::fs::PermissionsExt;
+
+            let dir = CacheDir::new("concurrent");
             let auth = auth_with_cache(&dir.0);
             let path = auth.cache_file_path().expect("a cache dir is configured");
 
-            // Exactly what an interrupted write under an older SDK would have left.
-            std::fs::create_dir_all(&dir.0).expect("pre-create the cache directory");
-            let stale = path.with_extension(format!("tmp-{}", std::process::id()));
-            std::fs::write(&stale, b"{}").expect("pre-create the staging file");
-            std::fs::set_permissions(&stale, std::fs::Permissions::from_mode(0o644))
-                .expect("make the staging file world-readable");
+            assert_ne!(
+                staging_path(&path),
+                staging_path(&path),
+                "each write needs a staging path of its own"
+            );
 
-            auth.write_disk_token(&token_for(&auth));
+            let auth = Arc::new(auth);
+            let threads: Vec<_> = (0..8)
+                .map(|_| {
+                    let auth = auth.clone();
+                    std::thread::spawn(move || auth.write_disk_token(&token_for(&auth)))
+                })
+                .collect();
+            for t in threads {
+                t.join().expect("no writer panicked");
+            }
 
             let mode = std::fs::metadata(&path)
                 .expect("the token cache file was written")
@@ -570,12 +617,24 @@ mod tests {
                 & 0o777;
             assert_eq!(
                 mode, 0o600,
-                "a stale world-readable staging file must not carry its mode into the \
-                 committed cache, got {mode:o}"
+                "every writer must commit at 0600, got {mode:o}"
             );
+            assert_eq!(
+                auth.read_disk_token().expect("the cache reads back").token,
+                "cached-bearer-token",
+                "a concurrent write must never commit a truncated token"
+            );
+
+            // No writer may leave its staging file behind.
+            let leftovers: Vec<_> = std::fs::read_dir(&dir.0)
+                .expect("the cache directory is readable")
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|name| name.contains("tmp-"))
+                .collect();
             assert!(
-                !stale.exists(),
-                "the staging file must not survive a successful commit"
+                leftovers.is_empty(),
+                "staging files were left behind: {leftovers:?}"
             );
         }
 
