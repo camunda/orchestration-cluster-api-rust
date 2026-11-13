@@ -301,9 +301,14 @@ impl Authentication {
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
-            let body = response.text().await.unwrap_or_default();
+            // Deliberately not the body. It is identity-provider-controlled and not
+            // guaranteed to be a bare `{"error":"invalid_client"}`: providers echo
+            // submitted parameters and assertion fragments, and a misrouted
+            // `CAMUNDA_OAUTH_URL` points a POST carrying `client_secret` at an endpoint
+            // that may reflect the request back. The status is the diagnostic; the body is
+            // not ours to put into an error callers log.
             return Err(CamundaError::auth(format!(
-                "token endpoint returned HTTP {status}: {body}"
+                "token endpoint returned HTTP {status}"
             )));
         }
 
@@ -340,6 +345,123 @@ mod tests {
         );
         assert_eq!("NONE".parse::<AuthStrategy>().unwrap(), AuthStrategy::None);
         assert!("nope".parse::<AuthStrategy>().is_err());
+    }
+
+    /// The token endpoint's response body is identity-provider- and attacker-influenced, and
+    /// the client-credentials POST that provoked it carries `client_secret` in its form body.
+    /// No failure of `fetch_token` may put any of that into a `CamundaError`, which callers
+    /// log and report. These tests drive the failure paths against a local stub endpoint and
+    /// scan the rendered error for sentinels, so they catch the class — any response field
+    /// reaching the message — rather than today's one call site.
+    mod token_endpoint_errors_omit_response_body {
+        use super::*;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        /// A sentinel the stub endpoint echoes back the way a reflecting or verbose IdP
+        /// would. It must never surface in an error.
+        const SENTINEL: &str = "SENTINEL-IDP-BODY-d41d8cd98f00";
+
+        /// Serve one HTTP response with the given status and body, then close. Dependency-free
+        /// (no mock-server crate), mirroring the activation stub in `job_worker.rs`.
+        async fn serve_once(status_line: &'static str, body: String) -> String {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            tokio::spawn(async move {
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    return;
+                };
+                let mut buf = Vec::new();
+                let mut tmp = [0u8; 1024];
+                // Read the request far enough that reqwest sees a clean exchange.
+                while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match sock.read(&mut tmp).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                    }
+                }
+                let resp = format!(
+                    "HTTP/1.1 {status_line}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = sock.write_all(resp.as_bytes()).await;
+                let _ = sock.flush().await;
+            });
+            format!("http://{addr}/oauth/token")
+        }
+
+        fn auth_for(url: String) -> Authentication {
+            Authentication {
+                inner: Arc::new(Inner {
+                    strategy: AuthStrategy::OAuth,
+                    oauth_url: Some(url),
+                    client_id: Some("sentinel-client-id".to_string()),
+                    client_secret: Some(SENTINEL.to_string()),
+                    audience: None,
+                    scope: None,
+                    basic_username: None,
+                    basic_password: None,
+                    http: reqwest::Client::new(),
+                    cache: Mutex::new(None),
+                    oauth_cache_dir: None,
+                    clock: super::super::super::clock::live_clock(),
+                }),
+            }
+        }
+
+        /// Assert the rendered error — both `Display` and `Debug`, since callers use either —
+        /// carries neither the response body nor the credential that was posted.
+        fn assert_no_leak(err: &CamundaError) {
+            let display = format!("{err}");
+            let debug = format!("{err:?}");
+            for rendered in [&display, &debug] {
+                assert!(
+                    !rendered.contains(SENTINEL),
+                    "token-endpoint error leaked response-body or credential material: {rendered}"
+                );
+            }
+        }
+
+        #[tokio::test]
+        async fn non_success_status_reports_the_status_without_the_body() {
+            let url = serve_once(
+                "401 Unauthorized",
+                format!(r#"{{"error":"invalid_client","detail":"{SENTINEL}"}}"#),
+            )
+            .await;
+            let err = auth_for(url)
+                .fetch_token()
+                .await
+                .expect_err("a 401 from the token endpoint must fail");
+
+            assert!(
+                matches!(err, CamundaError::Auth(_)),
+                "expected CamundaError::Auth, got {err:?}"
+            );
+            assert!(
+                format!("{err}").contains("401"),
+                "the status is the diagnostic we do keep: {err}"
+            );
+            assert_no_leak(&err);
+        }
+
+        /// A 200 whose body is not a token response takes the other error path. serde's
+        /// message quotes the input it choked on, so this path can leak a body too.
+        #[tokio::test]
+        async fn unparseable_success_body_is_not_quoted_back() {
+            let url = serve_once("200 OK", format!(r#"{{"not_a_token":"{SENTINEL}"}}"#)).await;
+            let err = auth_for(url)
+                .fetch_token()
+                .await
+                .expect_err("a response without access_token must fail");
+
+            assert!(
+                matches!(err, CamundaError::Auth(_)),
+                "expected CamundaError::Auth, got {err:?}"
+            );
+            assert_no_leak(&err);
+        }
     }
 
     /// OAuth tokens must be written to `bearer_access_token` — the only field the
