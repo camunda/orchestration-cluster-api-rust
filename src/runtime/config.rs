@@ -214,12 +214,15 @@ impl std::fmt::Debug for TlsConfig {
         f.debug_struct("TlsConfig")
             // `cert` is redacted alongside `key`: operators routinely paste a combined
             // certificate-and-key PEM into `CAMUNDA_MTLS_CERT`, so the inline certificate
-            // field cannot be assumed to hold public material only.
+            // field cannot be assumed to hold public material only. The same argument
+            // applies to `ca`: a CA *certificate* carries no private key, but this field is
+            // not a parsed certificate — it is whatever string `CAMUNDA_MTLS_CA` was set to,
+            // and the SDK does not inspect it before storing it. Redacting all three inline
+            // PEM fields makes the property hold for the field rather than for the value an
+            // operator was supposed to put in it.
             .field("cert", &Redacted(&self.cert))
             .field("key", &Redacted(&self.key))
-            // A CA certificate is public trust material by definition and never carries a
-            // private key, and it is the field an operator most often needs to eyeball.
-            .field("ca", &self.ca)
+            .field("ca", &Redacted(&self.ca))
             // Paths to TLS material are not the material, and they are the useful
             // diagnostic when a file cannot be read.
             .field("cert_path", &self.cert_path)
@@ -563,6 +566,9 @@ mod tests {
         ),
         ("CAMUNDA_MTLS_KEY", "SENTINEL-MTLS-KEY-e4d909c2"),
         ("CAMUNDA_MTLS_CERT", "SENTINEL-MTLS-CERT-0cc175b9"),
+        // Not a credential by intent, but the field holds an unparsed user-supplied string:
+        // a combined certificate-and-key PEM pasted here would carry a private key.
+        ("CAMUNDA_MTLS_CA", "SENTINEL-MTLS-CA-8277e091"),
         (
             "CAMUNDA_MTLS_KEY_PASSPHRASE",
             "SENTINEL-MTLS-PASSPHRASE-92eb5f",
