@@ -47,14 +47,36 @@ impl FromStr for AuthStrategy {
     }
 }
 
-#[derive(Debug, Deserialize)]
+/// Renders a bearer token as a fixed placeholder.
+///
+/// The three token-carrying structs below are private and are not formatted today, but
+/// they derive or implement `Debug`, so a single `tracing::debug!(?token, ...)` added later
+/// would print a live credential. Redacting at the type keeps that from being a one-line
+/// mistake.
+struct RedactedToken;
+
+impl std::fmt::Debug for RedactedToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(r#""<redacted>""#)
+    }
+}
+
+#[derive(Deserialize)]
 struct TokenResponse {
     access_token: String,
     #[serde(default)]
     expires_in: Option<u64>,
 }
 
-#[derive(Debug)]
+impl std::fmt::Debug for TokenResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokenResponse")
+            .field("access_token", &RedactedToken)
+            .field("expires_in", &self.expires_in)
+            .finish()
+    }
+}
+
 struct CachedToken {
     token: String,
     /// Instant after which the token should be considered expired and refreshed.
@@ -64,12 +86,31 @@ struct CachedToken {
     refresh_after_wall: SystemTime,
 }
 
+impl std::fmt::Debug for CachedToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CachedToken")
+            .field("token", &RedactedToken)
+            .field("refresh_after", &self.refresh_after)
+            .field("refresh_after_wall", &self.refresh_after_wall)
+            .finish()
+    }
+}
+
 /// On-disk representation of a cached OAuth token (shared across processes).
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct DiskToken {
     access_token: String,
     /// Refresh-after time as milliseconds since the Unix epoch.
     refresh_after_unix_ms: u128,
+}
+
+impl std::fmt::Debug for DiskToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DiskToken")
+            .field("access_token", &RedactedToken)
+            .field("refresh_after_unix_ms", &self.refresh_after_unix_ms)
+            .finish()
+    }
 }
 
 /// Resolves and applies authentication to outgoing requests.
@@ -332,6 +373,45 @@ impl Authentication {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The token-carrying structs are private and nothing formats them today, but they all
+    /// implement `Debug`, so one `tracing::debug!(?token, ...)` added later would print a
+    /// live bearer token. Pinning the redaction here makes that a test failure rather than
+    /// a leak nobody notices.
+    #[test]
+    fn debug_of_token_types_never_prints_the_token() {
+        const SENTINEL: &str = "SENTINEL-BEARER-TOKEN-5d41402a";
+        let clock = super::super::clock::live_clock();
+
+        let cached = CachedToken {
+            token: SENTINEL.to_string(),
+            refresh_after: clock.now(),
+            refresh_after_wall: clock.now_wall(),
+        };
+        let disk = DiskToken {
+            access_token: SENTINEL.to_string(),
+            refresh_after_unix_ms: 0,
+        };
+        let response = TokenResponse {
+            access_token: SENTINEL.to_string(),
+            expires_in: Some(300),
+        };
+
+        for rendered in [
+            format!("{cached:?}"),
+            format!("{disk:?}"),
+            format!("{response:?}"),
+        ] {
+            assert!(
+                !rendered.contains(SENTINEL),
+                "a bearer token reached Debug output: {rendered}"
+            );
+            assert!(
+                rendered.contains("<redacted>"),
+                "the token field must still show as present: {rendered}"
+            );
+        }
+    }
 
     #[test]
     fn parses_strategies_case_insensitively() {
