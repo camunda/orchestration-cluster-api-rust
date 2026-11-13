@@ -443,7 +443,8 @@ mod tests {
             for rendered in [&display, &debug] {
                 assert!(
                     !rendered.contains(SENTINEL),
-                    "token-endpoint error leaked response-body or credential material: {rendered}"
+                    "token-endpoint error leaked response-body or credential material \
+                     (rendered error withheld: it contains the leaked text)"
                 );
             }
         }
@@ -466,7 +467,7 @@ mod tests {
             );
             assert!(
                 format!("{err}").contains("401"),
-                "the status is the diagnostic we do keep: {err}"
+                "the status is the diagnostic we do keep (rendered error withheld)"
             );
             assert_no_leak(&err);
         }
