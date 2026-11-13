@@ -336,6 +336,69 @@ impl Clock for RecordingClock {
         self.inner.sleep(duration).await;
     }
 }
+
+/// A clock whose time only moves when a test moves it.
+///
+/// `#[tokio::test(start_paused = true)]` virtualises tokio's timer, but it also
+/// auto-advances whenever the runtime goes idle — which a test doing real socket I/O does,
+/// repeatedly and unpredictably. That is fine for cadence, and useless for pinning an
+/// expiry boundary: "the cached value is still valid at T+89s" cannot be asserted against a
+/// clock that may have jumped during an HTTP round trip. This one never moves on its own,
+/// so a boundary test states the boundary instead of racing it.
+///
+/// Both readings advance together, so the monotonic and wall-clock views stay consistent
+/// with each other the way a real clock's do. Lives beside [`RecordingClock`] for the same
+/// reason: a per-module copy is how implementations drift apart.
+#[cfg(test)]
+#[derive(Debug)]
+pub(crate) struct ManualClock {
+    base: Instant,
+    wall_base: SystemTime,
+    offset: std::sync::Mutex<Duration>,
+}
+
+#[cfg(test)]
+impl ManualClock {
+    /// Start at the live clock's current reading, so durations relative to it look ordinary.
+    pub(crate) fn new() -> Self {
+        let live = LiveClock;
+        ManualClock {
+            base: live.now(),
+            wall_base: live.now_wall(),
+            offset: std::sync::Mutex::new(Duration::ZERO),
+        }
+    }
+
+    /// Move both readings forward by `duration`. The only thing that ever does.
+    pub(crate) fn advance(&self, duration: Duration) {
+        let mut offset = self.offset.lock().expect("poisoned");
+        *offset += duration;
+    }
+
+    fn offset(&self) -> Duration {
+        *self.offset.lock().expect("poisoned")
+    }
+}
+
+#[cfg(test)]
+#[async_trait]
+impl Clock for ManualClock {
+    fn now(&self) -> Instant {
+        self.base + self.offset()
+    }
+
+    fn now_wall(&self) -> SystemTime {
+        self.wall_base + self.offset()
+    }
+
+    async fn sleep(&self, duration: Duration) {
+        // A sleep on a manual clock still has to move time, or a caller that waits for a
+        // deadline would wait forever. Yield first, so the contract clause that a sleep
+        // always hands control back to the executor holds for zero durations too.
+        tokio::task::yield_now().await;
+        self.advance(duration);
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -370,6 +433,38 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn live_clock_satisfies_the_contract() {
         assert_clock_contract(&LiveClock).await;
+    }
+
+    /// `ManualClock` is held to the same clauses as every other implementation — the point
+    /// of keeping the contract a free function.
+    #[tokio::test]
+    async fn manual_clock_satisfies_the_contract() {
+        assert_clock_contract(&ManualClock::new()).await;
+    }
+
+    #[tokio::test]
+    async fn manual_clock_moves_only_when_advanced() {
+        let clock = ManualClock::new();
+        let start = clock.now();
+        let wall_start = clock.now_wall();
+
+        assert_eq!(
+            clock.now(),
+            start,
+            "a manual clock must not drift between readings"
+        );
+
+        clock.advance(Duration::from_secs(90));
+
+        assert_eq!(clock.now(), start + Duration::from_secs(90));
+        assert_eq!(
+            clock
+                .now_wall()
+                .duration_since(wall_start)
+                .expect("wall time moved forward"),
+            Duration::from_secs(90),
+            "both readings must advance together"
+        );
     }
 
     #[tokio::test(start_paused = true)]
