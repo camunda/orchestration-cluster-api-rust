@@ -49,27 +49,47 @@ const SECRETS: &[(&str, &str)] = &[
     ("CAMUNDA_MTLS_KEY_PASSPHRASE", MTLS_PASSPHRASE),
 ];
 
-/// Assert none of `needles` occurs in `rendered`. Never prints `rendered`.
-fn assert_clean(surface: &str, rendered: &str, needles: &[(&str, &str)]) {
-    for (what, sentinel) in needles {
+/// A sentinel to scan for, and the human-readable name of what it stands for. The label is
+/// the only part that ever reaches a panic message.
+struct Needle<'a> {
+    label: &'static str,
+    value: &'a str,
+}
+
+/// Assert none of `needles` occurs in `rendered`. Never prints `rendered` or a sentinel.
+fn assert_clean(surface: &str, rendered: &str, needles: &[Needle]) {
+    for needle in needles {
         assert!(
-            !rendered.contains(sentinel),
-            "{what} leaked into {surface} (output withheld: it contains the credential; \
-             reproduce locally with `cargo test --test secret_redaction`)"
+            !rendered.contains(needle.value),
+            "{} leaked into {surface} (output withheld: it contains the credential; \
+             reproduce locally with `cargo test --test secret_redaction`)",
+            needle.label
         );
     }
 }
 
-fn all_secrets() -> Vec<(&'static str, &'static str)> {
-    let mut v = SECRETS.to_vec();
-    v.push(("the bearer token", BEARER_TOKEN));
-    v.push(("the identity-provider response body", IDP_BODY));
-    v.push(("the userinfo password of a configured URL", URL_PASSWORD));
+fn all_secrets() -> Vec<Needle<'static>> {
+    let mut v: Vec<Needle<'static>> = SECRETS
+        .iter()
+        .map(|&(label, value)| Needle { label, value })
+        .collect();
+    v.push(Needle {
+        label: "the bearer token",
+        value: BEARER_TOKEN,
+    });
+    v.push(Needle {
+        label: "the identity-provider response body",
+        value: IDP_BODY,
+    });
+    v.push(Needle {
+        label: "the userinfo password of a configured URL",
+        value: URL_PASSWORD,
+    });
     v
 }
 
 /// Scan both renderings of an error, since callers use either.
-fn assert_error_clean(surface: &str, err: &CamundaError, needles: &[(&str, &str)]) {
+fn assert_error_clean(surface: &str, err: &CamundaError, needles: &[Needle]) {
     assert_clean(&format!("{surface} (Display)"), &format!("{err}"), needles);
     assert_clean(&format!("{surface} (Debug)"), &format!("{err:?}"), needles);
 }
@@ -271,7 +291,7 @@ fn options(pairs: &[(&str, &str)]) -> CamundaOptions {
 
 /// Surfaces of a built client that a caller can format: its resolved config and the
 /// nested TLS config. (`CamundaClient` itself does not implement `Debug`.)
-fn assert_client_surfaces_clean(client: &CamundaClient, needles: &[(&str, &str)]) {
+fn assert_client_surfaces_clean(client: &CamundaClient, needles: &[Needle]) {
     let config = client.config();
     assert_clean("CamundaConfig Debug", &format!("{config:?}"), needles);
     assert_clean(
@@ -349,8 +369,14 @@ async fn oauth_success_path_does_not_leak() {
             "the on-disk token cache",
             contents,
             &[
-                ("CAMUNDA_CLIENT_SECRET", CLIENT_SECRET),
-                ("the identity-provider response body", IDP_BODY),
+                Needle {
+                    label: "CAMUNDA_CLIENT_SECRET",
+                    value: CLIENT_SECRET,
+                },
+                Needle {
+                    label: "the identity-provider response body",
+                    value: IDP_BODY,
+                },
             ],
         );
     }
@@ -407,8 +433,11 @@ async fn basic_auth_paths_do_not_leak() {
     let logs = LogCapture::default();
     let _guard = logs.install();
     let encoded = base64(&format!("sentinel-user:{BASIC_PASSWORD}"));
-    let mut needles = all_secrets();
-    needles.push(("the base64-encoded basic credential", encoded.as_str()));
+    let mut needles: Vec<Needle> = all_secrets();
+    needles.push(Needle {
+        label: "the base64-encoded basic credential",
+        value: encoded.as_str(),
+    });
 
     for rest_ok in [true, false] {
         let stub = start_stub(true, rest_ok).await;
