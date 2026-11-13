@@ -11,8 +11,8 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// UserTaskLookupStateEnum : The lifecycle state of an active user task. A state ending in `-ING` means a change to the task is in progress, for example waiting for task listeners; the task fields still hold the values from before the change.
-/// The lifecycle state of an active user task. A state ending in `-ING` means a change to the task is in progress, for example waiting for task listeners; the task fields still hold the values from before the change.
+/// UserTaskLookupStateEnum : The lifecycle state of an active user task. A state ending in `-ING` means a change to the task is in progress, for example waiting for task listeners; the task fields still hold the values from before the change. A claim in progress is reported as `ASSIGNING`, as in the user task search.
+/// The lifecycle state of an active user task. A state ending in `-ING` means a change to the task is in progress, for example waiting for task listeners; the task fields still hold the values from before the change. A claim in progress is reported as `ASSIGNING`, as in the user task search.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum UserTaskLookupStateEnum {
     #[serde(rename = "CREATING")]
@@ -21,8 +21,6 @@ pub enum UserTaskLookupStateEnum {
     Created,
     #[serde(rename = "ASSIGNING")]
     Assigning,
-    #[serde(rename = "CLAIMING")]
-    Claiming,
     #[serde(rename = "UPDATING")]
     Updating,
     #[serde(rename = "COMPLETING")]
@@ -37,7 +35,6 @@ impl std::fmt::Display for UserTaskLookupStateEnum {
             Self::Creating => write!(f, "CREATING"),
             Self::Created => write!(f, "CREATED"),
             Self::Assigning => write!(f, "ASSIGNING"),
-            Self::Claiming => write!(f, "CLAIMING"),
             Self::Updating => write!(f, "UPDATING"),
             Self::Completing => write!(f, "COMPLETING"),
             Self::Canceling => write!(f, "CANCELING"),

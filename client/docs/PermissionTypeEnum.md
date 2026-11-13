@@ -5,6 +5,7 @@
 | Name | Value |
 |---- | -----|
 | Access | ACCESS |
+| Answer | ANSWER |
 | CancelProcessInstance | CANCEL_PROCESS_INSTANCE |
 | Claim | CLAIM |
 | ClaimUserTask | CLAIM_USER_TASK |
