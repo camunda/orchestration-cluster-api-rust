@@ -7,7 +7,6 @@
 | Creating | CREATING |
 | Created | CREATED |
 | Assigning | ASSIGNING |
-| Claiming | CLAIMING |
 | Updating | UPDATING |
 | Completing | COMPLETING |
 | Canceling | CANCELING |
