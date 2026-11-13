@@ -2288,6 +2288,20 @@ mod tests {
             assert!(result.is_ok(), "timed out waiting for {what}");
         }
 
+        /// A `tracing` writer that appends to a shared buffer.
+        struct LogSink(Arc<std::sync::Mutex<Vec<u8>>>);
+
+        impl std::io::Write for LogSink {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
         /// Await a worker's graceful shutdown under the same bound as [`wait_for`], so a
         /// shutdown that stalls fails the test with a named reason instead of hanging the
         /// suite. `tokio::time::timeout` is an I/O bound, not cadence, so it is not banned.
@@ -2322,6 +2336,21 @@ mod tests {
             })
             .await;
             let client = stub.client();
+
+            // Capture warnings so the panic *reporting* is asserted as well as the survival.
+            // The default subscriber is per-thread and `#[tokio::test]` runs the worker and
+            // its handler tasks on this thread, so the guard sees them all.
+            let logs = Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+            let _log_guard = tracing::subscriber::set_default(
+                tracing_subscriber::fmt()
+                    .with_ansi(false)
+                    .with_max_level(tracing::Level::WARN)
+                    .with_writer({
+                        let logs = logs.clone();
+                        move || LogSink(logs.clone())
+                    })
+                    .finish(),
+            );
 
             let panicked = Arc::new(AtomicUsize::new(0));
             let completed = Arc::new(AtomicUsize::new(0));
@@ -2391,6 +2420,22 @@ mod tests {
                 assert!(
                     !stub.saw_follow_up_for(key),
                     "job {key} panicked in its handler, so no completion or failure may be sent for it"
+                );
+            }
+
+            // The panics are reported, not swallowed: one warning per panicked handler, and
+            // each carries the handler's own panic message. (Panic messages here are test
+            // strings, so printing the captured log on failure is safe.)
+            let captured = String::from_utf8_lossy(&logs.lock().unwrap()).into_owned();
+            assert_eq!(
+                captured.matches("job handler task panicked").count(),
+                4,
+                "each panicked handler must be reported exactly once; captured log:\n{captured}"
+            );
+            for key in 1..=4 {
+                assert!(
+                    captured.contains(&format!("handler panics on job {key}")),
+                    "the report for job {key} must carry its panic message; captured log:\n{captured}"
                 );
             }
         }
