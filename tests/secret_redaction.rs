@@ -283,10 +283,26 @@ impl Drop for ScratchDir {
     }
 }
 
+/// Every `CAMUNDA_*` / `ZEEBE_*` variable in the process environment, mapped to an empty
+/// value. Configuration resolves an override before it consults the environment and treats
+/// an empty value as unset, so starting from this map isolates a scenario from whatever the
+/// machine running the suite has exported (an mTLS identity with a passphrase, a different
+/// auth strategy, a real cluster address) without touching the process environment, which
+/// other tests read concurrently.
+fn ambient_blanked() -> HashMap<String, String> {
+    std::env::vars_os()
+        .filter_map(|(k, _)| k.into_string().ok())
+        .filter(|k| k.starts_with("CAMUNDA_") || k.starts_with("ZEEBE_"))
+        .map(|k| (k, String::new()))
+        .collect()
+}
+
+/// Options for a scenario: ambient configuration blanked, then exactly `pairs`.
 fn options(pairs: &[(&str, &str)]) -> CamundaOptions {
-    pairs
-        .iter()
-        .fold(CamundaOptions::new(), |o, (k, v)| o.with(*k, *v))
+    let blanked = ambient_blanked()
+        .into_iter()
+        .fold(CamundaOptions::new(), |o, (k, v)| o.with(k, v));
+    pairs.iter().fold(blanked, |o, (k, v)| o.with(*k, *v))
 }
 
 /// Surfaces of a built client that a caller can format: its resolved config and the
@@ -348,10 +364,12 @@ async fn oauth_success_path_does_not_leak() {
         token_requests[0].1.contains(CLIENT_SECRET),
         "the client secret must be posted to the token endpoint"
     );
-    assert_eq!(
-        stub.requests_to("/topology")[0].0.as_deref(),
-        Some(format!("Bearer {BEARER_TOKEN}").as_str()),
-        "the issued token must be applied as a bearer credential"
+    // A boolean assert on purpose: `assert_eq!` prints both operands on failure, which here
+    // are the Authorization header and the issued token.
+    assert!(
+        stub.requests_to("/topology")[0].0.as_deref()
+            == Some(format!("Bearer {BEARER_TOKEN}").as_str()),
+        "the issued token must be applied as a bearer credential (headers withheld)"
     );
 
     let needles = sentinels();
@@ -558,10 +576,12 @@ async fn url_userinfo_does_not_leak_through_transport_errors() {
 /// credential variable at once, resolved and rendered.
 #[test]
 fn resolved_config_debug_does_not_leak() {
-    let mut overrides: HashMap<String, String> = SECRETS
-        .iter()
-        .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
-        .collect();
+    let mut overrides = ambient_blanked();
+    overrides.extend(
+        SECRETS
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), (*v).to_string())),
+    );
     overrides.insert("CAMUNDA_AUTH_STRATEGY".into(), "BASIC".into());
     overrides.insert("CAMUNDA_BASIC_AUTH_USERNAME".into(), "sentinel-user".into());
     overrides.insert(
@@ -635,7 +655,8 @@ fn urls_in_every_spelling_the_client_accepts_do_not_leak() {
 
 /// Resolve `value` as `var` and scan every rendering of the config for the sentinels.
 fn assert_url_field_clean(var: &str, value: &str, needles: &[Needle]) {
-    let overrides: HashMap<String, String> = [(var.to_string(), value.to_string())].into();
+    let mut overrides = ambient_blanked();
+    overrides.insert(var.to_string(), value.to_string());
     let config = CamundaConfig::from_env_with_overrides(&overrides).expect("config resolves");
     assert_clean(
         &format!("CamundaConfig Debug of an awkwardly spelled {var}"),
