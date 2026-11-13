@@ -748,6 +748,31 @@ mod tests {
         );
     }
 
+    /// URL parsers discard tab, carriage return and line feed wherever they occur, so
+    /// `https:\n//user:password@host` is the URL `https://user:password@host`, and the
+    /// config stores the value verbatim. A scheme separator split by one of those
+    /// characters must not hide the userinfo from redaction.
+    #[test]
+    fn debug_redacts_userinfo_behind_a_split_scheme_separator() {
+        const URL_PASSWORD: &str = "SENTINEL-URL-PASSWORD-7d793037";
+        for split in ["https:\n//", "https:\t//", "https:/\r/", "https\n://"] {
+            for var in ["CAMUNDA_REST_ADDRESS", "CAMUNDA_OAUTH_URL"] {
+                let value = format!("{split}admin:{URL_PASSWORD}@cluster.example/v2");
+                let config = cfg(&[(var, value.as_str())]).unwrap();
+                let rendered = format!("{config:?}");
+                assert!(
+                    !rendered.contains(URL_PASSWORD),
+                    "a password behind a split scheme separator leaked from {var} \
+                     ({DO_NOT_PRINT})"
+                );
+                assert!(
+                    rendered.contains("cluster.example"),
+                    "the host is the diagnostic and must survive redaction ({DO_NOT_PRINT})"
+                );
+            }
+        }
+    }
+
     /// The redaction is a string operation, not a parse, so values that are not URLs must
     /// render as themselves rather than vanish or come back normalised into something the
     /// operator never typed.
