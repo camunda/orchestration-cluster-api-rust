@@ -68,7 +68,7 @@ fn assert_clean(surface: &str, rendered: &str, needles: &[Needle]) {
     }
 }
 
-fn all_secrets() -> Vec<Needle<'static>> {
+fn sentinels() -> Vec<Needle<'static>> {
     let mut v: Vec<Needle<'static>> = SECRETS
         .iter()
         .map(|&(label, value)| Needle { label, value })
@@ -354,7 +354,7 @@ async fn oauth_success_path_does_not_leak() {
         "the issued token must be applied as a bearer credential"
     );
 
-    let needles = all_secrets();
+    let needles = sentinels();
     assert_clean("the captured logs", &logs.contents(), &needles);
     assert_client_surfaces_clean(&client, &needles);
 
@@ -420,7 +420,7 @@ async fn oauth_failure_path_does_not_leak() {
         "the client secret must be posted to the token endpoint"
     );
 
-    let needles = all_secrets();
+    let needles = sentinels();
     assert_error_clean("the OAuth failure error", &err, &needles);
     assert_clean("the captured logs", &logs.contents(), &needles);
     assert_client_surfaces_clean(&client, &needles);
@@ -433,7 +433,7 @@ async fn basic_auth_paths_do_not_leak() {
     let logs = LogCapture::default();
     let _guard = logs.install();
     let encoded = base64(&format!("sentinel-user:{BASIC_PASSWORD}"));
-    let mut needles: Vec<Needle> = all_secrets();
+    let mut needles: Vec<Needle> = sentinels();
     needles.push(Needle {
         label: "the base64-encoded basic credential",
         value: encoded.as_str(),
@@ -480,7 +480,7 @@ async fn basic_auth_paths_do_not_leak() {
 async fn mtls_misconfiguration_does_not_leak() {
     let logs = LogCapture::default();
     let _guard = logs.install();
-    let needles = all_secrets();
+    let needles = sentinels();
 
     // Each of these must fail construction with a configuration error on every backend.
     let must_fail: &[(&str, &[(&str, &str)])] = &[
@@ -548,7 +548,7 @@ async fn url_userinfo_does_not_leak_through_transport_errors() {
         .await
         .expect_err("nothing is listening, the call must fail");
 
-    let needles = all_secrets();
+    let needles = sentinels();
     assert_error_clean("the transport error", &err, &needles);
     assert_clean("the captured logs", &logs.contents(), &needles);
     assert_client_surfaces_clean(&client, &needles);
@@ -574,7 +574,7 @@ fn resolved_config_debug_does_not_leak() {
     );
     let config = CamundaConfig::from_env_with_overrides(&overrides).expect("config resolves");
 
-    let needles = all_secrets();
+    let needles = sentinels();
     for (surface, rendered) in [
         ("CamundaConfig Debug", format!("{config:?}")),
         ("CamundaConfig pretty Debug", format!("{config:#?}")),
@@ -591,7 +591,7 @@ fn resolved_config_debug_does_not_leak() {
 /// userinfo from redaction.
 #[test]
 fn urls_with_control_characters_in_the_scheme_separator_do_not_leak() {
-    let needles = all_secrets();
+    let needles = sentinels();
     for split in ["https:\n//", "https:\t//", "https:/\r/", "https\n://"] {
         for var in ["CAMUNDA_REST_ADDRESS", "CAMUNDA_OAUTH_URL"] {
             let overrides: HashMap<String, String> = [(
