@@ -17,9 +17,6 @@ pub struct ProcessInstanceCreationInstructionBase {
     /// JSON object that will instantiate the variables for the root variable scope of the process instance.
     #[serde(rename = "variables", skip_serializing_if = "Option::is_none")]
     pub variables: Option<std::collections::HashMap<String, serde_json::Value>>,
-    /// Metadata of the variables, keyed by variable name. Use it to set how a variable is treated, for example to protect its value. Each key must be the name of a variable in `variables`. A variable without an entry has no metadata.
-    #[serde(rename = "variablesMetadata", skip_serializing_if = "Option::is_none")]
-    pub variables_metadata: Option<std::collections::HashMap<String, models::VariableMetadata>>,
     /// The tenant id of the process definition. If multi-tenancy is enabled, provide the tenant id of the process definition to start a process instance of. If multi-tenancy is disabled, don't provide this parameter.
     #[serde(rename = "tenantId", skip_serializing_if = "Option::is_none")]
     pub tenant_id: Option<models::TenantId>,
@@ -57,7 +54,6 @@ impl ProcessInstanceCreationInstructionBase {
     pub fn new() -> ProcessInstanceCreationInstructionBase {
         ProcessInstanceCreationInstructionBase {
             variables: None,
-            variables_metadata: None,
             tenant_id: None,
             operation_reference: None,
             start_instructions: None,

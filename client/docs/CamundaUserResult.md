@@ -4,10 +4,11 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**username** | **String** | The username of the user. | 
+**is_anonymous** | **bool** | Whether the caller has no identity. Only an unprotected API answers an anonymous caller; a protected API returns `401` instead. When `true`, `username`, `displayName` and `email` are `null` and the lists are empty. | 
+**username** | Option<**String**> | The username of the user. `null` when `isAnonymous` is `true`. | 
 **display_name** | Option<**String**> | The display name of the user. | 
 **email** | Option<**String**> | The email of the user. | 
-**authorized_components** | **Vec<String>** | The web components the user is authorized to use. When authorizations are disabled for the cluster, this always returns `[\"*\"]`, regardless of the user's actual permissions, since access is not restricted in that case. | 
+**authorized_components** | **Vec<String>** | The web components the user is authorized to use. When authorizations are disabled for the cluster, this always returns `[\"*\"]`, regardless of the user's actual permissions, since access is not restricted in that case. An anonymous caller of an unprotected API also gets `[\"*\"]`, for the same reason. | 
 **tenants** | [**Vec<models::TenantResult>**](TenantResult.md) | The tenants the user is a member of. | 
 **groups** | **Vec<String>** | The groups assigned to the user. | 
 **roles** | **Vec<String>** | The roles assigned to the user. | 

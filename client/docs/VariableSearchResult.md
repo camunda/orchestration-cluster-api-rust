@@ -10,8 +10,7 @@ Name | Type | Description | Notes
 **scope_key** | [**models::ScopeKey**](ScopeKey.md) | The key of the scope where this variable is directly defined. For process-level variables, this is the process instance key. For local variables, this is the key of the specific element instance (task, subprocess, gateway, event, etc.) where the variable is directly defined.  | 
 **process_instance_key** | **models::ProcessInstanceKey** | The key of the process instance of this variable. | 
 **root_process_instance_key** | Option<**models::ProcessInstanceKey**> | The key of the root process instance. The root process instance is the top-level ancestor in the process instance hierarchy. This field is only present for data belonging to process instance hierarchies created in version 8.9 or later.  | 
-**metadata** | [**models::VariableMetadata**](VariableMetadata.md) | Metadata of this variable. | 
-**value** | **String** | The value of this variable. Can be truncated or redacted.  If the value is truncated, `isTruncated` is `true` and the value contains only the beginning of the full value.  If the variable is redacted, the value is set to `\"\"` instead of the real value. Check `metadata.protectionModes` before you use the value: it contains `REDACT` for a redacted variable.  | 
+**value** | **String** | Value of this variable. Can be truncated. | 
 **is_truncated** | **bool** | Whether the value is truncated or not. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

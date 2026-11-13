@@ -1166,32 +1166,32 @@ mod tests {
     // --- Enum-backed exact-match wrappers (hook 15) --------------------------
 
     #[test]
-    fn protection_mode_exact_match_preserves_the_enum_value() {
-        use models::ProtectionModeFilterProperty as P;
+    fn enum_exact_match_preserves_the_enum_value() {
+        use models::BatchOperationStateFilterProperty as P;
         // A bare enum string must decode as the exact-match branch and round-trip.
-        let decoded: P = serde_json::from_str(r#""REDACT""#).expect("decodes");
+        let decoded: P = serde_json::from_str(r#""ACTIVE""#).expect("decodes");
         match &decoded {
-            P::ProtectionModeExactMatch(b) => {
-                assert_eq!(b.0, models::ProtectionModeEnum::Redact);
+            P::BatchOperationStateExactMatch(b) => {
+                assert_eq!(b.0, models::BatchOperationStateEnum::Active);
             }
-            other => panic!("expected ProtectionModeExactMatch, got {other:?}"),
+            other => panic!("expected BatchOperationStateExactMatch, got {other:?}"),
         }
-        assert_eq!(serde_json::to_value(&decoded).expect("encodes"), "REDACT");
+        assert_eq!(serde_json::to_value(&decoded).expect("encodes"), "ACTIVE");
     }
 
     #[test]
-    fn protection_mode_advanced_filter_is_not_swallowed_by_exact_match() {
-        use models::ProtectionModeFilterProperty as P;
+    fn enum_advanced_filter_is_not_swallowed_by_exact_match() {
+        use models::BatchOperationStateFilterProperty as P;
         // The advanced-filter object must NOT be captured by the exact-match branch.
-        let decoded: P = serde_json::from_str(r#"{"$in":["REDACT"]}"#).expect("decodes");
+        let decoded: P = serde_json::from_str(r#"{"$in":["ACTIVE"]}"#).expect("decodes");
         match &decoded {
-            P::AdvancedProtectionModeFilter(b) => {
+            P::AdvancedBatchOperationStateFilter(b) => {
                 assert_eq!(
                     b.dollar_in.as_deref(),
-                    Some(&[models::ProtectionModeEnum::Redact][..])
+                    Some(&[models::BatchOperationStateEnum::Active][..])
                 );
             }
-            other => panic!("expected AdvancedProtectionModeFilter, got {other:?}"),
+            other => panic!("expected AdvancedBatchOperationStateFilter, got {other:?}"),
         }
     }
 

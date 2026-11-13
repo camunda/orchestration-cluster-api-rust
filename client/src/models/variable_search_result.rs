@@ -34,10 +34,7 @@ pub struct VariableSearchResult {
         deserialize_with = "Option::deserialize"
     )]
     pub root_process_instance_key: Option<Box<models::ProcessInstanceKey>>,
-    /// Metadata of this variable.
-    #[serde(rename = "metadata")]
-    pub metadata: Box<models::VariableMetadata>,
-    /// The value of this variable. Can be truncated or redacted.  If the value is truncated, `isTruncated` is `true` and the value contains only the beginning of the full value.  If the variable is redacted, the value is set to `\"\"` instead of the real value. Check `metadata.protectionModes` before you use the value: it contains `REDACT` for a redacted variable.
+    /// Value of this variable. Can be truncated.
     #[serde(rename = "value")]
     pub value: String,
     /// Whether the value is truncated or not.
@@ -53,7 +50,6 @@ impl VariableSearchResult {
         scope_key: models::ScopeKey,
         process_instance_key: models::ProcessInstanceKey,
         root_process_instance_key: Option<models::ProcessInstanceKey>,
-        metadata: models::VariableMetadata,
         value: String,
         is_truncated: bool,
     ) -> VariableSearchResult {
@@ -68,7 +64,6 @@ impl VariableSearchResult {
             } else {
                 None
             },
-            metadata: Box::new(metadata),
             value,
             is_truncated,
         }
