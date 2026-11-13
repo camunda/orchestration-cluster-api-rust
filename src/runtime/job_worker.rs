@@ -272,7 +272,13 @@ impl Job {
     /// deserialized into; nesting depth is bounded at `serde_json`'s default 128 levels by
     /// the activation-response parse; and each job's variables belong to its own handler
     /// task. The SDK enforces no size limit of its own and performs no validation of
-    /// variable contents. See the "Job variables are untrusted input" section of the README.
+    /// variable contents.
+    ///
+    /// The SDK does not log the variable map. That is narrower than a guarantee that no
+    /// variable-derived text reaches a diagnostic: a rejected follow-up command is logged as
+    /// [`CamundaError::Api`](crate::CamundaError::Api), whose `Display` includes the server's
+    /// response body, and a panicking handler is logged with its own panic message. See the
+    /// "Job variables are untrusted input" section of the README.
     pub fn variables(&self) -> &HashMap<String, Value> {
         &self.inner.variables
     }
@@ -290,9 +296,11 @@ impl Job {
 
     /// The job custom headers.
     ///
-    /// Custom headers are authored in the BPMN model rather than supplied per instance, but
-    /// they are still server-supplied data: treat them with the same care as
-    /// [`Job::variables`].
+    /// Custom headers are authored in the BPMN model rather than supplied per instance, so
+    /// they come from whoever can deploy a process rather than from whoever started this
+    /// instance — a different, much smaller trust boundary than [`Job::variables`]. They are
+    /// still server-supplied data arriving over the network, so validate before acting on
+    /// them.
     pub fn custom_headers(&self) -> &HashMap<String, Value> {
         &self.inner.custom_headers
     }
@@ -1641,6 +1649,68 @@ mod tests {
         serde_json::to_string(&body).expect("the response body serializes")
     }
 
+    /// Serve `body` as the response to one activation request, and return a client pointed
+    /// at it. The nesting tests go through `CamundaClient::activate_jobs` rather than
+    /// calling `serde_json::from_str` themselves, so what they exercise is the production
+    /// parse — the one a future change to the reader (an `unbounded_depth` builder, a
+    /// hand-rolled parse) would actually affect. A test that parsed the payload itself
+    /// would keep passing through exactly that change.
+    async fn client_serving_activation(body: String) -> CamundaClient {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            while let Ok((mut sock, _)) = listener.accept().await {
+                let body = body.clone();
+                tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    let mut tmp = [0u8; 1024];
+                    let header_end = loop {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => {
+                                buf.extend_from_slice(&tmp[..n]);
+                                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                                    break pos + 4;
+                                }
+                            }
+                        }
+                    };
+                    let content_len = String::from_utf8_lossy(&buf[..header_end])
+                        .lines()
+                        .find_map(|l| {
+                            l.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                        })
+                        .unwrap_or(0);
+                    while buf.len() < header_end + content_len {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => break,
+                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                        }
+                    }
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                    let _ = sock.flush().await;
+                });
+            }
+        });
+
+        CamundaClient::new(
+            crate::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", format!("http://{addr}"))
+                .with("CAMUNDA_FALCON", "false"),
+        )
+        .expect("client should build from an address alone")
+    }
+
     /// The README and the `Job::variables` rustdoc state that variable nesting depth is
     /// bounded at `serde_json`'s default 128 levels by the activation-response parse, and
     /// that this is what keeps a hostile payload from recursing without bound. The bound is
@@ -1648,13 +1718,20 @@ mod tests {
     /// reader configured with `unbounded_depth`, or a hand-rolled parse, would remove it
     /// silently and leave the documentation claiming a guarantee that no longer holds.
     /// These two cases make the documented position an asserted one.
-    #[test]
-    fn variable_nesting_is_bounded_by_the_activation_response_parse() {
+    #[tokio::test]
+    async fn variable_nesting_is_bounded_by_the_activation_response_parse() {
         // Past the limit: the parse must fail cleanly as a deserialization error rather
         // than exhausting the stack.
-        let too_deep = activation_body_with_nesting(200);
-        let err = serde_json::from_str::<models::JobActivationResult>(&too_deep)
+        let client = client_serving_activation(activation_body_with_nesting(200)).await;
+        let err = client
+            .activate_jobs(models::JobActivationRequest::new(
+                "test-type".to_string(),
+                1_000,
+                1,
+            ))
+            .await
             .expect_err("a 200-level nested variable payload must be rejected");
+
         assert!(
             err.to_string().contains("recursion limit exceeded"),
             "expected a recursion-limit error, got: {err}"
@@ -1663,13 +1740,20 @@ mod tests {
 
     /// The other side of the same bound: it must sit well clear of payloads a legitimate
     /// process produces, so the limit is a guard rather than a functional ceiling.
-    #[test]
-    fn ordinary_variable_nesting_is_accepted() {
-        let ordinary = activation_body_with_nesting(32);
-        let parsed = serde_json::from_str::<models::JobActivationResult>(&ordinary)
+    #[tokio::test]
+    async fn ordinary_variable_nesting_is_accepted() {
+        let client = client_serving_activation(activation_body_with_nesting(32)).await;
+        let result = client
+            .activate_jobs(models::JobActivationRequest::new(
+                "test-type".to_string(),
+                1_000,
+                1,
+            ))
+            .await
             .expect("a 32-level nested variable payload is ordinary and must parse");
-        assert_eq!(parsed.jobs.len(), 1);
-        assert!(parsed.jobs[0].variables.contains_key("payload"));
+
+        assert_eq!(result.jobs.len(), 1);
+        assert!(result.jobs[0].variables.contains_key("payload"));
     }
 
     #[test]

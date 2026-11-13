@@ -253,11 +253,16 @@ The `Job` exposes `key()`, `job_type()`, `process_instance_key()`, `variables()`
 
 ### Job variables are untrusted input
 
-Job variables and custom headers reach your handler from the server, but their **content is
-set by whoever started the process instance** — which, for a process started from a public
-form, an inbound connector or another team's service, is not you. Treat `job.variables()`,
-`job.variables_as::<T>()` and `job.custom_headers()` as untrusted input and validate them
-before use, exactly as you would an HTTP request body.
+Job variables reach your handler from the server, but their **content is set by whoever
+started the process instance** — which, for a process started from a public form, an inbound
+connector or another team's service, is not you. Treat `job.variables()` and
+`job.variables_as::<T>()` as untrusted input and validate them before use, exactly as you
+would an HTTP request body.
+
+Custom headers are a different trust boundary: they are authored in the BPMN model, so they
+come from whoever can deploy a process rather than from whoever started an instance. That is
+a much smaller set of people, but it is still server-supplied data arriving over the network,
+so validate `job.custom_headers()` before acting on it too.
 
 What the SDK does:
 
@@ -271,8 +276,14 @@ What the SDK does:
   nested payload from recursing without bound. The SDK inherits it rather than choosing it.
 - **Each job's variables are its own.** Every activated job is moved into its own handler
   task, so no variable map is shared or mutated across concurrently running jobs.
-- **Variable contents are never logged.** The SDK's log lines on the job path carry an error
-  or a job type, never the payload.
+- **The SDK never logs the variable map.** Its log lines on the job path carry an error or a
+  job type, never the payload. Note the limit of that guarantee: it covers the SDK logging
+  variables *directly*, not every way variable-derived text can reach a diagnostic. A failed
+  follow-up command is logged as `CamundaError::Api`, whose `Display` includes the server's
+  response body; and a panicking handler is logged with its panic message, which is whatever
+  the handler put there — an `expect` on a failed typed deserialization can include the
+  rejected value. If your logs must not contain variable-derived text, keep it out of your
+  panic messages and consider what your cluster echoes in error bodies.
 
 What the SDK does **not** do:
 
