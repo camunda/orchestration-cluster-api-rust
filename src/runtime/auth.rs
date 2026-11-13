@@ -373,8 +373,33 @@ mod tests {
                 };
                 let mut buf = Vec::new();
                 let mut tmp = [0u8; 1024];
-                // Read the request far enough that reqwest sees a clean exchange.
-                while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                // Read to the end of the request headers.
+                let header_end = loop {
+                    match sock.read(&mut tmp).await {
+                        Ok(0) | Err(_) => return,
+                        Ok(n) => {
+                            buf.extend_from_slice(&tmp[..n]);
+                            if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                                break pos + 4;
+                            }
+                        }
+                    }
+                };
+                // Then drain the form body. `fetch_token` POSTs the client-credentials form,
+                // which can arrive in a later read than the headers; closing the socket with
+                // it unread can reset the connection, and the test would see a transport
+                // failure — `CamundaError::Network` — instead of the auth error it asserts
+                // on. Reading `Content-Length` bytes first makes the exchange clean and the
+                // test deterministic.
+                let content_len = String::from_utf8_lossy(&buf[..header_end])
+                    .lines()
+                    .find_map(|l| {
+                        l.to_ascii_lowercase()
+                            .strip_prefix("content-length:")
+                            .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                    })
+                    .unwrap_or(0);
+                while buf.len() < header_end + content_len {
                     match sock.read(&mut tmp).await {
                         Ok(0) | Err(_) => break,
                         Ok(n) => buf.extend_from_slice(&tmp[..n]),
