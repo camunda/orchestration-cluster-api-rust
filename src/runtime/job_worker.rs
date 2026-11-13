@@ -2128,6 +2128,9 @@ mod tests {
             address: String,
             activations: Arc<AtomicUsize>,
             completions: Arc<AtomicUsize>,
+            /// The request line of every per-job follow-up the server received (completion,
+            /// failure, error, ...), so a test can say which jobs were *not* touched.
+            follow_ups: Arc<std::sync::Mutex<Vec<String>>>,
         }
 
         impl JobStub {
@@ -2136,14 +2139,16 @@ mod tests {
                 let addr = listener.local_addr().unwrap();
                 let activations = Arc::new(AtomicUsize::new(0));
                 let completions = Arc::new(AtomicUsize::new(0));
-                let (acts, comps) = (activations.clone(), completions.clone());
+                let follow_ups = Arc::new(std::sync::Mutex::new(Vec::new()));
+                let (acts, comps, ups) =
+                    (activations.clone(), completions.clone(), follow_ups.clone());
 
                 tokio::spawn(async move {
                     loop {
                         let Ok((mut sock, _)) = listener.accept().await else {
                             break;
                         };
-                        let (acts, comps) = (acts.clone(), comps.clone());
+                        let (acts, comps, ups) = (acts.clone(), comps.clone(), ups.clone());
                         tokio::spawn(async move {
                             let mut buf = Vec::new();
                             let mut tmp = [0u8; 1024];
@@ -2178,6 +2183,9 @@ mod tests {
                             }
 
                             let path = head.lines().next().unwrap_or_default().to_string();
+                            if !path.contains("/jobs/activation") && path.contains("/jobs/") {
+                                ups.lock().unwrap().push(path.clone());
+                            }
                             let (status, body) = if path.contains("/jobs/activation") {
                                 let n = acts.fetch_add(1, Ordering::SeqCst) + 1;
                                 match behaviour.activations_before_error {
@@ -2215,6 +2223,7 @@ mod tests {
                     address: format!("http://{addr}"),
                     activations,
                     completions,
+                    follow_ups,
                 }
             }
 
@@ -2238,6 +2247,17 @@ mod tests {
 
             fn completions(&self) -> usize {
                 self.completions.load(Ordering::SeqCst)
+            }
+
+            /// Whether the server received any follow-up command (completion, failure,
+            /// error) addressed to the job with this key.
+            fn saw_follow_up_for(&self, job_key: usize) -> bool {
+                let needle = format!("/jobs/{job_key}/");
+                self.follow_ups
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .any(|line| line.contains(&needle))
             }
         }
 
@@ -2362,6 +2382,17 @@ mod tests {
                 "the worker to shut down cleanly after handler panics",
             )
             .await;
+
+            // Documented behaviour: a panicked job is left neither completed nor failed, so
+            // it waits for the server-side activation timeout. Asserted after shutdown so a
+            // follow-up still in flight has landed. Without this, a worker that completed or
+            // failed the panicked jobs would pass everything above.
+            for key in 1..=4 {
+                assert!(
+                    !stub.saw_follow_up_for(key),
+                    "job {key} panicked in its handler, so no completion or failure may be sent for it"
+                );
+            }
         }
 
         /// When the follow-up command is rejected — the completion call refused by the
