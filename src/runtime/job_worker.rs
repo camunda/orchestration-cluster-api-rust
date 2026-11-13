@@ -259,17 +259,40 @@ impl Job {
     }
 
     /// The job variables as a JSON map.
+    ///
+    /// # Untrusted input
+    ///
+    /// Variables reach the handler from the server, but their content is set by whoever
+    /// started the process instance — for a process started from a public form, an inbound
+    /// connector or another team's service, that is not you. Treat this map as untrusted
+    /// input and validate it before use.
+    ///
+    /// The SDK deserializes variables only into JSON values ([`serde_json::Value`]) or into
+    /// the type [`Job::variables_as`] is asked for, so a payload cannot choose what it is
+    /// deserialized into; nesting depth is bounded at `serde_json`'s default 128 levels by
+    /// the activation-response parse; and each job's variables belong to its own handler
+    /// task. The SDK enforces no size limit of its own and performs no validation of
+    /// variable contents. See the "Job variables are untrusted input" section of the README.
     pub fn variables(&self) -> &HashMap<String, Value> {
         &self.inner.variables
     }
 
     /// Deserialize the job variables into a typed value.
+    ///
+    /// `T` is chosen by the caller, never by the payload — a variable map cannot select
+    /// what it is deserialized into. Deserializing successfully still says nothing about
+    /// whether the values are sensible: see the untrusted-input note on [`Job::variables`]
+    /// and validate before acting on them.
     pub fn variables_as<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
         let value = serde_json::to_value(&self.inner.variables)?;
         Ok(serde_json::from_value(value)?)
     }
 
     /// The job custom headers.
+    ///
+    /// Custom headers are authored in the BPMN model rather than supplied per instance, but
+    /// they are still server-supplied data: treat them with the same care as
+    /// [`Job::variables`].
     pub fn custom_headers(&self) -> &HashMap<String, Value> {
         &self.inner.custom_headers
     }
@@ -1602,6 +1625,51 @@ mod tests {
         assert!(completes[0].get("variables").is_none());
         assert_eq!(completes[1]["jobKey"], "2");
         assert_eq!(completes[1]["variables"], serde_json::json!({ "ok": true }));
+    }
+
+    /// Build an activation-response body whose single job carries one variable nested
+    /// `depth` levels deep, as the JSON the server would send.
+    fn activation_body_with_nesting(depth: usize) -> String {
+        let mut nested = Value::from(0);
+        for _ in 0..depth {
+            nested = Value::Array(vec![nested]);
+        }
+        let mut body =
+            serde_json::to_value(models::JobActivationResult::new(vec![fake_activated()]))
+                .expect("the fake activation result serializes");
+        body["jobs"][0]["variables"] = serde_json::json!({ "payload": nested });
+        serde_json::to_string(&body).expect("the response body serializes")
+    }
+
+    /// The README and the `Job::variables` rustdoc state that variable nesting depth is
+    /// bounded at `serde_json`'s default 128 levels by the activation-response parse, and
+    /// that this is what keeps a hostile payload from recursing without bound. The bound is
+    /// inherited rather than chosen, so nothing in this repo pinned it: a later switch to a
+    /// reader configured with `unbounded_depth`, or a hand-rolled parse, would remove it
+    /// silently and leave the documentation claiming a guarantee that no longer holds.
+    /// These two cases make the documented position an asserted one.
+    #[test]
+    fn variable_nesting_is_bounded_by_the_activation_response_parse() {
+        // Past the limit: the parse must fail cleanly as a deserialization error rather
+        // than exhausting the stack.
+        let too_deep = activation_body_with_nesting(200);
+        let err = serde_json::from_str::<models::JobActivationResult>(&too_deep)
+            .expect_err("a 200-level nested variable payload must be rejected");
+        assert!(
+            err.to_string().contains("recursion limit exceeded"),
+            "expected a recursion-limit error, got: {err}"
+        );
+    }
+
+    /// The other side of the same bound: it must sit well clear of payloads a legitimate
+    /// process produces, so the limit is a guard rather than a functional ceiling.
+    #[test]
+    fn ordinary_variable_nesting_is_accepted() {
+        let ordinary = activation_body_with_nesting(32);
+        let parsed = serde_json::from_str::<models::JobActivationResult>(&ordinary)
+            .expect("a 32-level nested variable payload is ordinary and must parse");
+        assert_eq!(parsed.jobs.len(), 1);
+        assert!(parsed.jobs[0].variables.contains_key("payload"));
     }
 
     #[test]

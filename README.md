@@ -251,6 +251,39 @@ A handler returns a `JobAction`:
 The `Job` exposes `key()`, `job_type()`, `process_instance_key()`, `variables()`, and
 `variables_as::<T>()` for typed deserialization.
 
+### Job variables are untrusted input
+
+Job variables and custom headers reach your handler from the server, but their **content is
+set by whoever started the process instance** — which, for a process started from a public
+form, an inbound connector or another team's service, is not you. Treat `job.variables()`,
+`job.variables_as::<T>()` and `job.custom_headers()` as untrusted input and validate them
+before use, exactly as you would an HTTP request body.
+
+What the SDK does:
+
+- **Deserialization is JSON-shaped.** Variables and custom headers arrive as
+  `HashMap<String, serde_json::Value>`. `variables_as::<T>()` deserializes only into the
+  type you name. There is no mechanism that instantiates an arbitrary type chosen by the
+  payload — Rust has no pickling analogue here — so a payload cannot select what it is
+  deserialized into.
+- **Nesting depth is bounded at 128 levels.** That bound is `serde_json`'s default recursion
+  limit, applied when the activation response is parsed, and it is what stops a deeply
+  nested payload from recursing without bound. The SDK inherits it rather than choosing it.
+- **Each job's variables are its own.** Every activated job is moved into its own handler
+  task, so no variable map is shared or mutated across concurrently running jobs.
+- **Variable contents are never logged.** The SDK's log lines on the job path carry an error
+  or a job type, never the payload.
+
+What the SDK does **not** do:
+
+- It enforces **no size limit of its own** on an activation response. Bound the payload at
+  the source — fetch only the variables you need with
+  `JobWorkerConfig::fetch_variables(["orderId", "amount"])`, and keep large data out of
+  process variables.
+- It does **not validate** variable contents: no schema, no range, no string-length check.
+  A `String` variable may be empty, enormous, or hold markup, SQL or a path; a number may be
+  any `f64`. Validate in your handler before acting on it.
+
 Enable **job leasing** with `JobWorkerConfig::new("...").with_lease(true)`. Each activated
 job then carries a lease token that the worker sends back on complete, fail, and
 throw-error, so the engine fences the command against a superseded activation (for example
