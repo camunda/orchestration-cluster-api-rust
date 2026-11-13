@@ -13,8 +13,30 @@ use super::errors::{CamundaError, Result};
 /// Default REST address used when none is configured.
 const DEFAULT_REST_ADDRESS: &str = "http://localhost:8080";
 
+/// Renders an optional credential as presence-only: `Some("<redacted>")` or `None`.
+///
+/// Keeping the `Option` shape preserves the diagnostic that matters when reading a debug
+/// line — whether the value is set at all — while the value itself never reaches a
+/// formatter. Used by the hand-written `Debug` impls below, which exist in place of
+/// `#[derive(Debug)]` precisely so no credential can be printed.
+struct Redacted<'a>(&'a Option<String>);
+
+impl std::fmt::Debug for Redacted<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            Some(_) => f.write_str(r#"Some("<redacted>")"#),
+            None => f.write_str("None"),
+        }
+    }
+}
+
 /// Resolved SDK configuration.
-#[derive(Debug, Clone)]
+///
+/// `Debug` is hand-written rather than derived: this struct holds the OAuth client secret
+/// and the basic-auth password, it is re-exported from the crate root, and every client
+/// hands out a reference to its resolved config — so `{config:?}` is reachable from user
+/// code and from anything that embeds a `CamundaConfig` in its own derived `Debug`.
+#[derive(Clone)]
 pub struct CamundaConfig {
     /// Base REST address of the Orchestration Cluster, including the `/v2` suffix
     /// (unless `CAMUNDA_REST_ADDRESS_EXACT` is truthy, in which case the configured
@@ -62,6 +84,34 @@ pub struct CamundaConfig {
     /// advertises it (`CAMUNDA_FALCON`, default on). When off, the SDK
     /// stays on pure REST even against a nanobpmn gateway.
     pub falcon: bool,
+}
+
+impl std::fmt::Debug for CamundaConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CamundaConfig")
+            .field("rest_address", &self.rest_address)
+            .field("rest_address_exact", &self.rest_address_exact)
+            .field("auth_strategy", &self.auth_strategy)
+            // A client id identifies the client, it does not authenticate it; the secret
+            // beside it is what must not be printed.
+            .field("client_id", &self.client_id)
+            .field("client_secret", &Redacted(&self.client_secret))
+            .field("oauth_url", &self.oauth_url)
+            .field("token_audience", &self.token_audience)
+            .field("oauth_scope", &self.oauth_scope)
+            .field("oauth_cache_dir", &self.oauth_cache_dir)
+            .field("basic_auth_username", &self.basic_auth_username)
+            .field("basic_auth_password", &Redacted(&self.basic_auth_password))
+            .field("default_tenant_id", &self.default_tenant_id)
+            .field("backpressure_profile", &self.backpressure_profile)
+            .field("log_level", &self.log_level)
+            .field("eventual_poll_default_ms", &self.eventual_poll_default_ms)
+            .field("retry", &self.retry)
+            .field("tls", &self.tls)
+            .field("worker_defaults", &self.worker_defaults)
+            .field("falcon", &self.falcon)
+            .finish()
+    }
 }
 
 /// SDK log level, controlling the verbosity of the SDK's structured logging.
@@ -138,7 +188,10 @@ impl Default for RetryConfig {
 /// A client certificate (`cert` + `key`) enables mutual TLS; a `ca` enables trusting a
 /// private certificate authority. Inline PEM values take precedence over the `*_path`
 /// file locations.
-#[derive(Debug, Clone, Default)]
+///
+/// `Debug` is hand-written for the same reason as [`CamundaConfig`]'s: the inline PEM
+/// fields carry private key material.
+#[derive(Clone, Default)]
 pub struct TlsConfig {
     /// Inline client-certificate PEM (`CAMUNDA_MTLS_CERT`).
     pub cert: Option<String>,
@@ -154,6 +207,27 @@ pub struct TlsConfig {
     pub ca_path: Option<String>,
     /// Passphrase for an encrypted client key (`CAMUNDA_MTLS_KEY_PASSPHRASE`).
     pub key_passphrase: Option<String>,
+}
+
+impl std::fmt::Debug for TlsConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TlsConfig")
+            // `cert` is redacted alongside `key`: operators routinely paste a combined
+            // certificate-and-key PEM into `CAMUNDA_MTLS_CERT`, so the inline certificate
+            // field cannot be assumed to hold public material only.
+            .field("cert", &Redacted(&self.cert))
+            .field("key", &Redacted(&self.key))
+            // A CA certificate is public trust material by definition and never carries a
+            // private key, and it is the field an operator most often needs to eyeball.
+            .field("ca", &self.ca)
+            // Paths to TLS material are not the material, and they are the useful
+            // diagnostic when a file cannot be read.
+            .field("cert_path", &self.cert_path)
+            .field("key_path", &self.key_path)
+            .field("ca_path", &self.ca_path)
+            .field("key_passphrase", &Redacted(&self.key_passphrase))
+            .finish()
+    }
 }
 
 impl TlsConfig {
@@ -464,6 +538,103 @@ mod tests {
     fn oauth_requires_credentials() {
         let err = cfg(&[("CAMUNDA_AUTH_STRATEGY", "OAUTH")]).unwrap_err();
         assert!(matches!(err, CamundaError::Config(_)));
+    }
+
+    /// Every `CAMUNDA_*` variable whose name says it carries a credential, paired with a
+    /// sentinel value and the config field it lands in. Driving the redaction tests off one
+    /// table is what makes them class-scoped: a new credential variable is added here, and
+    /// every assertion below covers it automatically.
+    const SECRET_ENV: &[(&str, &str)] = &[
+        ("CAMUNDA_CLIENT_SECRET", "SENTINEL-CLIENT-SECRET-d41d8c"),
+        (
+            "CAMUNDA_BASIC_AUTH_PASSWORD",
+            "SENTINEL-BASIC-PASSWORD-9e107d",
+        ),
+        ("CAMUNDA_MTLS_KEY", "SENTINEL-MTLS-KEY-e4d909c2"),
+        ("CAMUNDA_MTLS_CERT", "SENTINEL-MTLS-CERT-0cc175b9"),
+        (
+            "CAMUNDA_MTLS_KEY_PASSPHRASE",
+            "SENTINEL-MTLS-PASSPHRASE-92eb5f",
+        ),
+    ];
+
+    /// A config with every credential variable set to its sentinel, plus enough
+    /// non-credential context to check that readable fields stay readable.
+    fn config_with_all_secrets() -> CamundaConfig {
+        let mut pairs: Vec<(&str, &str)> = vec![
+            ("CAMUNDA_REST_ADDRESS", "https://cluster.example"),
+            ("CAMUNDA_AUTH_STRATEGY", "BASIC"),
+            ("CAMUNDA_BASIC_AUTH_USERNAME", "demo-user"),
+            ("CAMUNDA_MTLS_CA_PATH", "/etc/camunda/ca.pem"),
+        ];
+        pairs.extend(SECRET_ENV.iter().copied());
+        cfg(&pairs).unwrap()
+    }
+
+    /// `CamundaConfig` is re-exported from the crate root and every client hands out a
+    /// reference to its resolved config, so `{config:?}` is reachable from user code — and
+    /// from any `#[derive(Debug)]` struct that embeds one. No credential may survive that
+    /// formatting. Scanning the whole rendered string for every sentinel catches the class:
+    /// a credential added to `SECRET_ENV` is covered without touching this test.
+    #[test]
+    fn debug_of_config_redacts_every_credential() {
+        let config = config_with_all_secrets();
+        let rendered = format!("{config:?}");
+        for (var, sentinel) in SECRET_ENV {
+            assert!(
+                !rendered.contains(sentinel),
+                "{var} leaked into CamundaConfig's Debug output: {rendered}"
+            );
+        }
+    }
+
+    /// `TlsConfig` is re-exported and formatted on its own too, so the property has to hold
+    /// for the nested type directly, not only when it is reached through a `CamundaConfig`.
+    #[test]
+    fn debug_of_tls_config_redacts_key_material() {
+        let tls = config_with_all_secrets().tls;
+        let rendered = format!("{tls:?}");
+        for (var, sentinel) in SECRET_ENV {
+            assert!(
+                !rendered.contains(sentinel),
+                "{var} leaked into TlsConfig's Debug output: {rendered}"
+            );
+        }
+    }
+
+    /// Redaction must not cost the diagnostics the output exists for. Non-credential fields
+    /// stay readable, and a redacted field still shows whether it was set — which is the
+    /// part an operator debugging "why is auth failing" actually needs.
+    #[test]
+    fn debug_keeps_non_secret_fields_and_shows_presence() {
+        let config = config_with_all_secrets();
+        let rendered = format!("{config:?}");
+
+        assert!(
+            rendered.contains("https://cluster.example"),
+            "the REST address is not a secret and must stay readable: {rendered}"
+        );
+        assert!(
+            rendered.contains("demo-user"),
+            "the basic-auth username is not a secret and must stay readable: {rendered}"
+        );
+        assert!(
+            rendered.contains("/etc/camunda/ca.pem"),
+            "a path to TLS material is not the material; it must stay readable: {rendered}"
+        );
+        assert!(
+            rendered.contains("<redacted>"),
+            "a set credential must still show as present: {rendered}"
+        );
+
+        // An unset credential reads as `None`, not as a redacted placeholder — otherwise
+        // "configured but wrong" and "not configured" look identical in a debug line.
+        let bare = cfg(&[("CAMUNDA_REST_ADDRESS", "https://cluster.example")]).unwrap();
+        let bare_rendered = format!("{bare:?}");
+        assert!(
+            bare_rendered.contains("client_secret: None"),
+            "an unset credential must read as None: {bare_rendered}"
+        );
     }
 
     #[test]
