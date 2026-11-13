@@ -2092,4 +2092,374 @@ mod tests {
             })
             .count()
     }
+
+    /// The policy's "handler exceptions" baseline case.
+    ///
+    /// `poller_overlaps_slow_handlers_and_shutdown_drains_them` already covers shutdown
+    /// during in-flight jobs. The handler-failure half had nothing: no test anywhere ran a
+    /// handler that panicked, or one whose follow-up command the server rejected, or a poll
+    /// that failed while a handler was still running. All three paths exist in the worker
+    /// with comments explaining deliberate design choices, and none of those choices was
+    /// asserted — so each of these tests pins current behaviour rather than changing it.
+    mod handler_failures {
+        use super::*;
+        use std::sync::atomic::AtomicUsize;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        /// How the stub should answer.
+        #[derive(Clone, Copy)]
+        struct StubBehaviour {
+            /// Status for `POST /jobs/{key}/completion`. `"204 No Content"` accepts.
+            completion_status: &'static str,
+            /// Serve this many activations successfully, then answer 500. `None` never
+            /// errors. 500 is deliberate: `retry::is_retryable` covers 429/502/503/504, so
+            /// a 500 reaches the worker's poll error path on the first attempt instead of
+            /// being retried underneath the test.
+            activations_before_error: Option<usize>,
+        }
+
+        /// An in-process stand-in for the job endpoints, routing on the request path.
+        /// Extends the activation stub `poller_overlaps_slow_handlers_and_shutdown_drains_them`
+        /// uses rather than introducing new machinery, as the issue suggested. Each
+        /// activation serves exactly one job whose key is the activation number, so a test
+        /// can tell which job a handler received and which job a completion is for.
+        struct JobStub {
+            address: String,
+            activations: Arc<AtomicUsize>,
+            completions: Arc<AtomicUsize>,
+        }
+
+        impl JobStub {
+            async fn start(behaviour: StubBehaviour) -> Self {
+                let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let addr = listener.local_addr().unwrap();
+                let activations = Arc::new(AtomicUsize::new(0));
+                let completions = Arc::new(AtomicUsize::new(0));
+                let (acts, comps) = (activations.clone(), completions.clone());
+
+                tokio::spawn(async move {
+                    loop {
+                        let Ok((mut sock, _)) = listener.accept().await else {
+                            break;
+                        };
+                        let (acts, comps) = (acts.clone(), comps.clone());
+                        tokio::spawn(async move {
+                            let mut buf = Vec::new();
+                            let mut tmp = [0u8; 1024];
+                            let header_end = loop {
+                                match sock.read(&mut tmp).await {
+                                    Ok(0) | Err(_) => return,
+                                    Ok(n) => {
+                                        buf.extend_from_slice(&tmp[..n]);
+                                        if let Some(pos) =
+                                            buf.windows(4).position(|w| w == b"\r\n\r\n")
+                                        {
+                                            break pos + 4;
+                                        }
+                                    }
+                                }
+                            };
+                            let head = String::from_utf8_lossy(&buf[..header_end]).into_owned();
+                            // Drain the request body so reqwest sees a clean exchange.
+                            let content_len = head
+                                .lines()
+                                .find_map(|l| {
+                                    l.to_ascii_lowercase()
+                                        .strip_prefix("content-length:")
+                                        .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                                })
+                                .unwrap_or(0);
+                            while buf.len() < header_end + content_len {
+                                match sock.read(&mut tmp).await {
+                                    Ok(0) | Err(_) => break,
+                                    Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                                }
+                            }
+
+                            let path = head.lines().next().unwrap_or_default().to_string();
+                            let (status, body) = if path.contains("/jobs/activation") {
+                                let n = acts.fetch_add(1, Ordering::SeqCst) + 1;
+                                match behaviour.activations_before_error {
+                                    Some(limit) if n > limit => (
+                                        "500 Internal Server Error",
+                                        r#"{"title":"boom"}"#.to_string(),
+                                    ),
+                                    _ => (
+                                        "200 OK",
+                                        serde_json::to_string(&models::JobActivationResult::new(
+                                            vec![job_with_key(&n.to_string())],
+                                        ))
+                                        .unwrap(),
+                                    ),
+                                }
+                            } else if path.contains("/completion") {
+                                comps.fetch_add(1, Ordering::SeqCst);
+                                (behaviour.completion_status, String::new())
+                            } else {
+                                ("204 No Content", String::new())
+                            };
+
+                            let resp = format!(
+                                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                                body.len(),
+                                body
+                            );
+                            let _ = sock.write_all(resp.as_bytes()).await;
+                            let _ = sock.flush().await;
+                        });
+                    }
+                });
+
+                JobStub {
+                    address: format!("http://{addr}"),
+                    activations,
+                    completions,
+                }
+            }
+
+            fn client(&self) -> CamundaClient {
+                CamundaClient::new(
+                    crate::CamundaOptions::new()
+                        .with("CAMUNDA_REST_ADDRESS", self.address.clone())
+                        .with("CAMUNDA_FALCON", "false"),
+                )
+                .expect("client should build from an address alone")
+            }
+
+            fn activations(&self) -> usize {
+                self.activations.load(Ordering::SeqCst)
+            }
+
+            fn completions(&self) -> usize {
+                self.completions.load(Ordering::SeqCst)
+            }
+        }
+
+        /// `fake_activated` always uses job key "1"; these tests need jobs they can tell
+        /// apart.
+        fn job_with_key(key: &str) -> models::ActivatedJobResult {
+            let mut job = fake_activated();
+            job.job_key = Box::new(models::JobKey::assume_exists(key.to_string()));
+            job
+        }
+
+        /// Wait until `condition` holds, failing with `what` rather than hanging the suite if
+        /// it never does. Every wait in this module goes through here, and every assertion
+        /// waits on something the *stub* observed rather than on a counter the handler bumped
+        /// before its follow-up command was sent — a handler finishing and the server seeing
+        /// the completion are two different events, and conflating them is a race.
+        ///
+        /// The poll interval resolves through the injected `Clock` rather than
+        /// `tokio::time::sleep`, which `clippy.toml` bans, so no narrow `allow` is needed and
+        /// the runtime parks between polls instead of spinning.
+        async fn wait_for(clock: &Arc<dyn Clock>, what: &str, condition: impl Fn() -> bool) {
+            let result = tokio::time::timeout(Duration::from_secs(10), async {
+                while !condition() {
+                    clock.sleep(Duration::from_millis(5)).await;
+                }
+            })
+            .await;
+            assert!(result.is_ok(), "timed out waiting for {what}");
+        }
+
+        /// A panicking handler must not take the worker down with it, and — the part worth
+        /// pinning hardest — must not leak its credit. The permit is released by `_permit`
+        /// dropping with the panicking task, so a run of panicking handlers has to keep the
+        /// poller's window open. Here four consecutive handlers panic against a two-credit
+        /// window: if the permit were leaked instead of dropped, the poller would park
+        /// forever after the second panic and the fifth job would never be dispatched.
+        ///
+        /// The panic is reported rather than swallowed (what the `JoinSet` is for, per the
+        /// comment at the top of `run_rest_poll`), and the job is left neither completed nor
+        /// failed, so it waits for the server-side activation timeout.
+        #[tokio::test]
+        async fn a_panicking_handler_neither_stops_the_worker_nor_leaks_its_credit() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                activations_before_error: None,
+            })
+            .await;
+            let client = stub.client();
+
+            let panicked = Arc::new(AtomicUsize::new(0));
+            let completed = Arc::new(AtomicUsize::new(0));
+
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
+            let handle = {
+                let (panicked, completed) = (panicked.clone(), completed.clone());
+                worker.spawn(move |job| {
+                    let (panicked, completed) = (panicked.clone(), completed.clone());
+                    let key: usize = job.key().parse().expect("the stub numbers its jobs");
+                    async move {
+                        if key <= 4 {
+                            panicked.fetch_add(1, Ordering::SeqCst);
+                            panic!("handler panics on job {key}");
+                        }
+                        completed.fetch_add(1, Ordering::SeqCst);
+                        JobAction::complete()
+                    }
+                })
+            };
+
+            // The whole assertion is that this is reachable: a fifth job can only be
+            // activated, dispatched, handled and completed if every one of the four
+            // panicking handlers gave its credit back to a two-credit window.
+            wait_for(
+                client.clock(),
+                "four panicking handlers and then a completed job",
+                || panicked.load(Ordering::SeqCst) == 4 && stub.completions() > 0,
+            )
+            .await;
+
+            assert!(
+                completed.load(Ordering::SeqCst) > 0,
+                "the worker must keep dispatching and completing after a handler panics"
+            );
+
+            // And a worker that survived panics still shuts down gracefully.
+            handle.stop();
+            handle
+                .shutdown()
+                .await
+                .expect("the worker shuts down cleanly after handler panics");
+        }
+
+        /// When the follow-up command is rejected — the completion call refused by the
+        /// server, as happens when the job already timed out and was reactivated elsewhere —
+        /// `apply_action` errors, the worker logs a warning and moves on. Nothing asserted
+        /// that it survives and keeps polling. A 409 is used because it is not retryable, so
+        /// the rejection reaches the worker rather than being retried underneath the test.
+        #[tokio::test]
+        async fn a_rejected_follow_up_command_does_not_stop_the_worker() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "409 Conflict",
+                activations_before_error: None,
+            })
+            .await;
+            let client = stub.client();
+            let handled = Arc::new(AtomicUsize::new(0));
+
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
+            let handle = {
+                let handled = handled.clone();
+                worker.spawn(move |_job| {
+                    let handled = handled.clone();
+                    async move {
+                        handled.fetch_add(1, Ordering::SeqCst);
+                        JobAction::complete()
+                    }
+                })
+            };
+
+            // Three rejected completions in a row: the worker keeps going rather than
+            // stopping at the first refusal.
+            wait_for(client.clock(), "three rejected completion calls", || {
+                stub.completions() >= 3
+            })
+            .await;
+            assert!(
+                handled.load(Ordering::SeqCst) >= 3,
+                "handlers must keep being dispatched after a rejected completion"
+            );
+
+            handle.stop();
+            handle
+                .shutdown()
+                .await
+                .expect("the worker shuts down cleanly after rejected completions");
+        }
+
+        /// A poll failure must not abort jobs already dispatched. `run_rest_poll` drains the
+        /// in-flight handlers before propagating the error — "exactly as the stop path
+        /// does", per the comment — rather than dropping the `JoinSet` and cancelling them,
+        /// which would leave activated jobs with a handler killed mid-flight and nothing
+        /// completing or failing them.
+        ///
+        /// The existing drain test only covers the stop path. This one covers the error
+        /// path, and asserts the ordering that makes the guarantee real: `run` cannot return
+        /// while the handler is still running.
+        #[tokio::test]
+        async fn a_poll_failure_drains_in_flight_handlers_before_propagating() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                // One activation succeeds, the next fails — while the first job's handler is
+                // still in flight.
+                activations_before_error: Some(1),
+            })
+            .await;
+            let client = stub.client();
+
+            let (release_tx, release_rx) = tokio::sync::watch::channel(false);
+            let started = Arc::new(AtomicUsize::new(0));
+            let finished = Arc::new(AtomicUsize::new(0));
+
+            // A two-credit window, so the poller can issue its second (failing) activation
+            // while the first handler still holds a credit.
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
+            let mut run = {
+                let (started, finished) = (started.clone(), finished.clone());
+                tokio::spawn(worker.run(move |_job| {
+                    let (started, finished) = (started.clone(), finished.clone());
+                    let mut rx = release_rx.clone();
+                    async move {
+                        started.fetch_add(1, Ordering::SeqCst);
+                        while !*rx.borrow_and_update() {
+                            if rx.changed().await.is_err() {
+                                break;
+                            }
+                        }
+                        finished.fetch_add(1, Ordering::SeqCst);
+                        JobAction::Leave
+                    }
+                }))
+            };
+
+            wait_for(client.clock(), "the first handler to start", || {
+                started.load(Ordering::SeqCst) == 1
+            })
+            .await;
+            wait_for(client.clock(), "the second, failing activation", || {
+                stub.activations() >= 2
+            })
+            .await;
+
+            // The poll has failed and the handler is still blocked: `run` must be waiting on
+            // it, not returning. This is the ordering guarantee — asserted by `run` refusing
+            // to finish rather than by inspecting the drain.
+            assert!(
+                tokio::time::timeout(Duration::from_millis(250), &mut run)
+                    .await
+                    .is_err(),
+                "run returned while an in-flight handler was still running"
+            );
+            assert_eq!(
+                finished.load(Ordering::SeqCst),
+                0,
+                "the handler should still be blocked at this point"
+            );
+
+            release_tx.send(true).unwrap();
+
+            let result = tokio::time::timeout(Duration::from_secs(10), run)
+                .await
+                .expect("run finishes once the drained handler completes")
+                .expect("the worker task itself must not panic");
+
+            let err = result.expect_err("a failing poll must propagate");
+            assert_eq!(
+                err.status(),
+                Some(500),
+                "the poll failure should surface as the server's status: {err}"
+            );
+            assert_eq!(
+                finished.load(Ordering::SeqCst),
+                1,
+                "the in-flight handler must be awaited, not aborted, before run returns"
+            );
+        }
+    }
 }
