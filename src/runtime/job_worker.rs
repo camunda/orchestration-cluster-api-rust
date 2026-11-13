@@ -2268,6 +2268,16 @@ mod tests {
             assert!(result.is_ok(), "timed out waiting for {what}");
         }
 
+        /// Await a worker's graceful shutdown under the same bound as [`wait_for`], so a
+        /// shutdown that stalls fails the test with a named reason instead of hanging the
+        /// suite. `tokio::time::timeout` is an I/O bound, not cadence, so it is not banned.
+        async fn shutdown_within(handle: JobWorkerHandle, what: &str) {
+            let result = tokio::time::timeout(Duration::from_secs(10), handle.shutdown())
+                .await
+                .unwrap_or_else(|_| panic!("timed out waiting for {what}"));
+            result.unwrap_or_else(|e| panic!("{what} failed: {e}"));
+        }
+
         /// A panicking handler must not take the worker down with it, and — the part worth
         /// pinning hardest — must not leak its credit. The permit is released by `_permit`
         /// dropping with the panicking task, so a run of panicking handlers has to leave the
@@ -2347,10 +2357,11 @@ mod tests {
 
             // And a worker that survived panics still shuts down gracefully.
             handle.stop();
-            handle
-                .shutdown()
-                .await
-                .expect("the worker shuts down cleanly after handler panics");
+            shutdown_within(
+                handle,
+                "the worker to shut down cleanly after handler panics",
+            )
+            .await;
         }
 
         /// When the follow-up command is rejected — the completion call refused by the
@@ -2393,10 +2404,11 @@ mod tests {
             );
 
             handle.stop();
-            handle
-                .shutdown()
-                .await
-                .expect("the worker shuts down cleanly after rejected completions");
+            shutdown_within(
+                handle,
+                "the worker to shut down cleanly after rejected completions",
+            )
+            .await;
         }
 
         /// A poll failure must not abort jobs already dispatched. `run_rest_poll` drains the
