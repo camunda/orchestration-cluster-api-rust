@@ -468,18 +468,20 @@ mod tests {
             expires_in: Some(300),
         };
 
-        for rendered in [
-            format!("{cached:?}"),
-            format!("{disk:?}"),
-            format!("{response:?}"),
+        // The failure messages name the type and never interpolate the rendered text: if
+        // redaction regresses that text contains the token, and test output is retained.
+        for (name, rendered) in [
+            ("CachedToken", format!("{cached:?}")),
+            ("DiskToken", format!("{disk:?}")),
+            ("TokenResponse", format!("{response:?}")),
         ] {
             assert!(
                 !rendered.contains(SENTINEL),
-                "a bearer token reached Debug output: {rendered}"
+                "a bearer token reached the Debug output of {name} (rendered output withheld)"
             );
             assert!(
                 rendered.contains("<redacted>"),
-                "the token field must still show as present: {rendered}"
+                "the token field of {name} must still show as present (rendered output withheld)"
             );
         }
     }
