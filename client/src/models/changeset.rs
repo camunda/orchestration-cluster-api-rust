@@ -15,18 +15,22 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Changeset {
     /// The due date of the task. Reset by providing an empty String.
+    ///
+    /// `None` preserves the persisted value, `Some(Some(date))` sets it and `Some(None)` clears it (sent as `""`; see [`Self::clear_due_date`]).
     #[serde(
         rename = "dueDate",
         default,
-        with = "::serde_with::rust::double_option",
+        with = "crate::clearable::date_time",
         skip_serializing_if = "Option::is_none"
     )]
     pub due_date: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     /// The follow-up date of the task. Reset by providing an empty String.
+    ///
+    /// `None` preserves the persisted value, `Some(Some(date))` sets it and `Some(None)` clears it (sent as `""`; see [`Self::clear_follow_up_date`]).
     #[serde(
         rename = "followUpDate",
         default,
-        with = "::serde_with::rust::double_option",
+        with = "crate::clearable::date_time",
         skip_serializing_if = "Option::is_none"
     )]
     pub follow_up_date: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
@@ -66,5 +70,30 @@ impl Changeset {
             candidate_groups: None,
             priority: None,
         }
+    }
+}
+
+// @generated clearable date-time accessors (scripts/postprocess.py hook 19).
+impl Changeset {
+    /// Clear `dueDate`: it is sent as `""`, which removes the persisted value.
+    /// Omitting it (`None`) or sending `null` preserves the value instead.
+    pub fn clear_due_date(&mut self) {
+        self.due_date = Some(None);
+    }
+
+    /// Whether `dueDate` is to be cleared (see [`Self::clear_due_date`]).
+    pub fn is_due_date_cleared(&self) -> bool {
+        matches!(self.due_date, Some(None))
+    }
+
+    /// Clear `followUpDate`: it is sent as `""`, which removes the persisted value.
+    /// Omitting it (`None`) or sending `null` preserves the value instead.
+    pub fn clear_follow_up_date(&mut self) {
+        self.follow_up_date = Some(None);
+    }
+
+    /// Whether `followUpDate` is to be cleared (see [`Self::clear_follow_up_date`]).
+    pub fn is_follow_up_date_cleared(&self) -> bool {
+        matches!(self.follow_up_date, Some(None))
     }
 }

@@ -12,10 +12,10 @@
 //! takes. A hand-built [`models::JobResult`] converts too. The `type` discriminator comes
 //! from the generated enum variant, so it is always correct on the wire.
 //!
-//! [`CompletionResult`] exists because the generated [`models::JobResultCorrections`]
-//! types `dueDate` / `followUpDate` as date-times, while the API clears them with an
-//! empty string. It carries those clears alongside the generated model and writes them as
-//! `""` when the completion body is built.
+//! The API clears a corrected `dueDate` / `followUpDate` with an empty string, while
+//! `null` or omitting it preserves the value. The generated
+//! [`models::JobResultCorrections`] represents a clear as `Some(None)` and sends it as `""`
+//! ([`UserTaskCorrections::clear_due_date`] sets it).
 //!
 //! [user task listener]: https://docs.camunda.io/docs/components/concepts/user-task-listeners/
 
@@ -42,7 +42,6 @@ use serde_json::Value;
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct UserTaskResult {
     inner: models::JobResultUserTask,
-    clears: DateClears,
 }
 
 impl UserTaskResult {
@@ -71,15 +70,10 @@ impl UserTaskResult {
     /// Correct task properties as part of the completion.
     pub fn corrections(mut self, corrections: UserTaskCorrections) -> Self {
         self.inner.corrections = Some(Some(Box::new(corrections.inner)));
-        self.clears = corrections.clears;
         self
     }
 
-    /// The underlying generated model.
-    ///
-    /// The generated model cannot express a cleared due or follow-up date, so a
-    /// [`UserTaskCorrections::clear_due_date`] / [`UserTaskCorrections::clear_follow_up_date`]
-    /// is not carried into it. Pass the `UserTaskResult` itself to keep them.
+    /// The underlying generated model, including any cleared due or follow-up date.
     pub fn into_inner(self) -> models::JobResultUserTask {
         self.inner
     }
@@ -102,7 +96,6 @@ impl UserTaskResult {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct UserTaskCorrections {
     inner: models::JobResultCorrections,
-    clears: DateClears,
 }
 
 impl UserTaskCorrections {
@@ -120,15 +113,13 @@ impl UserTaskCorrections {
     /// Correct the due date. Overrides an earlier [`clear_due_date`](Self::clear_due_date).
     pub fn due_date(mut self, due_date: impl Into<DateTime<FixedOffset>>) -> Self {
         self.inner.due_date = Some(Some(due_date.into()));
-        self.clears.due_date = false;
         self
     }
 
     /// Clear the due date (sent as `"dueDate": ""`). Overrides an earlier
     /// [`due_date`](Self::due_date).
     pub fn clear_due_date(mut self) -> Self {
-        self.inner.due_date = None;
-        self.clears.due_date = true;
+        self.inner.clear_due_date();
         self
     }
 
@@ -136,15 +127,13 @@ impl UserTaskCorrections {
     /// [`clear_follow_up_date`](Self::clear_follow_up_date).
     pub fn follow_up_date(mut self, follow_up_date: impl Into<DateTime<FixedOffset>>) -> Self {
         self.inner.follow_up_date = Some(Some(follow_up_date.into()));
-        self.clears.follow_up_date = false;
         self
     }
 
     /// Clear the follow-up date (sent as `"followUpDate": ""`). Overrides an earlier
     /// [`follow_up_date`](Self::follow_up_date).
     pub fn clear_follow_up_date(mut self) -> Self {
-        self.inner.follow_up_date = None;
-        self.clears.follow_up_date = true;
+        self.inner.clear_follow_up_date();
         self
     }
 
@@ -174,11 +163,8 @@ impl UserTaskCorrections {
         self
     }
 
-    /// The underlying generated model.
-    ///
-    /// The generated model cannot express a cleared due or follow-up date, so a
-    /// [`clear_due_date`](Self::clear_due_date) / [`clear_follow_up_date`](Self::clear_follow_up_date)
-    /// is not carried into it.
+    /// The underlying generated model. A [`clear_due_date`](Self::clear_due_date) /
+    /// [`clear_follow_up_date`](Self::clear_follow_up_date) is carried as `Some(None)`.
     pub fn into_inner(self) -> models::JobResultCorrections {
         self.inner
     }
@@ -283,15 +269,8 @@ impl AdHocSubProcessResult {
     }
 }
 
-/// Which correction dates are cleared.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct DateClears {
-    due_date: bool,
-    follow_up_date: bool,
-}
-
-/// The job result a completion carries: the generated [`models::JobResult`] plus any
-/// cleared correction dates, which the generated model cannot express.
+/// The job result a completion carries: the generated [`models::JobResult`], plus any
+/// failure a builder hit while assembling it.
 ///
 /// Build one from a [`UserTaskResult`], an [`AdHocSubProcessResult`], or a
 /// [`models::JobResult`]. It serializes to the wire form of the completion `result`.
@@ -304,13 +283,12 @@ struct DateClears {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompletionResult {
     model: models::JobResult,
-    clears: DateClears,
     /// Why the result cannot be sent (a serialization failure in a builder).
     error: Option<String>,
 }
 
 impl CompletionResult {
-    /// The generated model. A cleared due or follow-up date is not represented in it.
+    /// The generated model, including any cleared due or follow-up date.
     ///
     /// # Errors
     ///
@@ -330,59 +308,36 @@ impl CompletionResult {
 
     /// Whether the due date is cleared.
     pub fn clears_due_date(&self) -> bool {
-        self.clears.due_date
+        self.corrections()
+            .is_some_and(models::JobResultCorrections::is_due_date_cleared)
     }
 
     /// Whether the follow-up date is cleared.
     pub fn clears_follow_up_date(&self) -> bool {
-        self.clears.follow_up_date
+        self.corrections()
+            .is_some_and(models::JobResultCorrections::is_follow_up_date_cleared)
     }
 
-    /// The wire form: the generated model's JSON, with each cleared date written as `""`
-    /// in `corrections`.
-    pub(crate) fn to_wire(&self) -> serde_json::Result<Value> {
-        if let Some(error) = &self.error {
-            return Err(serde::ser::Error::custom(error));
+    fn corrections(&self) -> Option<&models::JobResultCorrections> {
+        match &self.model {
+            models::JobResult::UserTask(result) => result.corrections.as_ref()?.as_deref(),
+            _ => None,
         }
-        let mut wire = serde_json::to_value(&self.model)?;
-        let cleared = [
-            ("dueDate", self.clears.due_date),
-            ("followUpDate", self.clears.follow_up_date),
-        ];
-        if cleared.iter().any(|(_, on)| *on) {
-            if let Some(result) = wire.as_object_mut() {
-                let corrections = result
-                    .entry("corrections")
-                    .or_insert_with(|| Value::Object(Default::default()));
-                if corrections.is_null() {
-                    *corrections = Value::Object(Default::default());
-                }
-                if let Some(corrections) = corrections.as_object_mut() {
-                    for (field, _) in cleared.iter().filter(|(_, on)| *on) {
-                        corrections.insert((*field).into(), Value::String(String::new()));
-                    }
-                }
-            }
-        }
-        Ok(wire)
     }
 }
 
 impl Serialize for CompletionResult {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.to_wire()
-            .map_err(serde::ser::Error::custom)?
-            .serialize(serializer)
+        match &self.error {
+            Some(error) => Err(serde::ser::Error::custom(error)),
+            None => self.model.serialize(serializer),
+        }
     }
 }
 
 impl From<models::JobResult> for CompletionResult {
     fn from(model: models::JobResult) -> Self {
-        Self {
-            model,
-            clears: DateClears::default(),
-            error: None,
-        }
+        Self { model, error: None }
     }
 }
 
@@ -390,7 +345,6 @@ impl From<UserTaskResult> for CompletionResult {
     fn from(result: UserTaskResult) -> Self {
         Self {
             model: models::JobResult::UserTask(Box::new(result.inner)),
-            clears: result.clears,
             error: None,
         }
     }
@@ -400,7 +354,6 @@ impl From<AdHocSubProcessResult> for CompletionResult {
     fn from(result: AdHocSubProcessResult) -> Self {
         Self {
             model: models::JobResult::AdHocSubProcess(Box::new(result.inner)),
-            clears: DateClears::default(),
             error: result.error,
         }
     }
@@ -433,7 +386,6 @@ mod tests {
 
         let serialized = serde_json::to_value(&result).unwrap_err().to_string();
         assert!(serialized.contains(expected), "{serialized}");
-        assert!(result.to_wire().is_err());
         assert!(
             matches!(result.model(), Err(CamundaError::Validation(m)) if m == expected),
             "model() must not expose the incomplete model"

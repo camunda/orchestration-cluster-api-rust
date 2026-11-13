@@ -131,6 +131,31 @@ fn ad_hoc_sub_process_result() -> camunda_orchestration_sdk::JobAction {
     // endregion AdHocSubProcessResult
 }
 
+async fn update_user_task_dates() -> Result<(), Box<dyn std::error::Error>> {
+    use camunda_orchestration_sdk::CamundaClient;
+    let client = CamundaClient::from_env()?;
+    let user_task_key = String::from("2251799813685249");
+    // region UpdateUserTaskDates
+    use camunda_orchestration_sdk::apis::user_task_api::UpdateUserTaskParams;
+    use camunda_orchestration_sdk::models::{Changeset, UserTaskUpdateRequest};
+
+    let mut changeset = Changeset::new();
+    changeset.clear_due_date(); // sent as "dueDate": ""
+    changeset.follow_up_date = Some(Some("2026-12-01T09:00:00+01:00".parse()?));
+
+    client
+        .update_user_task(UpdateUserTaskParams {
+            user_task_key,
+            user_task_update_request: Some(UserTaskUpdateRequest {
+                changeset: Some(Some(changeset)),
+                ..UserTaskUpdateRequest::new()
+            }),
+        })
+        .await?;
+    // endregion UpdateUserTaskDates
+    Ok(())
+}
+
 async fn eventual_consistency() -> Result<(), Box<dyn std::error::Error>> {
     use camunda_orchestration_sdk::CamundaClient;
     let client = CamundaClient::from_env()?;

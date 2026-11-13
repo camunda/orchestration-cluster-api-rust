@@ -34,11 +34,13 @@ Upstream dependencies — fix at the source when they misbehave, not by working 
 | `src/runtime/` | Hand-written runtime. Modules: `config` (env resolution), `auth` (OAuth/Basic/None + disk token cache), `errors`, `client` (curated facade), `facade_generated` (**generated** full-surface facade — never hand-edit), `job_worker` (workers + lifecycle), `backpressure`, `retry` (transient HTTP retry), `eventual` (consistency polling), `tls` (mTLS), `logging` (tracing). Primary edit surface. |
 | `src/lib.rs` | Public crate surface and re-exports. |
 | `client/` | **Generated.** Produced by `make generate`. Never hand-edit. |
-| `scripts/generate.sh` | Pipeline orchestrator: bundle → generate → post-process → build. |
+| `scripts/generate.sh` | Pipeline orchestrator: bundle → preprocess → generate → post-process → build. |
+| `scripts/preprocess.py` | Derives the generator input spec from the bundle (rewrites `x-clearable` date-times the generator cannot type). |
 | `scripts/postprocess.py` | Orchestrates the numbered post-processing hooks (`scripts/hooks/`). |
-| `scripts/hooks/` | Numbered hooks: `01` Domain Type System, `02` semantic field types, `03` module-path/`Object` fixes, `04` regex dep, `05` lint silencing, `06` cleanup, `07` full-surface SDK facade. Primary edit surface for fixing generated output. |
+| `scripts/hooks/` | Numbered hooks: `01` Domain Type System, `02` semantic field types, `03` module-path/`Object` fixes, `04` regex dep, `05` lint silencing, `06` cleanup, `07` full-surface SDK facade, … `19` clearable date-times. Primary edit surface for fixing generated output. |
 | `openapi-generator-config.yaml` | openapi-generator configuration. |
-| `external-spec/bundled/` | Bundled spec (`rest-api.bundle.json`) + `spec-metadata.json`. Generator inputs. |
+| `external-spec/bundled/` | Bundled spec (`rest-api.bundle.json`) + `spec-metadata.json`. A faithful copy of upstream; generator inputs. |
+| `external-spec/generator/` | Transient generator input derived by `scripts/preprocess.py`. **Never commit** (gitignored). |
 | `external-spec/upstream/` | Transient sparse clone of upstream. **Never commit** (gitignored). |
 | `examples/` | Runnable examples. `readme.rs` hosts the region-tagged snippets injected into `README.md` (compiled by `make examples`). |
 | `scripts/sync-readme-snippets.py` | Injects `examples/*.rs` region snippets into `README.md`; `--check` is the CI gate. |
@@ -58,6 +60,17 @@ newtypes (`#[serde(transparent)] pub struct JobKey(String)`) carrying `try_new` 
 and their `new()` params back to the generated newtypes. If you change how keys are
 represented, change it there.
 
+## Clearable date-times
+
+The API clears some dates (`dueDate` / `followUpDate` on `JobResultCorrections` and the
+user-task `Changeset`) with an empty string; `null` or omission preserves them. Upstream
+marks them `x-clearable` (`ClearableDateTime`), which the generator turns into an empty
+struct. `scripts/preprocess.py` rewrites them to nullable `date-time`s before generation
+and `hook_19_clearable_date_time.py` keeps the `Option<Option<DateTime>>` field, sends
+`Some(None)` as `""`, and adds `clear_<field>()` / `is_<field>_cleared()`. Both detect the
+fields from `x-clearable` and from the older "empty String" description, and fail the run
+if a detected field's generated code has an unexpected shape.
+
 ## Generation pipeline
 
 ```bash
@@ -68,13 +81,16 @@ make generate    # regenerate from the already-bundled spec
 `scripts/generate.sh` runs:
 
 1. (`--bundle`) `camunda-schema-bundler --ref main` → `external-spec/bundled/*`.
-2. `openapi-generator generate -c openapi-generator-config.yaml` → `client/`.
-3. `scripts/postprocess.py` — runs the numbered hooks (`scripts/hooks/`): Domain Type
+2. `scripts/preprocess.py` → `external-spec/generator/rest-api.json`, the spec
+   `openapi-generator-config.yaml` reads. Fix a shape here only when the generator cannot
+   emit usable code for it at all; otherwise fix the output in a hook.
+3. `openapi-generator generate -c openapi-generator-config.yaml` → `client/`.
+4. `scripts/postprocess.py` — runs the numbered hooks (`scripts/hooks/`): Domain Type
    System, semantic field types, generator-bug fixes, and the full-surface facade
    (`hook_07` parses `client/src/apis/*_api.rs` and emits `src/runtime/facade_generated.rs`,
    one `CamundaClient` method per operation routed through `guarded`). It parses the
-   **unformatted** generator output, so it runs before step 4's `cargo fmt`.
-4. `cargo fmt --all` (the client crate and the hook-emitted `src/runtime/*_generated.rs`),
+   **unformatted** generator output, so it runs before step 5's `cargo fmt`.
+5. `cargo fmt --all` (the client crate and the hook-emitted `src/runtime/*_generated.rs`),
    then `cargo build` on the client crate.
 
 The hooks are **idempotent** and fix: missing/broken semantic keys, collapsed semantic

@@ -902,8 +902,8 @@ async fn apply_action(
             client.complete_job(job_key, request).await
         }
         JobAction::CompleteWithResult { variables, result } => {
-            match build_result_completion_body(variables, &result, lease_token) {
-                Ok(body) => client.complete_job_with_body(job_key, &body).await,
+            match build_result_completion_request(variables, &result, lease_token) {
+                Ok(request) => client.complete_job(job_key, Some(request)).await,
                 Err(e) => {
                     let request = build_fail_request(
                         result_serialization_failure(&e),
@@ -979,25 +979,22 @@ fn build_completion_request(
     })
 }
 
-/// Build the JSON body for a completion carrying a job result. It is the generated
-/// request's JSON with `result` set to the result's wire form, so a cleared correction
-/// date -- which the generated model types as a date-time -- goes out as `""`.
-fn build_result_completion_body(
+/// Build a completion request carrying a job result.
+///
+/// # Errors
+///
+/// [`CamundaError::Validation`] if a result builder failed to serialize part of the result.
+fn build_result_completion_request(
     variables: Option<Value>,
     result: &CompletionResult,
     lease_token: Option<&str>,
-) -> Result<Value> {
-    let request = models::JobCompletionRequest {
+) -> Result<models::JobCompletionRequest> {
+    Ok(models::JobCompletionRequest {
         variables: variables.map(value_to_map),
-        result: None,
+        result: Some(Box::new(result.model()?.clone())),
         job_lease_token: lease_token_field(lease_token),
         business_id: None,
-    };
-    let mut body = serde_json::to_value(request)?;
-    if let Some(obj) = body.as_object_mut() {
-        obj.insert("result".into(), result.to_wire()?);
-    }
-    Ok(body)
+    })
 }
 
 /// The fail message for a result completion whose body could not be serialized.
@@ -1121,7 +1118,10 @@ mod tests {
             other => panic!("expected a completion, got {other:?}"),
         };
         match result {
-            Some(result) => build_result_completion_body(variables, &result, None).unwrap(),
+            Some(result) => serde_json::to_value(
+                build_result_completion_request(variables, &result, None).unwrap(),
+            )
+            .unwrap(),
             None => {
                 serde_json::to_value(build_completion_request(variables, None).unwrap_or_default())
                     .unwrap()
@@ -1344,7 +1344,9 @@ mod tests {
     fn result_alone_with_lease_token_builds_a_fenced_body() {
         use super::super::job_result::UserTaskResult;
         let request =
-            build_result_completion_body(None, &UserTaskResult::new().into(), Some("tok")).unwrap();
+            build_result_completion_request(None, &UserTaskResult::new().into(), Some("tok"))
+                .unwrap();
+        let request = serde_json::to_value(request).unwrap();
         assert_eq!(
             request,
             serde_json::json!({ "result": { "type": "userTask" }, "jobLeaseToken": "tok" })

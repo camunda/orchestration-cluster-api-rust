@@ -26,6 +26,7 @@ Hooks (in order):
   16 operation-servers           honor path-item `servers` overrides (cluster-admin paths skip the /v2 base)
   17 scalar-allof-wrappers       rewrite enum-backed `*ExactMatch` empty structs as transparent newtypes
   18 untagged-variant-ordering   order untagged enum variants by specificity so a superset variant wins
+  19 clearable-date-time         send a cleared date as "" (`Some(None)`) and add `clear_<field>()` accessors
 
 Usage:
     python3 scripts/postprocess.py --client-dir client \\

@@ -19,6 +19,7 @@ single instance that prompted it.
 from __future__ import annotations
 
 import ast
+import json
 import re
 import tempfile
 import unittest
@@ -33,7 +34,8 @@ from scripts.hooks import hook_14_error_status_dispatch
 from scripts.hooks import hook_15_rfc3339_datetime_query
 from scripts.hooks import hook_16_operation_servers
 from scripts.hooks import hook_17_scalar_allof_wrappers
-from scripts.hooks.common import Context
+from scripts.hooks import hook_19_clearable_date_time
+from scripts.hooks.common import Context, snake_case
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SCRIPTS_DIR = _REPO_ROOT / "scripts"
@@ -1253,6 +1255,231 @@ class ScalarAllOfWrappersHookTest(unittest.TestCase):
         self.assertEqual(
             (models / "protection_mode_exact_match.rs").read_text(encoding="utf-8"), first
         )
+
+
+_CDT = "#/components/schemas/ClearableDateTime"
+_CLEARABLE_DATE_TIME = {
+    "description": "A date-time in RFC 3339 format, or an empty string to clear the persisted value.",
+    "type": "string",
+    "nullable": True,
+    "anyOf": [
+        {"type": "string", "format": "date-time", "nullable": True},
+        {"type": "string", "maxLength": 0, "nullable": True},
+    ],
+    "x-clearable": True,
+}
+
+# The generator's raw (pre-`cargo fmt`) output for one clearable field and one other.
+_UNFORMATTED_MODEL = (
+    "use crate::models;\n"
+    "use serde::{Deserialize, Serialize};\n\n"
+    "#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]\n"
+    "pub struct Changeset {\n"
+    "    /// The due date of the task. Reset by providing an empty String.\n"
+    '    #[serde(rename = "dueDate", default, with = "::serde_with::rust::double_option", '
+    'skip_serializing_if = "Option::is_none")]\n'
+    "    pub due_date: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,\n"
+    "    /// The priority of the task.\n"
+    '    #[serde(rename = "priority", default, with = "::serde_with::rust::double_option", '
+    'skip_serializing_if = "Option::is_none")]\n'
+    "    pub priority: Option<Option<i32>>,\n"
+    "}\n"
+)
+
+
+class ClearableDateTimeHookTest(unittest.TestCase):
+    """`hook_19` (+ `scripts/preprocess.py`) keeps clearable date-times typed as chrono dates
+    and sends a clear as `""`.
+
+    Detection must cover both spec shapes: the `x-clearable` schema (camunda/camunda#68710,
+    reached through `$ref`, a single-element `allOf`, or a chain of aliases) and the older
+    nullable `date-time` with an "empty String" note. Missing either silently leaves a
+    field that cannot be cleared, or — for `x-clearable` — an empty `ClearableDateTime`
+    struct that cannot hold a date at all.
+    """
+
+    def _schemas(self) -> dict:
+        return {
+            "ClearableDateTime": dict(_CLEARABLE_DATE_TIME),
+            "DueDateAlias": {"allOf": [{"$ref": _CDT}]},
+            "Changeset": {
+                "type": "object",
+                "properties": {
+                    "dueDate": {"allOf": [{"$ref": _CDT}], "description": "The due date."},
+                    "followUpDate": {"$ref": _CDT},
+                    "aliased": {"$ref": "#/components/schemas/DueDateAlias"},
+                    "notAnAlias": {"allOf": [{"$ref": _CDT}, {"description": "x"}]},
+                    "plain": {"type": "string", "format": "date-time", "nullable": True},
+                },
+            },
+            "OldCorrections": {
+                "type": "object",
+                "description": "* `assignee` - clear by providing an empty String\n"
+                "* `dueDate` - clear by providing an empty String\n",
+                "properties": {
+                    "assignee": {"type": "string", "nullable": True},
+                    "dueDate": {"type": "string", "format": "date-time", "nullable": True},
+                },
+            },
+            "OldChangeset": {
+                "type": "object",
+                "properties": {
+                    "followUpDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": True,
+                        "description": "The follow-up date. Reset by providing an empty String.",
+                    },
+                },
+            },
+        }
+
+    def test_detects_both_spec_shapes(self):
+        found = hook_19_clearable_date_time.clearable_date_fields(self._schemas())
+        self.assertEqual(
+            found,
+            {
+                "Changeset": ["aliased", "dueDate", "followUpDate"],
+                "OldChangeset": ["followUpDate"],
+                "OldCorrections": ["dueDate"],
+            },
+        )
+
+    def test_an_x_clearable_that_is_not_a_date_time_fails(self):
+        schemas = {
+            "ClearableNumber": {"type": "integer", "nullable": True, "x-clearable": True},
+            "Thing": {"properties": {"n": {"$ref": "#/components/schemas/ClearableNumber"}}},
+        }
+        with self.assertRaises(SystemExit):
+            hook_19_clearable_date_time.clearable_date_fields(schemas)
+
+    def test_prepare_spec_rewrites_clearable_refs_and_drops_the_schema(self):
+        spec = {"components": {"schemas": self._schemas()}}
+        spec["components"]["schemas"]["Changeset"]["properties"].pop("notAnAlias")
+        before = repr(spec)
+        out, fields = hook_19_clearable_date_time.prepare_spec(spec)
+        self.assertEqual(repr(spec), before, "the input spec must not be mutated")
+        schemas = out["components"]["schemas"]
+        self.assertNotIn("ClearableDateTime", schemas)
+        props = schemas["Changeset"]["properties"]
+        self.assertEqual(
+            props["dueDate"],
+            {
+                "description": "The due date.",
+                "type": "string",
+                "format": "date-time",
+                "nullable": True,
+                "x-clearable": True,
+            },
+        )
+        # No own description: the clearable schema's is carried over.
+        self.assertTrue(props["followUpDate"]["description"].startswith("A date-time"))
+        self.assertEqual(props["aliased"]["format"], "date-time")
+        self.assertNotIn("$ref", repr(props))
+        # The rewritten spec is still detected (x-clearable stays on the property), so the
+        # post-processor may read either spec.
+        self.assertEqual(hook_19_clearable_date_time.clearable_date_fields(schemas), fields)
+
+    def test_prepare_spec_fails_if_a_clearable_schema_stays_referenced(self):
+        spec = {"components": {"schemas": self._schemas()}}
+        # `notAnAlias` is a two-element allOf: not rewritten, so it would generate an
+        # empty ClearableDateTime struct.
+        with self.assertRaises(SystemExit):
+            hook_19_clearable_date_time.prepare_spec(spec)
+
+    def _run_hook(self, model_text: str, extra_files: dict | None = None) -> Path:
+        tmp = Path(tempfile.mkdtemp())
+        models = tmp / "src" / "models"
+        models.mkdir(parents=True)
+        (tmp / "src" / "lib.rs").write_text("pub mod apis;\npub mod models;\n", encoding="utf-8")
+        (models / "changeset.rs").write_bytes(model_text.encode("utf-8"))
+        for name, body in (extra_files or {}).items():
+            (models / name).write_text(body, encoding="utf-8")
+        schemas = {
+            "ClearableDateTime": dict(_CLEARABLE_DATE_TIME),
+            "Changeset": {"properties": {"dueDate": {"allOf": [{"$ref": _CDT}]}}},
+        }
+        hook_19_clearable_date_time.run(Context(client_dir=tmp, spec={}, schemas=schemas))
+        return tmp
+
+    def test_patches_unformatted_generator_output(self):
+        tmp = self._run_hook(_UNFORMATTED_MODEL)
+        out = (tmp / "src" / "models" / "changeset.rs").read_text(encoding="utf-8")
+        self.assertIn('rename = "dueDate", default, with = "crate::clearable::date_time"', out)
+        # Only the clearable field: `priority` keeps double_option.
+        self.assertEqual(out.count("::serde_with::rust::double_option"), 1)
+        self.assertIn("pub due_date: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,", out)
+        self.assertIn("pub fn clear_due_date(&mut self) {", out)
+        self.assertIn("self.due_date = Some(None);", out)
+        self.assertIn("pub fn is_due_date_cleared(&self) -> bool {", out)
+        self.assertNotIn("clear_priority", out)
+        lib = (tmp / "src" / "lib.rs").read_text(encoding="utf-8")
+        self.assertIn("pub mod models;\npub mod clearable;\n", lib)
+        module = (tmp / "src" / "clearable.rs").read_text(encoding="utf-8")
+        self.assertIn("pub mod date_time {", module)
+        self.assertIn('Some(None) => serializer.serialize_str("")', module)
+
+    def test_is_idempotent(self):
+        tmp = self._run_hook(_UNFORMATTED_MODEL)
+        once = (tmp / "src" / "models" / "changeset.rs").read_text(encoding="utf-8")
+        lib_once = (tmp / "src" / "lib.rs").read_text(encoding="utf-8")
+        schemas = {
+            "ClearableDateTime": dict(_CLEARABLE_DATE_TIME),
+            "Changeset": {"properties": {"dueDate": {"allOf": [{"$ref": _CDT}]}}},
+        }
+        hook_19_clearable_date_time.run(Context(client_dir=tmp, spec={}, schemas=schemas))
+        self.assertEqual((tmp / "src" / "models" / "changeset.rs").read_text(encoding="utf-8"), once)
+        self.assertEqual((tmp / "src" / "lib.rs").read_text(encoding="utf-8"), lib_once)
+
+    def test_an_unexpected_field_shape_fails(self):
+        # What the generator emits when fed the raw x-clearable spec.
+        broken = _UNFORMATTED_MODEL.replace(
+            'with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]\n'
+            "    pub due_date: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,",
+            'skip_serializing_if = "Option::is_none")]\n'
+            "    pub due_date: Option<Box<models::ClearableDateTime>>,",
+        )
+        self.assertNotEqual(broken, _UNFORMATTED_MODEL)
+        with self.assertRaises(SystemExit):
+            self._run_hook(broken)
+
+    def test_a_generated_clearable_date_time_struct_fails(self):
+        with self.assertRaises(SystemExit):
+            self._run_hook(
+                _UNFORMATTED_MODEL,
+                {"clearable_date_time.rs": "pub struct ClearableDateTime {\n}\n"},
+            )
+
+
+class EveryClearableDateIsPatchedTest(unittest.TestCase):
+    """Class-scoped guard over the *real* bundle and generated client: every field the spec
+    marks clearable is generated as a chrono date with the clearable serde, and no empty
+    `ClearableDateTime` model exists."""
+
+    _SPEC = _REPO_ROOT / "external-spec" / "bundled" / "rest-api.bundle.json"
+
+    def test_every_clearable_field_uses_the_clearable_serde(self):
+        if not _MODELS_DIR.exists() or not self._SPEC.exists():
+            self.skipTest("generated client models or bundled spec are not present")
+        spec = json.loads(self._SPEC.read_text(encoding="utf-8"))
+        prepared, fields = hook_19_clearable_date_time.prepare_spec(spec)
+        self.assertTrue(fields, "expected the spec to mark at least one clearable date-time")
+        self.assertFalse(
+            [n for n, s in prepared["components"]["schemas"].items() if s.get("x-clearable")]
+        )
+        offenders = []
+        for model, wires in sorted(fields.items()):
+            path = _MODELS_DIR / f"{snake_case(model)}.rs"
+            text = path.read_text(encoding="utf-8")
+            for wire in wires:
+                pattern = hook_19_clearable_date_time._field_re(
+                    wire, hook_19_clearable_date_time.CLEARABLE_WITH
+                )
+                if not pattern.search(text):
+                    offenders.append(f"{path.name}: {wire}")
+        self.assertEqual(offenders, [])
+        for path in _MODELS_DIR.glob("*.rs"):
+            self.assertNotRegex(path.read_text(encoding="utf-8"), r"pub struct ClearableDateTime\b")
 
 
 if __name__ == "__main__":
