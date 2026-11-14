@@ -786,13 +786,17 @@ impl JobWorker {
     /// shape — notably the lease flag — is unit-testable without a live server.
     fn build_activation_request(&self, max_jobs_to_activate: i32) -> models::JobActivationRequest {
         // Fall back to the SDK's configured default tenant when none is set on the worker.
-        let tenant_ids = self.config.tenant_ids.clone().or_else(|| {
-            self.client
-                .config()
-                .default_tenant_id
-                .clone()
-                .map(|id| vec![id])
-        });
+        // Fall back to the effective default tenant (configured, else `<default>`).
+        let tenant_ids = self
+            .config
+            .tenant_ids
+            .clone()
+            .filter(|ids| !ids.is_empty())
+            .or_else(|| {
+                Some(vec![super::client::effective_default_tenant(
+                    self.client.config(),
+                )])
+            });
         models::JobActivationRequest {
             r#type: self.config.job_type.clone(),
             worker: Some(self.config.worker_name.clone()),

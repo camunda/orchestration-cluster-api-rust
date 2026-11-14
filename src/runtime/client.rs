@@ -430,13 +430,9 @@ impl CamundaClient {
         // re-send every definition field) and any awaited output variables.
         let tenant_id = tenant
             .map(|t| models::TenantId::assume_exists(t.value().to_string()))
-            .or_else(|| {
-                self.config
-                    .default_tenant_id
-                    .clone()
-                    .map(models::TenantId::assume_exists)
-            })
-            .unwrap_or_else(|| models::TenantId::assume_exists("<default>"));
+            .unwrap_or_else(|| {
+                models::TenantId::assume_exists(effective_default_tenant(&self.config))
+            });
 
         let result_variables = outcome
             .variables
@@ -505,7 +501,7 @@ impl CamundaClient {
         resources: Vec<std::path::PathBuf>,
         tenant_id: Option<String>,
     ) -> Result<models::DeploymentResult> {
-        let tenant_id = tenant_id.or_else(|| self.config.default_tenant_id.clone());
+        let tenant_id = apply_default_tenant_str(tenant_id, &self.config);
         self.guarded(|| {
             let resources = resources.clone();
             let tenant_id = tenant_id.clone();
@@ -815,12 +811,14 @@ impl CamundaClient {
 
     // --- Job operations (also used by the job worker) -----------------------
 
-    /// Activate jobs of a given type. Prefer [`CamundaClient::create_job_worker`] for
+    /// Activate jobs of a given type. When `tenant_filter` is `PROVIDED` or unset and no
+    /// tenant ids are given, the effective default tenant is sent. Prefer [`CamundaClient::create_job_worker`] for
     /// continuous polling.
     pub async fn activate_jobs(
         &self,
-        request: models::JobActivationRequest,
+        mut request: models::JobActivationRequest,
     ) -> Result<models::JobActivationResult> {
+        apply_default_job_tenants(&mut request, &self.config);
         self.guarded(|| {
             let request = request.clone();
             async move {
@@ -951,12 +949,43 @@ pub(crate) fn apply_default_tenant(
     provided: Option<models::TenantId>,
     config: &CamundaConfig,
 ) -> Option<models::TenantId> {
-    provided.or_else(|| {
-        config
-            .default_tenant_id
-            .clone()
-            .map(models::TenantId::assume_exists)
-    })
+    Some(
+        provided
+            .unwrap_or_else(|| models::TenantId::assume_exists(effective_default_tenant(config))),
+    )
+}
+
+/// The tenant sent when the caller passes none: the configured default tenant
+/// (`CAMUNDA_DEFAULT_TENANT_ID`) or, when nothing is configured, `<default>` — the same
+/// rule the Camunda Java client applies.
+pub(crate) fn effective_default_tenant(config: &CamundaConfig) -> String {
+    config
+        .default_tenant_id
+        .clone()
+        .unwrap_or_else(|| DEFAULT_TENANT_IDENTIFIER.to_string())
+}
+
+/// The server's built-in default tenant identifier.
+pub const DEFAULT_TENANT_IDENTIFIER: &str = "<default>";
+
+/// Apply the effective default tenant to a job activation request: when `tenant_filter` is
+/// `PROVIDED` or unset and no tenant ids are given (absent or empty), send
+/// `[<effective default tenant>]`. With `ASSIGNED` the ids are left untouched.
+pub(crate) fn apply_default_job_tenants(
+    request: &mut models::JobActivationRequest,
+    config: &CamundaConfig,
+) {
+    if matches!(
+        request.tenant_filter,
+        Some(models::TenantFilterEnum::Assigned)
+    ) {
+        return;
+    }
+    if request.tenant_ids.as_ref().is_none_or(|ids| ids.is_empty()) {
+        request.tenant_ids = Some(vec![models::TenantId::assume_exists(
+            effective_default_tenant(config),
+        )]);
+    }
 }
 
 /// Apply the configured default tenant id to an optional `String` tenant value, leaving an
@@ -966,7 +995,7 @@ pub(crate) fn apply_default_tenant_str(
     provided: Option<String>,
     config: &CamundaConfig,
 ) -> Option<String> {
-    provided.or_else(|| config.default_tenant_id.clone())
+    Some(provided.unwrap_or_else(|| effective_default_tenant(config)))
 }
 
 #[async_trait::async_trait]
@@ -1016,9 +1045,54 @@ mod tests {
     }
 
     #[test]
-    fn default_tenant_none_when_unconfigured() {
+    fn default_tenant_is_builtin_when_unconfigured() {
         let cfg = cfg_with_tenant(None);
-        assert!(apply_default_tenant(None, &cfg).is_none());
+        assert_eq!(
+            apply_default_tenant(None, &cfg).as_ref().map(|t| t.value()),
+            Some("<default>")
+        );
+        assert_eq!(
+            apply_default_tenant_str(None, &cfg).as_deref(),
+            Some("<default>")
+        );
+    }
+
+    fn activation(
+        ids: Option<Vec<&str>>,
+        filter: Option<models::TenantFilterEnum>,
+    ) -> models::JobActivationRequest {
+        let mut r = models::JobActivationRequest::new("t".into(), 1000, 5);
+        r.tenant_ids = ids.map(|v| v.into_iter().map(models::TenantId::assume_exists).collect());
+        r.tenant_filter = filter;
+        r
+    }
+
+    fn ids(r: &models::JobActivationRequest) -> Option<Vec<String>> {
+        r.tenant_ids
+            .as_ref()
+            .map(|v| v.iter().map(|t| t.value().to_string()).collect())
+    }
+
+    #[test]
+    fn activate_jobs_defaults_tenant_ids() {
+        let unconfigured = cfg_with_tenant(None);
+        let configured = cfg_with_tenant(Some("acme"));
+        for filter in [None, Some(models::TenantFilterEnum::Provided)] {
+            for given in [None, Some(vec![])] {
+                let mut r = activation(given.clone(), filter);
+                apply_default_job_tenants(&mut r, &unconfigured);
+                assert_eq!(ids(&r), Some(vec!["<default>".to_string()]));
+                let mut r = activation(given, filter);
+                apply_default_job_tenants(&mut r, &configured);
+                assert_eq!(ids(&r), Some(vec!["acme".to_string()]));
+            }
+        }
+        let mut r = activation(Some(vec!["x"]), None);
+        apply_default_job_tenants(&mut r, &configured);
+        assert_eq!(ids(&r), Some(vec!["x".to_string()]));
+        let mut r = activation(None, Some(models::TenantFilterEnum::Assigned));
+        apply_default_job_tenants(&mut r, &configured);
+        assert_eq!(ids(&r), None);
     }
 
     #[test]
@@ -1035,12 +1109,6 @@ mod tests {
         let cfg = cfg_with_tenant(Some("acme"));
         let out = apply_default_tenant_str(Some("other".to_string()), &cfg);
         assert_eq!(out.as_deref(), Some("other"));
-    }
-
-    #[test]
-    fn default_tenant_str_none_when_unconfigured() {
-        let cfg = cfg_with_tenant(None);
-        assert!(apply_default_tenant_str(None, &cfg).is_none());
     }
 
     #[test]
