@@ -619,7 +619,23 @@ impl JobWorker {
         // jobs over a WebSocket subscription instead of REST long-polling. When the
         // subscription cannot be established (e.g. a proxy blocks WebSockets), fall
         // back to the REST poll loop instead of failing the worker.
-        if let Some(caps) = self.client.falcon_caps().await {
+        // The stream subscription carries no tenant IDs (the server uses `<default>`), so
+        // any other tenant selection must use REST polling to reach the server.
+        let falcon_tenant_ok = super::client::falcon_supports_tenants(
+            &self
+                .build_activation_request(1)
+                .tenant_ids
+                .unwrap_or_default()
+                .iter()
+                .map(|t| t.value().to_string())
+                .collect::<Vec<_>>(),
+        );
+        if !falcon_tenant_ok {
+            tracing::debug!(
+                job_type = %self.config.job_type,
+                "non-default tenant selection; using REST job polling instead of falcon",
+            );
+        } else if let Some(caps) = self.client.falcon_caps().await {
             let caps = caps.clone();
             match self.try_run_falcon_stream(handler.clone(), caps).await {
                 Ok(()) => return Ok(()),
@@ -785,7 +801,6 @@ impl JobWorker {
     /// Build the activate-jobs request from the worker config. Split out so the request
     /// shape — notably the lease flag — is unit-testable without a live server.
     fn build_activation_request(&self, max_jobs_to_activate: i32) -> models::JobActivationRequest {
-        // Fall back to the SDK's configured default tenant when none is set on the worker.
         // Fall back to the effective default tenant (configured, else `<default>`).
         let tenant_ids = self
             .config

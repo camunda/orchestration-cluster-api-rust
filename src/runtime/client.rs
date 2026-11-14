@@ -396,6 +396,15 @@ impl CamundaClient {
             I::ProcessInstanceCreationInstructionByVersionTag(_) => return Ok(None),
         };
 
+        // The stream create frame carries no tenant, so the server applies `<default>`.
+        // Any other selected tenant (explicit or the effective default) must go over REST.
+        let tenant_id = tenant
+            .map(|t| t.value().to_string())
+            .unwrap_or_else(|| effective_default_tenant(&self.config));
+        if !falcon_supports_tenants(std::slice::from_ref(&tenant_id)) {
+            return Ok(None);
+        }
+
         let Some(caps) = self.falcon_caps().await.cloned() else {
             return Ok(None);
         };
@@ -428,11 +437,7 @@ impl CamundaClient {
         // The stream create returns the instance key (+ completion outcome). Synthesise a
         // typed result, echoing the request's definition identity (the stream ack does not
         // re-send every definition field) and any awaited output variables.
-        let tenant_id = tenant
-            .map(|t| models::TenantId::assume_exists(t.value().to_string()))
-            .unwrap_or_else(|| {
-                models::TenantId::assume_exists(effective_default_tenant(&self.config))
-            });
+        let tenant_id = models::TenantId::assume_exists(tenant_id);
 
         let result_variables = outcome
             .variables
@@ -966,6 +971,13 @@ pub(crate) fn effective_default_tenant(config: &CamundaConfig) -> String {
 }
 
 /// The server's built-in default tenant identifier.
+/// Whether a falcon stream request can serve `tenant_ids`. The stream protocol carries no
+/// tenant selection (the server uses `<default>`), so only exactly `[<default>]` qualifies;
+/// anything else must use REST so the tenant actually reaches the server.
+pub(crate) fn falcon_supports_tenants(tenant_ids: &[String]) -> bool {
+    matches!(tenant_ids, [only] if only == DEFAULT_TENANT_IDENTIFIER)
+}
+
 pub const DEFAULT_TENANT_IDENTIFIER: &str = "<default>";
 
 /// Apply the effective default tenant to a job activation request: when `tenant_filter` is
@@ -1018,6 +1030,18 @@ impl super::clock::ClockController for CamundaClient {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn falcon_only_serves_the_default_tenant() {
+        let v = |xs: &[&str]| xs.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(super::falcon_supports_tenants(&v(&["<default>"])));
+        assert!(!super::falcon_supports_tenants(&v(&["tenant-a"])));
+        assert!(!super::falcon_supports_tenants(&v(&[
+            "<default>",
+            "tenant-a"
+        ])));
+        assert!(!super::falcon_supports_tenants(&v(&[])));
+    }
+
     use super::*;
 
     /// Build a config carrying the given default tenant id (and nothing else).
