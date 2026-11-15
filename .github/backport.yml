@@ -1,0 +1,17 @@
+# Backport configuration for camunda/sdk-infra's sdk-backport.yml
+# (schema: https://github.com/camunda/sdk-infra/blob/main/schema/backport.schema.json).
+# Read from the TARGET branch: keep a copy on main and on every live stable/N.
+language: rust
+
+# Derived from the upstream spec or the generator. Restored from the target branch
+# and regenerated there. The two src/runtime files are written by hooks 07 and 13.
+generated-paths:
+  - external-spec
+  - client
+  - src/runtime/facade_generated.rs
+  - src/runtime/present_when_generated.rs
+
+# Regenerates from the committed spec (generate.sh without --bundle doesn't refetch).
+# Compiling the tests too means a backport that breaks only test code fails here
+# rather than in CI.
+regenerate: ./scripts/generate.sh && cargo test --workspace --no-run

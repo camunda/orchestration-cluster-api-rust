@@ -163,6 +163,46 @@ alters `client/`, split into two commits:
 
 This keeps cherry-picks clean and reviews readable, and preserves `git blame` on both surfaces.
 
+## Backporting to stable branches
+
+`.github/workflows/backport.yml` calls camunda/sdk-infra's shared `sdk-backport.yml`
+(`korthout/backport-action`, running as `camunda-sdk-automation`; the same flow as the other
+SDKs). It is configured by `.github/backport.yml` and `.github/actions/codegen-setup` (Java
+for openapi-generator), both read from the **target** branch, so keep them on `main` and on
+every live `stable/N`. It opens cherry-pick PRs onto `stable/*` branches:
+
+- Add the label `backport stable/<N>` to a PR. The backport PR opens when the PR merges,
+  or right away if it is already merged.
+- Or comment `/backport` on a merged PR to re-run it for its labels. PRs from forks can
+  only be backported this way.
+
+Backport hand-written runtime, infra and generator changes (`src/`, `scripts/`, `tests/`)
+when the affected code exists on the stable branch. Never backport generated output on its
+own (e.g. a regeneration for upstream spec drift); each branch regenerates from its own
+upstream spec.
+
+After the cherry-pick, the workflow adds a `chore(gen): regenerate for backport of #N`
+commit. The derived files (`generated-paths`: `external-spec/`, `client/`,
+`src/runtime/facade_generated.rs`, `src/runtime/present_when_generated.rs`) are restored
+from the target branch and regenerated with `./scripts/generate.sh && cargo test
+--workspace --no-run`. PRs are squash-merged, so the cherry-pick carries `main`'s copies,
+but a stable branch must build from its own spec (`stable/10` builds camunda
+`stable/8.10`). This also clears cherry-pick conflicts in those files. When the derived
+paths change (e.g. a new hook writes another `*_generated.rs`), update `generated-paths` on
+every branch.
+
+If the cherry-pick conflicts, the action opens a **draft** PR with the conflicts committed.
+A draft always means a conflict, even without conflict markers: if the source changes a file
+the target lacks, `main`'s whole file is committed. Resolve it on the backport branch, then
+comment `/backport` on the source PR to regenerate. If fix B builds on fix A, merge A's
+backport first, then rebuild B's branch from the updated target (`git switch -C
+backport-<B>-to-stable/N origin/stable/N && git cherry-pick -x <B's merge commit>`, push
+with `--force-with-lease`, comment `/backport`).
+
+If regenerating fails, the bot comments on the backport PR. If the change depends on spec
+the stable branch doesn't have, it can't be backported as-is: close the backport PR, or
+reduce it to what applies to the stable spec.
+
 ## Versioning
 
 The SDK major tracks the Camunda server minor (server 8.10 → SDK 10.x): `stable/10` is
