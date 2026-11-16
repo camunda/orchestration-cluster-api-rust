@@ -17,6 +17,8 @@ use serde::{Deserialize, Serialize};
 pub enum PermissionTypeEnum {
     #[serde(rename = "ACCESS")]
     Access,
+    #[serde(rename = "ANSWER")]
+    Answer,
     #[serde(rename = "CANCEL_PROCESS_INSTANCE")]
     CancelProcessInstance,
     #[serde(rename = "CLAIM")]
@@ -115,6 +117,7 @@ impl std::fmt::Display for PermissionTypeEnum {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Access => write!(f, "ACCESS"),
+            Self::Answer => write!(f, "ANSWER"),
             Self::CancelProcessInstance => write!(f, "CANCEL_PROCESS_INSTANCE"),
             Self::Claim => write!(f, "CLAIM"),
             Self::ClaimUserTask => write!(f, "CLAIM_USER_TASK"),
