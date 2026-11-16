@@ -199,6 +199,10 @@ impl Record {
     pub fn label(&self) -> String {
         self.name.clone()
     }
+
+    pub fn with_count(self, count: u32) -> Record {
+        Record { count, ..self }
+    }
 }
 
 pub struct Holder<T>(pub T);
@@ -206,6 +210,12 @@ pub struct Holder<T>(pub T);
 impl<T> Holder<T> {
     pub fn choose<U>(&self, keep: T, _other: U) -> T {
         keep
+    }
+}
+
+impl<T> Holder<T> {
+    pub fn wrap(value: T) -> Holder<T> {
+        Holder(value)
     }
 }
 
@@ -311,6 +321,13 @@ class SyntheticCrateTest(unittest.TestCase):
         rc, out = self.check(("pub use private::Reexported;", "pub use private::Reexported;\npub use nested::Inner;"))
         self.assertEqual(rc, 0, out)
 
+    def test_self_and_the_owner_type_are_the_same(self):
+        rc, out = self.check(
+            ("-> Record {\n        Record { count", "-> Self {\n        Self { count"),
+            ("pub fn wrap(value: T) -> Holder<T>", "pub fn wrap(value: T) -> Self"),
+        )
+        self.assertEqual(rc, 0, out)
+
     def test_const_and_relaxed_bounds_are_compatible(self):
         rc, out = self.check(
             ("pub fn helper() {}", "pub const fn helper() {}"),
@@ -384,7 +401,7 @@ class SyntheticCrateTest(unittest.TestCase):
             self.check(
                 ("    pub fn label(&self) -> String {\n        self.name.clone()", "    pub fn label(&self) -> Option<String> {\n        Some(self.name.clone())"),
             ),
-            f"{TAG} method signature changed: `api_compat_synthetic::Record::label`: `fn(&Self) -> alloc::string::String` -> `fn(&Self) -> core::option::Option<alloc::string::String>`",
+            f"{TAG} method signature changed: `api_compat_synthetic::Record::label`: `fn(&api_compat_synthetic::Record) -> alloc::string::String` -> `fn(&api_compat_synthetic::Record) -> core::option::Option<alloc::string::String>`",
         )
 
     def test_tightened_generic_bound(self):

@@ -688,6 +688,8 @@ class Surface:
                 self._record_trait_impl(owner_id, path, impl, g)
                 continue
             ig, _ = self._generics(impl.get("generics"), g)
+            # `Self` in an inherent impl is the owner type; writing either spelling is the same API.
+            ig["Self"] = self.render(impl.get("for"), ig)
             for mid in impl.get("items", []):
                 m = self.index.get(str(mid))
                 if m is None or m.get("visibility") != "public" or not m.get("name"):
