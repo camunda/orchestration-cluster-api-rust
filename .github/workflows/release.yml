@@ -29,6 +29,12 @@ name: Release
 #
 # A manual `workflow_dispatch` run supports `dry_run: true` to exercise everything
 # except the final upload.
+#
+# Before publishing a stable `N.x.y`, the API compatibility gate compares the code with
+# the newest published N.x release (scripts/api_compat.py) and blocks a breaking change.
+# Approve an intended break with the `api-break-approved` label on any PR merged since
+# that release; when no PR carries it (e.g. a direct push), re-run via workflow_dispatch
+# with `api_break_approved: true` (the tag push itself cannot carry an approval).
 
 on:
   push:
@@ -40,6 +46,10 @@ on:
         description: 'Package + verify without uploading to crates.io'
         type: boolean
         default: true
+      api_break_approved:
+        description: 'Publish even though the public API breaks compatibility with the last release of this major'
+        type: boolean
+        default: false
 
 concurrency:
   group: release-${{ github.ref }}
@@ -48,6 +58,7 @@ concurrency:
 permissions:
   contents: read
   id-token: write   # required for crates.io Trusted Publishing (OIDC)
+  pull-requests: read  # API compatibility gate: find api-break-approved PRs
 
 jobs:
   publish:
@@ -98,6 +109,62 @@ jobs:
 
       - name: Test gate
         run: cargo test --workspace --locked
+
+      - name: Install API compatibility tools
+        run: ./scripts/install-api-compat-tools.sh
+
+      # Blocks publishing an N.x.y whose public API breaks code compiled against the
+      # newest published N.x release. The major comes from the version being released
+      # (the trigger is a tag, not a branch); prereleases are not gated.
+      - name: API compatibility gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCH_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.api_break_approved }}
+        run: |
+          set -uo pipefail
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | python3 -c "import json,sys; m=json.load(sys.stdin); print(next(p['version'] for p in m['packages'] if p['name']=='camunda-orchestration-sdk'))")" || exit 2
+          case "$version" in
+            *-*)
+              echo "::notice::${version} is a prerelease; the API compatibility gate only covers stable releases."
+              exit 0
+              ;;
+          esac
+          major="${version%%.*}"
+          # The newest published release of this major on crates.io, not the nearest tag.
+          baseline=$(python3 scripts/api_compat.py --print-baseline-major "$major") || exit 2
+          if [ -z "$baseline" ]; then
+            echo "::notice::No ${major}.x release published yet; nothing to compare against."
+            exit 0
+          fi
+          tag="v${baseline}"
+          git rev-parse -q --verify "refs/tags/${tag}" >/dev/null || {
+            echo "::error::Baseline ${baseline} has no ${tag} tag to list the PRs merged since."
+            exit 2
+          }
+          echo "Releasing ${version}; baseline: ${tag}"
+          # Actions runs this with bash -e: capture the exit code instead of exiting on it.
+          rc=0
+          python3 scripts/api_compat.py --baseline-version "$baseline" || rc=$?
+          [ "$rc" -eq 1 ] || exit "$rc"
+          if [ "$DISPATCH_APPROVED" = "true" ]; then
+            echo "::warning::Breaking API changes approved by the api_break_approved input of this run."
+            exit 0
+          fi
+          shas=$(git log --format=%H "${tag}..HEAD") || exit 2
+          approved=""
+          for sha in $shas; do
+            prs=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}/pulls" \
+              --jq '.[] | select(.merged_at != null) | select(any(.labels[]; .name == "api-break-approved")) | "#\(.number)"') || exit 2
+            approved="${approved} ${prs}"
+          done
+          approved=$(echo "$approved" | xargs -n1 2>/dev/null | sort -u | xargs)
+          if [ -n "$approved" ]; then
+            echo "::warning::Breaking API changes approved with the api-break-approved label on: ${approved}"
+            exit 0
+          fi
+          echo "::error::Release blocked: the public API breaks compatibility with ${tag}. If intended, label the PR that made the change api-break-approved (or run this workflow manually with api_break_approved), then re-run."
+          exit 1
 
       # OIDC auth is only needed when no bootstrap token is configured and we are
       # actually uploading. It fails unless a trusted publisher is registered for

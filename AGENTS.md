@@ -171,6 +171,22 @@ The SDK major tracks the Camunda server minor (server 8.10 → SDK 10.x): `stabl
 SDK's path dependency on the client; refresh `Cargo.lock` with `cargo update -w`. A
 `vX.Y.Z` tag publishes to crates.io, and a published version can only be yanked.
 
+### API compatibility on stable branches
+
+`stable/N` regenerates from upstream `stable/8.x`, so spec drift can break the public API
+of an `N.x` patch. The `API compatibility` check (`.github/workflows/api-compat.yml`) runs
+on every PR to `stable/**`, and `release.yml` repeats it before publishing a stable
+version. Both compare both crates (the client is public through `client`, `apis` and
+`models`) with the newest non-yanked, non-prerelease `N.x.y` on crates.io, using
+`scripts/api_compat.py`: pinned cargo-semver-checks plus a rustdoc JSON diff of every
+public field/variant/fn/method signature, which catches `T` -> `Option<T>` (cargo-semver-checks
+does not). Run it locally with `make api-compat`; test the checker with `make test-api-compat`.
+
+A break is fixed by making the change compatible. If it is intended, a maintainer adds the
+`api-break-approved` label to the PR; the release gate then passes because a PR merged
+since the baseline tag carries the label (or via `workflow_dispatch` with
+`api_break_approved: true`).
+
 ## Commit messages
 
 Conventional Commits. Use `fix` only for user-facing bug fixes (triggers a release); use
