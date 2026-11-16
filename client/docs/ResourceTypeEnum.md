@@ -19,6 +19,7 @@
 | Group | GROUP |
 | MappingRule | MAPPING_RULE |
 | Message | MESSAGE |
+| Probe | PROBE |
 | ProcessDefinition | PROCESS_DEFINITION |
 | Resource | RESOURCE |
 | Role | ROLE |
