@@ -505,7 +505,7 @@ class Surface:
                 continue
             if "type" in kind and kind["type"].get("is_synthetic"):
                 continue  # `impl Trait` argument: rendered at the parameter instead
-            g[p["name"]] = f"G{len(g)}"
+            g[p["name"]] = _fresh_generic(g)
         rendered = []
         for p in (generics or {}).get("params", []):
             kind = p.get("kind") or {}
@@ -681,9 +681,11 @@ class Surface:
             if impl_item is None:
                 continue
             impl = impl_item["inner"].get("impl") or {}
-            # Trait impls: their signatures are the trait's. Losing one is a
-            # cargo-semver-checks lint (derive/auto-trait/impl removed).
-            if impl.get("trait") is not None or impl.get("is_synthetic") or impl.get("blanket_impl"):
+            # Auto-trait and blanket impls follow from other items; those are checked instead.
+            if impl.get("is_synthetic") or impl.get("blanket_impl"):
+                continue
+            if impl.get("trait") is not None:
+                self._record_trait_impl(owner_id, path, impl, g)
                 continue
             ig, _ = self._generics(impl.get("generics"), g)
             for mid in impl.get("items", []):
@@ -697,19 +699,50 @@ class Surface:
                 elif "assoc_const" in minner:
                     self._member(owner_id, path, "::", m["name"], Entry("associated const", f"const: {self.render(minner['assoc_const'].get('type'), ig)}"))
 
+    def _record_trait_impl(self, owner_id: str, path: str, impl: dict, g: dict[str, str]) -> None:
+        """The impl and its associated types; method signatures are the trait's."""
+        tr = impl["trait"]
+        trait_id = str(tr.get("id")) if tr.get("id") is not None else None
+        known = self.paths.get(trait_id) if trait_id else None
+        if trait_id not in self.all_paths and (known is None or known.get("crate_id") == 0):
+            return  # a private trait: downstream cannot name it
+        ig, params, where = self._generics_parts(impl.get("generics"), g)
+        neg = "!" if impl.get("is_negative") else ""
+        name = f"<impl {neg}{self._type_path(tr)}{self._args(tr.get('args'), ig)} for {self.render(impl.get('for'), ig)}>"
+        self._member(owner_id, path, "::", name, Entry("trait impl", f"impl{params}{where}"))
+        impl_key = f"{path}::{name}"
+        for mid in impl.get("items", []):
+            m = self.index.get(str(mid))
+            at = (m or {}).get("inner", {}).get("assoc_type")
+            if at is None or not m.get("name"):
+                continue
+            self._add(f"{impl_key}::{m['name']}", Entry(
+                "associated type", f"type = {self.render(at.get('type'), ig)}",
+                owner=impl_key, canonical=f"{self.public_path[owner_id]}::{name}::{m['name']}",
+            ))
+
+
+def _fresh_generic(g: dict[str, str]) -> str:
+    # Not `len(g)`: a shadowing param (`impl<T>` on `Holder<T>`) replaces a key without growing g.
+    used = [int(v[1:]) for v in g.values() if v[:1] == "G" and v[1:].isdigit()]
+    return f"G{max(used, default=-1) + 1}"
+
 
 def _became_optional(old: str, new: str) -> bool:
     return new in (f"core::option::Option<{old}>", f"core::option::Option<alloc::boxed::Box<{old}>>")
 
 
 def _relaxed_only(before: Entry, after: Entry, ro, rn) -> bool:
-    """Callers still compile: same shape, no new bound, `const` not dropped."""
+    """Callers still compile: same shape, no new bound, no `?Sized` dropped, `const` kept."""
     if before.relax is None or after.relax is None:
         return False
     (b_sig, b_atoms, b_const), (a_sig, a_atoms, a_const) = before.relax, after.relax
+    a_set, b_set = {rn(a) for a in a_atoms}, {ro(a) for a in b_atoms}
     return (
         ro(b_sig) == rn(a_sig)
-        and {rn(a) for a in a_atoms} <= {ro(a) for a in b_atoms}
+        and a_set <= b_set
+        # Dropping `?Sized` restores the implicit `Sized` bound.
+        and {a for a in b_set if ": ?" in a} <= a_set
         and (a_const or not b_const)
     )
 
@@ -725,12 +758,15 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
             reported.add(key)
             breaks.append(message)
 
-    for path, before in sorted(old.entries.items()):
-        after = new.entries.get(path)
+    # Trait-impl keys name local types by item id; resolve them to compare across builds.
+    new_entries = {rn(p): e for p, e in new.entries.items()}
+    for raw_path, before in sorted(old.entries.items()):
+        path = ro(raw_path)
+        after = new_entries.get(path)
         if after is None:
-            if before.owner is not None and before.owner not in new.entries:
+            if before.owner is not None and ro(before.owner) not in new_entries:
                 continue  # the owner's own removal is the break
-            report((before.canonical, "removed"), f"removed {before.kind} `{path}`")
+            report((ro(before.canonical), "removed"), f"removed {before.kind} `{path}`")
             continue
         if before.kind != after.kind:
             report((before.canonical, "kind"), f"`{path}` changed from {before.kind} to {after.kind}")
@@ -741,13 +777,13 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
             note = " (became optional)" if _became_optional(b_sig, a_sig) else ""
             report(
                 (before.canonical, "sig"),
-                f"{label} changed{note}: `{after.canonical}`: `{b_sig}` -> `{a_sig}`",
+                f"{label} changed{note}: `{rn(after.canonical)}`: `{b_sig}` -> `{a_sig}`",
             )
             continue
         if after.required and not before.required:
             report(
                 (before.canonical, "required"),
-                f"{before.kind} `{after.canonical}` no longer has a default: implementors must now provide it",
+                f"{before.kind} `{rn(after.canonical)}` no longer has a default: implementors must now provide it",
             )
     return breaks
 

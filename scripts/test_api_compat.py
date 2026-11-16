@@ -201,6 +201,23 @@ impl Record {
     }
 }
 
+pub struct Holder<T>(pub T);
+
+impl<T> Holder<T> {
+    pub fn choose<U>(&self, keep: T, _other: U) -> T {
+        keep
+    }
+}
+
+pub fn inspect<T: ?Sized>(_value: &T) {}
+
+impl std::str::FromStr for Mode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(if s == "fast" { Mode::Fast } else { Mode::Slow })
+    }
+}
+
 pub mod nested {
     pub struct Inner {
         pub value: i64,
@@ -275,7 +292,12 @@ class SyntheticCrateTest(unittest.TestCase):
             ("        String::new()\n    }\n", "        String::new()\n    }\n    fn close(&self) {}\n"),
             ("impl Record {\n", "impl Record {\n    pub fn new_method(&self) -> Option<u32> { None }\n"),
             ("pub mod nested {\n", "pub mod nested {\n    pub fn added() {}\n"),
+            ("pub fn inspect", "impl std::fmt::Display for Mode {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str(\"mode\") }\n}\n\npub fn inspect"),
         )
+        self.assertEqual(rc, 0, out)
+
+    def test_renaming_impl_generic_is_compatible(self):
+        rc, out = self.check(("impl<T> Holder<T> {\n    pub fn choose<U>(&self, keep: T, _other: U) -> T", "impl<V> Holder<V> {\n    pub fn choose<U>(&self, keep: V, _other: U) -> V"))
         self.assertEqual(rc, 0, out)
 
     def test_renaming_generics_and_params_is_compatible(self):
@@ -326,6 +348,7 @@ class SyntheticCrateTest(unittest.TestCase):
             ("    pub count: u32,", "    pub count: Option<u32>,"),
             ("Record { name: key, count: 0 }", "Record { name: key, count: None }"),
             ("        pub value: i64,", "        pub value: Option<i64>,"),
+            ("nested::Inner { value: 0 }", "nested::Inner { value: None }"),
             ("        pub id: u64,", "        pub id: Option<u64>,"),
         )
         self.assertBreaks(
@@ -368,6 +391,38 @@ class SyntheticCrateTest(unittest.TestCase):
         self.assertBreaks(
             self.check(("pub fn wrap<T: Clone>(", "pub fn wrap<T: Clone + Send>(")),
             f"{TAG} function signature changed: `api_compat_synthetic::wrap`",
+        )
+
+    def test_generic_method_return_type_change(self):
+        """Impl and method generics must get distinct ids, or `-> T` and `-> U` render alike."""
+        self.assertBreaks(
+            self.check(("_other: U) -> T {\n        keep", "_other: U) -> U {\n        _other")),
+            f"{TAG} method signature changed: `api_compat_synthetic::Holder::choose`",
+        )
+
+    def test_removing_maybe_sized_bound(self):
+        self.assertBreaks(
+            self.check(("pub fn inspect<T: ?Sized>", "pub fn inspect<T>")),
+            f"{TAG} function signature changed: `api_compat_synthetic::inspect`",
+        )
+
+    def test_removed_manual_trait_impl(self):
+        """`\"fast\".parse::<Mode>()` stops compiling; the pinned cargo-semver-checks misses it."""
+        self.assertBreaks(
+            self.check((
+                "impl std::str::FromStr for Mode {\n    type Err = String;\n    fn from_str(s: &str) -> Result<Self, Self::Err> {",
+                "impl Mode {\n    pub fn from_str(s: &str) -> Result<Self, String> {",
+            )),
+            f"{TAG} removed trait impl `api_compat_synthetic::Mode::<impl core::str::traits::FromStr for api_compat_synthetic::Mode>`",
+        )
+
+    def test_changed_associated_type_of_trait_impl(self):
+        self.assertBreaks(
+            self.check(
+                ("    type Err = String;", "    type Err = std::num::ParseIntError;"),
+                ("Ok(if s == \"fast\"", "s.parse::<u8>()?;\n        Ok(if s == \"fast\""),
+            ),
+            f"{TAG} associated type signature changed: `api_compat_synthetic::Mode::<impl core::str::traits::FromStr for api_compat_synthetic::Mode>::Err`",
         )
 
     def test_new_variant_on_exhaustive_enum(self):
