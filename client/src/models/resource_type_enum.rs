@@ -45,6 +45,8 @@ pub enum ResourceTypeEnum {
     MappingRule,
     #[serde(rename = "MESSAGE")]
     Message,
+    #[serde(rename = "PROBE")]
+    Probe,
     #[serde(rename = "PROCESS_DEFINITION")]
     ProcessDefinition,
     #[serde(rename = "RESOURCE")]
@@ -81,6 +83,7 @@ impl std::fmt::Display for ResourceTypeEnum {
             Self::Group => write!(f, "GROUP"),
             Self::MappingRule => write!(f, "MAPPING_RULE"),
             Self::Message => write!(f, "MESSAGE"),
+            Self::Probe => write!(f, "PROBE"),
             Self::ProcessDefinition => write!(f, "PROCESS_DEFINITION"),
             Self::Resource => write!(f, "RESOURCE"),
             Self::Role => write!(f, "ROLE"),
