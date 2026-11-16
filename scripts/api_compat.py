@@ -29,12 +29,13 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -294,6 +295,14 @@ class Entry:
     # The same element under its owner's shortest public path: an item re-exported at
     # several paths is one change, not one per path.
     canonical: str = ""
+    # Functions/methods: (signature without `const` and bounds, bound atoms, is_const),
+    # so adding `const` or relaxing a bound is not reported.
+    relax: tuple[str, frozenset[str], bool] | None = None
+
+
+# Local types render as a placeholder holding their item id; `Surface.resolver` names
+# them with a public path that exists on both sides, so a new re-export is not a change.
+_LOCAL = re.compile("\x1f([^\x1f]*)\x1f")
 
 
 class Surface:
@@ -312,6 +321,7 @@ class Surface:
         self.root = str(doc["root"])
         self.crate_name = self.index[self.root]["name"]
         self.public_path: dict[str, str] = {}
+        self.all_paths: dict[str, set[str]] = {}
         self.entries: dict[str, Entry] = {}
         self._collect_public_paths()
         for item_id, path in sorted(self._reachable, key=lambda x: x[1]):
@@ -357,23 +367,36 @@ class Surface:
         if "module" in item.get("inner", {}):
             queue.append((item_id, path))
         self._reachable.add((item_id, path))
+        self.all_paths.setdefault(item_id, set()).add(path)
         current = self.public_path.get(item_id)
         if current is None or (path.count("::"), path) < (current.count("::"), current):
             self.public_path[item_id] = path
 
     # -- rendering ---------------------------------------------------------
 
+    def resolver(self, other: "Surface"):
+        """Name each local type by its shortest public path that `other` also has."""
+        def name(m: re.Match) -> str:
+            paths = self.all_paths[m.group(1)]
+            shared = [p for p in paths if p in other.path_set] or list(paths)
+            return min(shared, key=lambda p: (p.count("::"), p))
+        return lambda s: _LOCAL.sub(name, s)
+
+    @property
+    def path_set(self) -> set[str]:
+        if not hasattr(self, "_path_set"):
+            self._path_set = {p for ps in self.all_paths.values() for p in ps}
+        return self._path_set
+
     def _type_path(self, rp: dict) -> str:
         item_id = str(rp.get("id")) if rp.get("id") is not None else None
-        if item_id in self.public_path:
-            return self.public_path[item_id]
+        if item_id in self.all_paths:
+            return f"\x1f{item_id}\x1f"
         entry = self.paths.get(item_id) if item_id else None
         if entry and entry.get("path"):
-            parts = entry["path"]
-            if entry.get("crate_id") == 0:
-                return "::".join(parts)
-            # Dependency internals move between patch releases; their public name does not.
-            return f"{parts[0]}::{parts[-1]}"
+            # Full defining path: `mpsc::Receiver` and `oneshot::Receiver` must differ.
+            # Baselines build against this workspace's Cargo.lock, so it is stable.
+            return "::".join(entry["path"])
         return rp.get("path", "_")
 
     def render(self, t: Any, g: dict[str, str]) -> str:
@@ -452,7 +475,7 @@ class Surface:
         tr = pt.get("trait") or {}
         return self._type_path(tr) + self._args(tr.get("args"), g)
 
-    def _bounds(self, bounds: list, g: dict[str, str]) -> str:
+    def _bound_list(self, bounds: list, g: dict[str, str]) -> list[str]:
         out: list[str] = []
         for b in bounds or []:
             if isinstance(b, dict) and "trait_bound" in b:
@@ -460,15 +483,21 @@ class Surface:
                 mod = {"maybe": "?", "maybe_const": "~const "}.get(tb.get("modifier"), "")
                 out.append(mod + self._poly_trait(tb, g))
         # Lifetime bounds are elided throughout: they are not part of what this layer checks.
-        return " + ".join(sorted(out))
+        return sorted(out)
+
+    def _bounds(self, bounds: list, g: dict[str, str]) -> str:
+        return " + ".join(self._bound_list(bounds, g))
 
     def _generics(self, generics: dict | None, g: dict[str, str]) -> tuple[dict[str, str], str]:
         g, params, where = self._generics_parts(generics, g)
         return g, params + where
 
-    def _generics_parts(self, generics: dict | None, g: dict[str, str]) -> tuple[dict[str, str], str, str]:
+    def _generics_parts(
+        self, generics: dict | None, g: dict[str, str], atoms: set[str] | None = None
+    ) -> tuple[dict[str, str], str, str]:
         """Extend `g` with positional names for this item's params (renaming `T` to `U`
-        is not a break); render the param list and the where clause."""
+        is not a break); render the param list and the where clause. With `atoms`, bounds
+        and predicates go there one per bound instead of into the rendering."""
         g = dict(g)
         for p in (generics or {}).get("params", []):
             kind = p.get("kind") or {}
@@ -487,6 +516,9 @@ class Surface:
             if "type" in kind:
                 bounds = self._bounds(kind["type"].get("bounds"), g)
                 default = kind["type"].get("default")
+                if atoms is not None:
+                    atoms.update(f"{g[p['name']]}: {b}" for b in self._bound_list(kind["type"].get("bounds"), g))
+                    bounds = ""
                 s = g[p["name"]] + (f": {bounds}" if bounds else "")
                 if default is not None:
                     s += f" = {self.render(default, g)}"
@@ -505,6 +537,14 @@ class Surface:
                 rhs = ep.get("rhs") or {}
                 rhs_s = self.render(rhs["type"], g) if "type" in rhs else str(rhs)
                 preds.append(f"{self.render(ep.get('lhs'), g)} == {rhs_s}")
+        if atoms is not None:
+            for wp in (generics or {}).get("where_predicates", []):
+                if "bound_predicate" in wp:
+                    bp = wp["bound_predicate"]
+                    ty = self.render(bp.get("type"), g)
+                    atoms.update(f"{ty}: {b}" for b in self._bound_list(bp.get("bounds"), g))
+            atoms.update(p for p in preds if " == " in p)
+            preds = []
         params = f"<{', '.join(rendered)}>" if rendered else ""
         where = " where " + ", ".join(sorted(preds)) if preds else ""
         return g, params, where
@@ -522,9 +562,18 @@ class Surface:
             word for flag, word in (("is_const", "const "), ("is_async", "async "), ("is_unsafe", "unsafe "))
             if header.get(flag)
         )
-        g, params, where = self._generics_parts(fn.get("generics"), g)
+        g2, params, where = self._generics_parts(fn.get("generics"), g)
         # Param names are not part of the contract; their types and order are.
-        return f"{prefix}fn{params}{self._sig(fn.get('sig') or {}, g)}{where}"
+        return f"{prefix}fn{params}{self._sig(fn.get('sig') or {}, g2)}{where}"
+
+    def _fn_relax(self, fn: dict, g: dict[str, str]) -> tuple[str, frozenset[str], bool]:
+        header = fn.get("header") or {}
+        prefix = "".join(
+            word for flag, word in (("is_async", "async "), ("is_unsafe", "unsafe ")) if header.get(flag)
+        )
+        atoms: set[str] = set()
+        g, params, _ = self._generics_parts(fn.get("generics"), g, atoms)
+        return f"{prefix}fn{params}{self._sig(fn.get('sig') or {}, g)}", frozenset(atoms), bool(header.get("is_const"))
 
     # -- recording ---------------------------------------------------------
 
@@ -535,7 +584,7 @@ class Surface:
         canonical = f"{self.public_path[owner_id]}{sep}{name}"
         self._add(
             f"{owner_path}{sep}{name}",
-            Entry(entry.kind, entry.sig, entry.required, owner=owner_path, canonical=canonical),
+            replace(entry, owner=owner_path, canonical=canonical),
         )
 
     def _record(self, item_id: str, path: str) -> None:
@@ -595,7 +644,7 @@ class Surface:
                     continue
                 self._member(item_id, path, "::", m["name"], entry)
         elif kind == "function":
-            self._add(path, Entry("function", self._fn(body, {}), canonical=canonical))
+            self._add(path, Entry("function", self._fn(body, {}), canonical=canonical, relax=self._fn_relax(body, {})))
         elif kind == "type_alias":
             g, generics = self._generics(body.get("generics"), {})
             self._add(path, Entry("type alias", f"type{generics} = {self.render(body.get('type'), g)}", canonical=canonical))
@@ -643,19 +692,33 @@ class Surface:
                     continue
                 minner = m.get("inner", {})
                 if "function" in minner:
-                    self._member(owner_id, path, "::", m["name"], Entry("method", self._fn(minner["function"], ig)))
+                    fn = minner["function"]
+                    self._member(owner_id, path, "::", m["name"], Entry("method", self._fn(fn, ig), relax=self._fn_relax(fn, ig)))
                 elif "assoc_const" in minner:
                     self._member(owner_id, path, "::", m["name"], Entry("associated const", f"const: {self.render(minner['assoc_const'].get('type'), ig)}"))
 
 
 def _became_optional(old: str, new: str) -> bool:
-    return new in (f"core::Option<{old}>", f"core::Option<alloc::Box<{old}>>")
+    return new in (f"core::option::Option<{old}>", f"core::option::Option<alloc::boxed::Box<{old}>>")
+
+
+def _relaxed_only(before: Entry, after: Entry, ro, rn) -> bool:
+    """Callers still compile: same shape, no new bound, `const` not dropped."""
+    if before.relax is None or after.relax is None:
+        return False
+    (b_sig, b_atoms, b_const), (a_sig, a_atoms, a_const) = before.relax, after.relax
+    return (
+        ro(b_sig) == rn(a_sig)
+        and {rn(a) for a in a_atoms} <= {ro(a) for a in b_atoms}
+        and (a_const or not b_const)
+    )
 
 
 def diff_surfaces(old: Surface, new: Surface) -> list[str]:
     """Breaking differences in `new` relative to `old`. Additions are compatible."""
     breaks: list[str] = []
     reported: set[tuple[str, str]] = set()
+    ro, rn = old.resolver(new), new.resolver(old)
 
     def report(key: tuple[str, str], message: str) -> None:
         if key not in reported:
@@ -672,12 +735,13 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
         if before.kind != after.kind:
             report((before.canonical, "kind"), f"`{path}` changed from {before.kind} to {after.kind}")
             continue
-        if before.sig != after.sig:
+        b_sig, a_sig = ro(before.sig), rn(after.sig)
+        if b_sig != a_sig and not _relaxed_only(before, after, ro, rn):
             label = f"{before.kind} type" if before.kind == "field" else f"{before.kind} signature"
-            note = " (became optional)" if _became_optional(before.sig, after.sig) else ""
+            note = " (became optional)" if _became_optional(b_sig, a_sig) else ""
             report(
                 (before.canonical, "sig"),
-                f"{label} changed{note}: `{after.canonical}`: `{before.sig}` -> `{after.sig}`",
+                f"{label} changed{note}: `{after.canonical}`: `{b_sig}` -> `{a_sig}`",
             )
             continue
         if after.required and not before.required:
@@ -715,6 +779,11 @@ def check(manifest: Path, baseline_version: str | None, baseline_root: Path | No
             name: download_crate(name, str(baseline_version), src, versions_json if name == SDK_CRATE else None)
             for name in packages
         }
+        # Same dependency versions on both sides, so dependency type paths compare exactly.
+        lock = manifest.parent / "Cargo.lock"
+        if lock.is_file():
+            for baseline_manifest in baseline_manifests.values():
+                shutil.copyfile(lock, baseline_manifest.parent / "Cargo.lock")
     for name in sorted(packages):
         if name not in baseline_manifests:
             continue  # a crate new since the baseline has nothing to break

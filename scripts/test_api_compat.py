@@ -179,6 +179,18 @@ pub fn lookup(key: String) -> Record {
 
 pub fn helper() {}
 
+pub const fn answer() -> u32 {
+    42
+}
+
+pub fn inner() -> nested::Inner {
+    nested::Inner { value: 0 }
+}
+
+pub fn drain(v: Vec<u8>) -> std::vec::IntoIter<u8> {
+    v.into_iter()
+}
+
 pub fn wrap<T: Clone>(item: T) -> Vec<T> {
     vec![item]
 }
@@ -273,7 +285,33 @@ class SyntheticCrateTest(unittest.TestCase):
         )
         self.assertEqual(rc, 0, out)
 
+    def test_reexporting_a_used_type_is_compatible(self):
+        rc, out = self.check(("pub use private::Reexported;", "pub use private::Reexported;\npub use nested::Inner;"))
+        self.assertEqual(rc, 0, out)
+
+    def test_const_and_relaxed_bounds_are_compatible(self):
+        rc, out = self.check(
+            ("pub fn helper() {}", "pub const fn helper() {}"),
+            ("pub fn wrap<T: Clone>(item: T) -> Vec<T> {\n    vec![item]", "pub fn wrap<T>(item: T) -> Vec<T> {\n    vec![item]"),
+        )
+        self.assertEqual(rc, 0, out)
+
     # -- breaking ----------------------------------------------------------
+
+    def test_dependency_type_with_same_name_in_another_module(self):
+        self.assertBreaks(
+            self.check((
+                "-> std::vec::IntoIter<u8> {\n    v.into_iter()",
+                "-> std::collections::vec_deque::IntoIter<u8> {\n    std::collections::VecDeque::from(v).into_iter()",
+            )),
+            f"{TAG} function signature changed: `api_compat_synthetic::drain`",
+        )
+
+    def test_dropping_const(self):
+        self.assertBreaks(
+            self.check(("pub const fn answer()", "pub fn answer()")),
+            f"{TAG} function signature changed: `api_compat_synthetic::answer`",
+        )
 
     def test_removed_item(self):
         self.assertBreaks(
@@ -292,7 +330,7 @@ class SyntheticCrateTest(unittest.TestCase):
         )
         self.assertBreaks(
             (rc, out),
-            f"{TAG} field type changed (became optional): `api_compat_synthetic::Record.count`: `u32` -> `core::Option<u32>`",
+            f"{TAG} field type changed (became optional): `api_compat_synthetic::Record.count`: `u32` -> `core::option::Option<u32>`",
             f"{TAG} field type changed (became optional): `api_compat_synthetic::nested::Inner.value`",
             f"{TAG} field type changed (became optional): `api_compat_synthetic::Reexported.id`",
         )
@@ -309,13 +347,13 @@ class SyntheticCrateTest(unittest.TestCase):
     def test_enum_variant_payload_becoming_optional(self):
         self.assertBreaks(
             self.check(("    Created(String),", "    Created(Option<String>),")),
-            f"{TAG} variant signature changed: `api_compat_synthetic::Event::Created`: `(alloc::String)` -> `(core::Option<alloc::String>)`",
+            f"{TAG} variant signature changed: `api_compat_synthetic::Event::Created`: `(alloc::string::String)` -> `(core::option::Option<alloc::string::String>)`",
         )
 
     def test_changed_function_signature(self):
         self.assertBreaks(
             self.check(("pub fn lookup(key: String) -> Record {\n    Record { name: key,", "pub fn lookup(key: &str) -> Record {\n    Record { name: key.to_string(),")),
-            f"{TAG} function signature changed: `api_compat_synthetic::lookup`: `fn(alloc::String) -> api_compat_synthetic::Record` -> `fn(&str) -> api_compat_synthetic::Record`",
+            f"{TAG} function signature changed: `api_compat_synthetic::lookup`: `fn(alloc::string::String) -> api_compat_synthetic::Record` -> `fn(&str) -> api_compat_synthetic::Record`",
         )
 
     def test_return_type_becoming_optional(self):
@@ -323,7 +361,7 @@ class SyntheticCrateTest(unittest.TestCase):
             self.check(
                 ("    pub fn label(&self) -> String {\n        self.name.clone()", "    pub fn label(&self) -> Option<String> {\n        Some(self.name.clone())"),
             ),
-            f"{TAG} method signature changed: `api_compat_synthetic::Record::label`: `fn(&Self) -> alloc::String` -> `fn(&Self) -> core::Option<alloc::String>`",
+            f"{TAG} method signature changed: `api_compat_synthetic::Record::label`: `fn(&Self) -> alloc::string::String` -> `fn(&Self) -> core::option::Option<alloc::string::String>`",
         )
 
     def test_tightened_generic_bound(self):
