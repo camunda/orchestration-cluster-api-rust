@@ -434,7 +434,9 @@ class Surface:
             return f"<{self.render(qp.get('self_type'), g)}{as_trait}>::{qp.get('name')}{self._args(qp.get('args'), g)}"
         if "function_pointer" in t:
             fp = t["function_pointer"]
-            return "fn" + self._sig(fp.get("sig", {}), g)
+            header = fp.get("header") or {}
+            safety = "unsafe " if header.get("is_unsafe") else ""
+            return safety + "fn" + self._sig(fp.get("sig", {}), g)
         if "pat" in t:
             return self.render(t["pat"].get("type"), g)
         return "_"
@@ -595,7 +597,17 @@ class Surface:
         canonical = self.public_path[item_id]
         if kind in ("struct", "union"):
             g, generics = self._generics(body.get("generics"), {})
-            self._add(path, Entry(kind, f"{kind}{generics}", canonical=canonical))
+            atoms: set[str] = set()
+            _, relaxed_generics, _ = self._generics_parts(body.get("generics"), {}, atoms)
+            self._add(
+                path,
+                Entry(
+                    kind,
+                    f"{kind}{generics}",
+                    canonical=canonical,
+                    relax=(f"{kind}{relaxed_generics}", frozenset(atoms), True),
+                ),
+            )
             if kind == "union":
                 fields = body.get("fields", [])
             else:
@@ -614,7 +626,17 @@ class Surface:
             self._record_impls(item_id, path, body.get("impls", []), g)
         elif kind == "enum":
             g, generics = self._generics(body.get("generics"), {})
-            self._add(path, Entry("enum", f"enum{generics}", canonical=canonical))
+            atoms: set[str] = set()
+            _, relaxed_generics, _ = self._generics_parts(body.get("generics"), {}, atoms)
+            self._add(
+                path,
+                Entry(
+                    "enum",
+                    f"enum{generics}",
+                    canonical=canonical,
+                    relax=(f"enum{relaxed_generics}", frozenset(atoms), True),
+                ),
+            )
             for vid in body.get("variants", []):
                 v = self.index.get(str(vid))
                 if v is None:
@@ -647,7 +669,21 @@ class Surface:
             self._add(path, Entry("function", self._fn(body, {}), canonical=canonical, relax=self._fn_relax(body, {})))
         elif kind == "type_alias":
             g, generics = self._generics(body.get("generics"), {})
-            self._add(path, Entry("type alias", f"type{generics} = {self.render(body.get('type'), g)}", canonical=canonical))
+            atoms: set[str] = set()
+            _, relaxed_generics, _ = self._generics_parts(body.get("generics"), {}, atoms)
+            self._add(
+                path,
+                Entry(
+                    "type alias",
+                    f"type{generics} = {self.render(body.get('type'), g)}",
+                    canonical=canonical,
+                    relax=(
+                        f"type{relaxed_generics} = {self.render(body.get('type'), g)}",
+                        frozenset(atoms),
+                        True,
+                    ),
+                ),
+            )
         elif kind == "constant":
             self._add(path, Entry("const", f"const: {self.render(body.get('type'), {})}", canonical=canonical))
         elif kind == "static":
@@ -687,7 +723,8 @@ class Surface:
             if impl.get("trait") is not None:
                 self._record_trait_impl(owner_id, path, impl, g)
                 continue
-            ig, _ = self._generics(impl.get("generics"), g)
+            impl_atoms: set[str] = set()
+            ig, _, _ = self._generics_parts(impl.get("generics"), g, impl_atoms)
             # `Self` in an inherent impl is the owner type; writing either spelling is the same API.
             ig["Self"] = self.render(impl.get("for"), ig)
             for mid in impl.get("items", []):
@@ -697,7 +734,18 @@ class Surface:
                 minner = m.get("inner", {})
                 if "function" in minner:
                     fn = minner["function"]
-                    self._member(owner_id, path, "::", m["name"], Entry("method", self._fn(fn, ig), relax=self._fn_relax(fn, ig)))
+                    sig, atoms, const = self._fn_relax(fn, ig)
+                    self._member(
+                        owner_id,
+                        path,
+                        "::",
+                        m["name"],
+                        Entry(
+                            "method",
+                            self._fn(fn, ig),
+                            relax=(sig, atoms | frozenset(impl_atoms), const),
+                        ),
+                    )
                 elif "assoc_const" in minner:
                     self._member(owner_id, path, "::", m["name"], Entry("associated const", f"const: {self.render(minner['assoc_const'].get('type'), ig)}"))
 
@@ -708,10 +756,22 @@ class Surface:
         known = self.paths.get(trait_id) if trait_id else None
         if trait_id not in self.all_paths and (known is None or known.get("crate_id") == 0):
             return  # a private trait: downstream cannot name it
+        atoms: set[str] = set()
         ig, params, where = self._generics_parts(impl.get("generics"), g)
+        _, relaxed_params, _ = self._generics_parts(impl.get("generics"), g, atoms)
         neg = "!" if impl.get("is_negative") else ""
         name = f"<impl {neg}{self._type_path(tr)}{self._args(tr.get('args'), ig)} for {self.render(impl.get('for'), ig)}>"
-        self._member(owner_id, path, "::", name, Entry("trait impl", f"impl{params}{where}"))
+        self._member(
+            owner_id,
+            path,
+            "::",
+            name,
+            Entry(
+                "trait impl",
+                f"impl{params}{where}",
+                relax=(f"impl{relaxed_params}", frozenset(atoms), True),
+            ),
+        )
         impl_key = f"{path}::{name}"
         for mid in impl.get("items", []):
             m = self.index.get(str(mid))
@@ -742,7 +802,7 @@ def _relaxed_only(before: Entry, after: Entry, ro, rn) -> bool:
     a_set, b_set = {rn(a) for a in a_atoms}, {ro(a) for a in b_atoms}
     return (
         ro(b_sig) == rn(a_sig)
-        and a_set <= b_set
+        and {a for a in a_set if ": ?" not in a} <= b_set
         # Dropping `?Sized` restores the implicit `Sized` bound.
         and {a for a in b_set if ": ?" in a} <= a_set
         and (a_const or not b_const)
@@ -774,7 +834,9 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
             report((before.canonical, "kind"), f"`{path}` changed from {before.kind} to {after.kind}")
             continue
         b_sig, a_sig = ro(before.sig), rn(after.sig)
-        if b_sig != a_sig and not _relaxed_only(before, after, ro, rn):
+        if (
+            b_sig != a_sig or before.relax != after.relax
+        ) and not _relaxed_only(before, after, ro, rn):
             label = f"{before.kind} type" if before.kind == "field" else f"{before.kind} signature"
             note = " (became optional)" if _became_optional(b_sig, a_sig) else ""
             report(

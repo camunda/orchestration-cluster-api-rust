@@ -148,6 +148,7 @@ pub struct Record {
 #[non_exhaustive]
 pub struct Options {
     pub retries: u32,
+    pub callback: fn(u8),
 }
 
 pub enum Mode {
@@ -206,6 +207,8 @@ impl Record {
 }
 
 pub struct Holder<T>(pub T);
+pub struct Bounded<T: Clone>(pub T);
+pub struct Relaxed<T>(pub T);
 
 impl<T> Holder<T> {
     pub fn choose<U>(&self, keep: T, _other: U) -> T {
@@ -219,7 +222,20 @@ impl<T> Holder<T> {
     }
 }
 
+impl<T: Clone> Relaxed<T> {
+    pub fn clone_value(value: T) -> T {
+        value.clone()
+    }
+}
+
+impl<T: Clone> From<T> for Holder<T> {
+    fn from(value: T) -> Self {
+        Holder(value)
+    }
+}
+
 pub fn inspect<T: ?Sized>(_value: &T) {}
+pub fn inspect_compat<T>(_value: &T) {}
 
 impl std::str::FromStr for Mode {
     type Err = String;
@@ -328,6 +344,26 @@ class SyntheticCrateTest(unittest.TestCase):
         )
         self.assertEqual(rc, 0, out)
 
+    def test_relaxed_generic_type_and_trait_impl_bounds_are_compatible(self):
+        rc, out = self.check(
+            ("pub struct Bounded<T: Clone>(pub T);", "pub struct Bounded<T>(pub T);"),
+            ("impl<T: Clone> From<T> for Holder<T>", "impl<T> From<T> for Holder<T>"),
+        )
+        self.assertEqual(rc, 0, out)
+
+    def test_adding_maybe_sized_bound_is_compatible(self):
+        rc, out = self.check(("pub fn inspect_compat<T>", "pub fn inspect_compat<T: ?Sized>"))
+        self.assertEqual(rc, 0, out)
+
+    def test_relaxed_inherent_impl_bound_is_compatible(self):
+        rc, out = self.check(
+            (
+                "impl<T: Clone> Relaxed<T> {\n    pub fn clone_value",
+                "impl<T> Relaxed<T> {\n    pub fn clone_value",
+            )
+        )
+        self.assertEqual(rc, 0, out)
+
     def test_const_and_relaxed_bounds_are_compatible(self):
         rc, out = self.check(
             ("pub fn helper() {}", "pub const fn helper() {}"),
@@ -350,6 +386,20 @@ class SyntheticCrateTest(unittest.TestCase):
         self.assertBreaks(
             self.check(("pub const fn answer()", "pub fn answer()")),
             f"{TAG} function signature changed: `api_compat_synthetic::answer`",
+        )
+
+    def test_tightened_inherent_impl_bound(self):
+        self.assertBreaks(
+            self.check(
+                ("impl<T> Holder<T> {\n    pub fn choose", "impl<T: Clone> Holder<T> {\n    pub fn choose")
+            ),
+            f"{TAG} method signature changed: `api_compat_synthetic::Holder::choose`",
+        )
+
+    def test_unsafe_function_pointer_field_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub callback: fn(u8)", "pub callback: unsafe fn(u8)")),
+            f"{TAG} field type changed: `api_compat_synthetic::Options.callback`",
         )
 
     def test_removed_item(self):
