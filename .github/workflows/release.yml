@@ -152,14 +152,11 @@ jobs:
             echo "::error::Breaking API changes, and baseline ${baseline} has no ${tag} tag to list the PRs merged since. Re-run this workflow manually with api_break_approved if the break is intended."
             exit 1
           }
-          shas=$(git log --format=%H "${tag}..HEAD") || exit 2
-          approved=""
-          for sha in $shas; do
-            prs=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}/pulls" \
-              --jq '.[] | select(.merged_at != null) | select(any(.labels[]; .name == "api-break-approved")) | "#\(.number)"') || exit 2
-            approved="${approved} ${prs}"
-          done
-          approved=$(echo "$approved" | xargs -n1 2>/dev/null | sort -u | xargs)
+          # Approvals count only from PRs merged into this release line since the baseline.
+          branch="stable/${major}"
+          gh api "repos/${GITHUB_REPOSITORY}/branches/${branch}" >/dev/null 2>&1 || branch="main"
+          approved=$(scripts/api-break-approvals.sh "$tag" "$branch") || exit 2
+          approved=$(echo "$approved" | xargs)
           if [ -n "$approved" ]; then
             echo "::warning::Breaking API changes approved with the api-break-approved label on: ${approved}"
             exit 0
