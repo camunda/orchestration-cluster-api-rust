@@ -1,0 +1,81 @@
+name: API compatibility
+
+# Blocks PRs to stable branches that change the public Rust API in a way that stops customer
+# code from compiling (see scripts/api_compat.py and camunda/orchestration-cluster-api-csharp#545).
+# A PR is compared with its base branch, so it answers only for its own changes: an approved
+# break already merged does not fail every later PR. When a break is intended (e.g. a bug
+# fix that must change the API), apply the `api-break-approved` label: the check still runs
+# and lists the breaks, but passes. The release workflow compares the code it is about to
+# publish with the last release.
+
+on:
+  pull_request:
+    branches:
+      - 'stable/**'
+    # labeled/unlabeled: re-evaluate when api-break-approved is added or removed. edited:
+    # re-evaluate when the PR is retargeted to another stable branch. The job must run for
+    # every such event: a skipped run would replace a failed one and the required check
+    # would count as passing.
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-compat-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  api-compat:
+    name: API compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check out the base branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .api-compat-base
+          persist-credentials: false
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-api-compat-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-api-compat-
+
+      # Pinned cargo-semver-checks + the rustdoc JSON nightly (DOCS_TOOLCHAIN). The stable
+      # toolchain comes from rust-toolchain.toml.
+      - name: Install API compatibility tools
+        run: ./scripts/install-api-compat-tools.sh
+
+      - name: Check API compatibility
+        env:
+          # stable/<N> with no N.x release yet (just cut from main) has no published API to
+          # protect and passes.
+          MAJOR: ${{ github.base_ref }}
+          APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'api-break-approved') }}
+        run: |
+          released=$(python3 scripts/api_compat.py --print-baseline-major "${MAJOR#stable/}") || exit 2
+          if [ -z "$released" ]; then
+            echo "::notice::No ${MAJOR#stable/}.x release published yet; nothing to protect."
+            exit 0
+          fi
+          set +e
+          python3 scripts/api_compat.py --baseline-root .api-compat-base
+          rc=$?
+          set -e
+          if [ "$rc" -eq 1 ] && [ "$APPROVED" = "true" ]; then
+            echo "::warning::Breaking API changes approved with the api-break-approved label."
+            echo "Approved with the \`api-break-approved\` label." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$rc" -eq 1 ]; then
+            echo "::error::If this break is intended (e.g. a bug fix that must change the API), apply the api-break-approved label. Otherwise make the change backward compatible."
+          fi
+          exit "$rc"

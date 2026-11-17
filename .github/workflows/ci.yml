@@ -105,6 +105,21 @@ jobs:
           examples-dir: examples
           key-style: camelCase
 
+  # End-to-end tests of scripts/api_compat.py (the stable-branch API compatibility guard):
+  # a synthetic crate pair per break class, run through cargo-semver-checks and the
+  # rustdoc JSON diff. The pure tests also run under `make test-docs` above.
+  api-compat-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install API compatibility tools
+        run: ./scripts/install-api-compat-tools.sh
+
+      - name: Test the API compatibility checker
+        run: make test-api-compat
+
   # Non-blocking: regenerate the client from upstream and report any drift, mirroring the
   # sibling SDKs. Does not fail the build — drift is surfaced for a follow-up regen PR.
   generation-drift:
