@@ -271,6 +271,26 @@ impl Spec<u8> {
     pub fn value(&self) -> u8 {
         self.0
     }
+
+    pub fn width() -> u8 {
+        8
+    }
+}
+
+pub trait Lending<'a, 'b> {
+    fn get(&self) -> &'a str;
+}
+
+pub struct Tag<const C: char>;
+
+pub fn tag(_tag: Tag<'a'>) {}
+
+pub struct Buffer<const N: usize>;
+
+impl<const N: usize> Buffer<N> {
+    pub fn capacity(&self) -> usize {
+        N
+    }
 }
 
 impl Spec<bool> {
@@ -462,6 +482,29 @@ class SyntheticCrateTest(unittest.TestCase):
             self.check(("accepts_borrow<'a>(_value: &'a str)", "accepts_borrow(_value: &'static str)")),
             f"{TAG} function signature changed: `api_compat_synthetic::accepts_borrow`",
         )
+
+    def test_enclosing_lifetime_change_in_trait_method_is_breaking(self):
+        self.assertBreaks(
+            self.check(("fn get(&self) -> &'a str;", "fn get(&self) -> &'b str;")),
+            f"{TAG} trait method signature changed: `api_compat_synthetic::Lending::get`",
+        )
+
+    def test_char_const_argument_change_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub fn tag(_tag: Tag<'a'>) {}", "pub fn tag(_tag: Tag<'b'>) {}")),
+            f"{TAG} function signature changed: `api_compat_synthetic::tag`",
+        )
+
+    def test_moving_method_to_generic_impl_is_compatible(self):
+        rc, out = self.check(
+            ("\n    pub fn width() -> u8 {\n        8\n    }\n", "\n"),
+            ("pub trait Lending", "impl<T> Spec<T> {\n    pub fn width() -> u8 {\n        8\n    }\n}\n\npub trait Lending"),
+        )
+        self.assertEqual(rc, 0, out)
+
+    def test_renaming_const_impl_parameter_is_compatible(self):
+        rc, out = self.check(("impl<const N: usize> Buffer<N> {\n    pub fn capacity(&self) -> usize {\n        N", "impl<const M: usize> Buffer<M> {\n    pub fn capacity(&self) -> usize {\n        M"))
+        self.assertEqual(rc, 0, out)
 
     def test_explicit_and_elided_lifetimes_are_compatible(self):
         rc, out = self.check(
