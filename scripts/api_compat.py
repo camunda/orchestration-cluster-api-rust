@@ -399,7 +399,7 @@ class Surface:
             return "::".join(entry["path"])
         return rp.get("path", "_")
 
-    def render(self, t: Any, g: dict[str, str]) -> str:
+    def render(self, t: Any, g: dict[str, str], obj_default: str | None = None) -> str:
         if not isinstance(t, dict):
             return "_"
         if "primitive" in t:
@@ -412,8 +412,9 @@ class Surface:
         if "borrowed_ref" in t:
             br = t["borrowed_ref"]
             lifetime = br.get("lifetime")
-            lifetime = f"{g.get(lifetime, lifetime)} " if lifetime else ""
-            return f"&{lifetime}{'mut ' if br.get('is_mutable') else ''}{self.render(br.get('type'), g)}"
+            lifetime = g.get(lifetime, lifetime) if lifetime else None
+            inner = self.render(br.get("type"), g, obj_default=lifetime)
+            return f"&{lifetime + ' ' if lifetime else ''}{'mut ' if br.get('is_mutable') else ''}{inner}"
         if "raw_pointer" in t:
             rp = t["raw_pointer"]
             return f"*{'mut' if rp.get('is_mutable') else 'const'} {self.render(rp.get('type'), g)}"
@@ -427,8 +428,13 @@ class Surface:
         if "impl_trait" in t:
             return "impl " + self._bounds(t["impl_trait"], g)
         if "dyn_trait" in t:
-            traits = [self._poly_trait(pt, g) for pt in t["dyn_trait"].get("traits", [])]
-            return "dyn " + " + ".join(traits)
+            dt = t["dyn_trait"]
+            traits = [self._poly_trait(pt, g) for pt in dt.get("traits", [])]
+            # An omitted object lifetime defaults to the enclosing reference's, else 'static.
+            lifetime = dt.get("lifetime")
+            lifetime = g.get(lifetime, lifetime) if lifetime else obj_default
+            bound = f" + {lifetime}" if lifetime and lifetime != "'static" else ""
+            return "dyn " + " + ".join(traits) + bound
         if "qualified_path" in t:
             qp = t["qualified_path"]
             trait = qp.get("trait")
@@ -492,7 +498,8 @@ class Surface:
                 tb = b["trait_bound"]
                 mod = {"maybe": "?", "maybe_const": "~const "}.get(tb.get("modifier"), "")
                 out.append(mod + self._poly_trait(tb, g))
-        # Lifetime bounds are elided throughout: they are not part of what this layer checks.
+            elif isinstance(b, dict) and "outlives" in b:
+                out.append(g.get(b["outlives"], b["outlives"]))
         return sorted(out)
 
     def _bounds(self, bounds: list, g: dict[str, str]) -> str:
@@ -517,15 +524,14 @@ class Surface:
             if "type" in kind and kind["type"].get("is_synthetic"):
                 continue  # `impl Trait` argument: rendered at the parameter instead
             g[p["name"]] = _fresh_generic(g)
+        lifetime_bounds = [
+            f"{g[p['name']]}: {g.get(parent, parent)}"
+            for p in (generics or {}).get("params", [])
+            if "lifetime" in (p.get("kind") or {})
+            for parent in p["kind"]["lifetime"].get("outlives", [])
+        ]
         if atoms is not None:
-            for p in (generics or {}).get("params", []):
-                kind = p.get("kind") or {}
-                if "lifetime" in kind:
-                    lifetime = g[p["name"]]
-                    atoms.update(
-                        f"{lifetime}: {g.get(parent, parent)}"
-                        for parent in kind["lifetime"].get("outlives", [])
-                    )
+            atoms.update(lifetime_bounds)
         rendered = []
         for p in (generics or {}).get("params", []):
             kind = p.get("kind") or {}
@@ -545,7 +551,7 @@ class Surface:
                 rendered.append(s)
             elif "const" in kind:
                 rendered.append(f"const {g[p['name']]}: {self.render(kind['const'].get('type'), g)}")
-        preds = []
+        preds = [] if atoms is not None else list(lifetime_bounds)
         for wp in (generics or {}).get("where_predicates", []):
             if "bound_predicate" in wp:
                 bp = wp["bound_predicate"]
@@ -592,7 +598,9 @@ class Surface:
         )
         g2, params, where = self._generics_parts(fn.get("generics"), g)
         # Param names are not part of the contract; their types and order are.
-        return f"{prefix}fn{params}{self._sig(fn.get('sig') or {}, g2)}{where}"
+        sig = self._sig(_desugar_elision(fn.get("sig") or {}), g2)
+        rendered, _ = _canonical_lifetimes(f"{prefix}fn{params}{sig}{where}")
+        return rendered
 
     def _fn_relax(self, fn: dict, g: dict[str, str]) -> tuple[str, frozenset[str], bool]:
         header = fn.get("header") or {}
@@ -601,7 +609,9 @@ class Surface:
         )
         atoms: set[str] = set()
         g, params, _ = self._generics_parts(fn.get("generics"), g, atoms)
-        return f"{prefix}fn{params}{self._sig(fn.get('sig') or {}, g)}", frozenset(atoms), bool(header.get("is_const"))
+        sig = self._sig(_desugar_elision(fn.get("sig") or {}), g)
+        rendered, rename = _canonical_lifetimes(f"{prefix}fn{params}{sig}", collapse=False)
+        return rendered, frozenset(rename(a) for a in atoms), bool(header.get("is_const"))
 
     # -- recording ---------------------------------------------------------
 
@@ -753,10 +763,16 @@ class Surface:
             ig, _, _ = self._generics_parts(impl.get("generics"), g, impl_atoms)
             # `Self` in an inherent impl is the owner type; writing either spelling is the same API.
             ig["Self"] = self.render(impl.get("for"), ig)
+            # `impl Spec<u8>` and `impl Spec<bool>` can both define `value`: key them apart.
+            target = impl.get("for") or {}
+            spec = "" if _is_generic_target(target, impl.get("generics")) else self._args(
+                (target.get("resolved_path") or {}).get("args"), ig
+            )
             for mid in impl.get("items", []):
                 m = self.index.get(str(mid))
                 if m is None or m.get("visibility") != "public" or not m.get("name"):
                     continue
+                name = f"{spec}::{m['name']}" if spec else m["name"]
                 minner = m.get("inner", {})
                 if "function" in minner:
                     fn = minner["function"]
@@ -765,7 +781,7 @@ class Surface:
                         owner_id,
                         path,
                         "::",
-                        m["name"],
+                        name,
                         Entry(
                             "method",
                             self._fn(fn, ig),
@@ -773,7 +789,7 @@ class Surface:
                         ),
                     )
                 elif "assoc_const" in minner:
-                    self._member(owner_id, path, "::", m["name"], Entry("associated const", f"const: {self.render(minner['assoc_const'].get('type'), ig)}"))
+                    self._member(owner_id, path, "::", name, Entry("associated const", f"const: {self.render(minner['assoc_const'].get('type'), ig)}"))
 
     def _record_trait_impl(self, owner_id: str, path: str, impl: dict, g: dict[str, str]) -> None:
         """The impl and its associated types; method signatures are the trait's."""
@@ -819,6 +835,93 @@ def _fresh_generic(g: dict[str, str]) -> str:
 def _fresh_lifetime(g: dict[str, str]) -> str:
     used = [int(v[2:]) for v in g.values() if v.startswith("'L") and v[2:].isdigit()]
     return f"'L{max(used, default=-1) + 1}"
+
+
+def _fill_elided(t: Any, make) -> None:
+    """Replace elided lifetimes (`&T`, `Cow<'_, T>`) in place; nested `fn`/`Fn()` keep their own scope."""
+    if isinstance(t, list):
+        for v in t:
+            _fill_elided(v, make)
+        return
+    if not isinstance(t, dict):
+        return
+    if "borrowed_ref" in t and t["borrowed_ref"].get("lifetime") is None:
+        t["borrowed_ref"]["lifetime"] = make()
+    if set(t) == {"lifetime"} and t["lifetime"] == "'_":
+        t["lifetime"] = make()
+    for key, v in t.items():
+        if key not in ("function_pointer", "parenthesized"):
+            _fill_elided(v, make)
+
+
+def _input_lifetimes(t: Any, out: list[str]) -> None:
+    if isinstance(t, list):
+        for v in t:
+            _input_lifetimes(v, out)
+    elif isinstance(t, dict):
+        if "borrowed_ref" in t and t["borrowed_ref"].get("lifetime"):
+            out.append(t["borrowed_ref"]["lifetime"])
+        if set(t) == {"lifetime"} and t["lifetime"]:
+            out.append(t["lifetime"])
+        for key, v in t.items():
+            if key not in ("function_pointer", "parenthesized"):
+                _input_lifetimes(v, out)
+
+
+def _desugar_elision(sig: dict) -> dict:
+    """Apply Rust's lifetime-elision rules, so `fn(&str) -> &str` equals `fn<'a>(&'a str) -> &'a str`."""
+    sig = json.loads(json.dumps(sig))
+    fresh = iter(f"'__elided{i}" for i in range(10_000))
+    inputs = sig.get("inputs", [])
+    _fill_elided([ty for _, ty in inputs], lambda: next(fresh))
+    seen: list[str] = []
+    _input_lifetimes([ty for _, ty in inputs], seen)
+    receiver = inputs[0][1].get("borrowed_ref") if inputs and inputs[0][0] == "self" else None
+    if receiver:
+        out_lifetime = receiver["lifetime"]
+    elif len(set(seen)) == 1:
+        out_lifetime = seen[0]
+    else:
+        return sig  # an elided output lifetime would not compile; leave it as written
+    _fill_elided(sig.get("output"), lambda: out_lifetime)
+    return sig
+
+
+_LIFETIME = re.compile(r"'(?!static\b)[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _canonical_lifetimes(s: str, collapse: bool = True):
+    """Rename lifetimes by first appearance. With `collapse`, one used only once relates
+    nothing and is shown elided. Returns the string and the renaming for bound atoms."""
+    uses: dict[str, int] = {}
+    for m in _LIFETIME.finditer(s):
+        uses[m.group(0)] = uses.get(m.group(0), 0) + 1
+    names: dict[str, str] = {}
+
+    def rename(text: str) -> str:
+        def one(m: re.Match) -> str:
+            if collapse and uses.get(m.group(0)) == 1:
+                return "'_"
+            return names.setdefault(m.group(0), f"'_{len(names)}")
+        return re.sub(r"&'_ ", "&", _LIFETIME.sub(one, text))
+
+    return rename(s), rename
+
+
+def _is_generic_target(target: dict, generics: dict | None) -> bool:
+    """Whether an inherent impl covers every instantiation (`impl<T> Holder<T>`), not one specialization."""
+    params = {p["name"] for p in (generics or {}).get("params", [])}
+    args = ((target.get("resolved_path") or {}).get("args") or {}).get("angle_bracketed") or {}
+    for a in args.get("args", []):
+        if isinstance(a, dict) and "type" in a:
+            if a["type"].get("generic") not in params:
+                return False
+        elif isinstance(a, dict) and "lifetime" in a:
+            if a["lifetime"] not in params and a["lifetime"] != "'_":
+                return False
+        elif isinstance(a, dict) and "const" in a:
+            return False
+    return True
 
 
 def _became_optional(old: str, new: str) -> bool:

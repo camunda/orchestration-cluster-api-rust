@@ -138,11 +138,7 @@ jobs:
             exit 0
           fi
           tag="v${baseline}"
-          git rev-parse -q --verify "refs/tags/${tag}" >/dev/null || {
-            echo "::error::Baseline ${baseline} has no ${tag} tag to list the PRs merged since."
-            exit 2
-          }
-          echo "Releasing ${version}; baseline: ${tag}"
+          echo "Releasing ${version}; baseline: ${baseline}"
           # Actions runs this with bash -e: capture the exit code instead of exiting on it.
           rc=0
           python3 scripts/api_compat.py --baseline-version "$baseline" || rc=$?
@@ -151,6 +147,11 @@ jobs:
             echo "::warning::Breaking API changes approved by the api_break_approved input of this run."
             exit 0
           fi
+          # A manual publish creates no tag, so only the approval search depends on it.
+          git rev-parse -q --verify "refs/tags/${tag}" >/dev/null || {
+            echo "::error::Breaking API changes, and baseline ${baseline} has no ${tag} tag to list the PRs merged since. Re-run this workflow manually with api_break_approved if the break is intended."
+            exit 1
+          }
           shas=$(git log --format=%H "${tag}..HEAD") || exit 2
           approved=""
           for sha in $shas; do

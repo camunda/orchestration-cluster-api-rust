@@ -133,6 +133,18 @@ class CliBaselineTest(unittest.TestCase):
         self.assertIn("::notice::No 11.x release", out)
 
 
+class ReleaseGateOrderTest(unittest.TestCase):
+    """A manual publish creates no tag: the gate may only need it to search for approvals."""
+
+    def test_baseline_tag_is_only_required_for_the_approval_search(self):
+        workflow = (api_compat.REPO_ROOT / ".github" / "workflows" / "release.yml").read_text()
+        gate = workflow[workflow.index("- name: API compatibility gate"):]
+        tag_check = gate.index('git rev-parse -q --verify "refs/tags/${tag}"')
+        self.assertLess(gate.index('scripts/api_compat.py --baseline-version'), tag_check)
+        self.assertLess(gate.index('if [ "$DISPATCH_APPROVED" = "true" ]'), tag_check)
+        self.assertLess(tag_check, gate.index('git log --format=%H "${tag}..HEAD"'))
+
+
 # ---------------------------------------------------------------------------
 # Synthetic crates: one per break class
 # ---------------------------------------------------------------------------
@@ -233,6 +245,37 @@ impl<T: Clone> Relaxed<T> {
 impl<T: Clone> From<T> for Holder<T> {
     fn from(value: T) -> Self {
         Holder(value)
+    }
+}
+
+pub struct DynHolder<'a> {
+    pub handler: Box<dyn Fn() + 'a>,
+    pub marker: std::marker::PhantomData<&'a ()>,
+}
+
+pub struct DynDefault {
+    pub handler: Box<dyn Fn()>,
+}
+
+pub trait Lifetimes {
+    fn pair<'a, 'b>(&self, first: &'a str, second: &'b str);
+}
+
+pub fn elided(value: &str) -> &str {
+    value
+}
+
+pub struct Spec<T>(pub T);
+
+impl Spec<u8> {
+    pub fn value(&self) -> u8 {
+        self.0
+    }
+}
+
+impl Spec<bool> {
+    pub fn value(&self) -> bool {
+        self.0
     }
 }
 
@@ -418,6 +461,46 @@ class SyntheticCrateTest(unittest.TestCase):
         self.assertBreaks(
             self.check(("accepts_borrow<'a>(_value: &'a str)", "accepts_borrow(_value: &'static str)")),
             f"{TAG} function signature changed: `api_compat_synthetic::accepts_borrow`",
+        )
+
+    def test_explicit_and_elided_lifetimes_are_compatible(self):
+        rc, out = self.check(
+            ("pub fn elided(value: &str) -> &str", "pub fn elided<'a>(value: &'a str) -> &'a str")
+        )
+        self.assertEqual(rc, 0, out)
+
+    def test_default_trait_object_lifetime_is_compatible(self):
+        rc, out = self.check(("pub handler: Box<dyn Fn()>,", "pub handler: Box<dyn Fn() + 'static>,"))
+        self.assertEqual(rc, 0, out)
+
+    def test_trait_object_lifetime_narrowing_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub handler: Box<dyn Fn() + 'a>,", "pub handler: Box<dyn Fn() + 'static>,")),
+            f"{TAG} field type changed: `api_compat_synthetic::DynHolder.handler`",
+        )
+
+    def test_static_bound_on_type_parameter_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub fn wrap<T: Clone>(", "pub fn wrap<T: Clone + 'static>(")),
+            f"{TAG} function signature changed: `api_compat_synthetic::wrap`",
+        )
+
+    def test_trait_method_lifetime_bound_is_breaking(self):
+        self.assertBreaks(
+            self.check(("fn pair<'a, 'b>(&self", "fn pair<'a: 'b, 'b>(&self")),
+            f"{TAG} trait method signature changed: `api_compat_synthetic::Lifetimes::pair`",
+        )
+
+    def test_change_in_first_specialized_impl_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub fn value(&self) -> u8 {\n        self.0", "pub fn value(&self) -> Option<u8> {\n        Some(self.0)")),
+            f"{TAG} method signature changed: `api_compat_synthetic::Spec::<u8>::value`",
+        )
+
+    def test_change_in_second_specialized_impl_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub fn value(&self) -> bool {\n        self.0", "pub fn value(&self) -> Option<bool> {\n        Some(self.0)")),
+            f"{TAG} method signature changed: `api_compat_synthetic::Spec::<bool>::value`",
         )
 
     def test_renaming_lifetime_is_compatible(self):
