@@ -1,4 +1,4 @@
-.PHONY: help bundle bundle-spec generate build test lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check publish-dry-run docs-json docs-md test-docs print-docs-toolchain
+.PHONY: help bundle bundle-spec generate build test lint fmt fmt-check clean vendor examples sync-readme sync-readme-check check publish-dry-run docs-json docs-md test-docs print-docs-toolchain api-compat test-api-compat
 
 SPEC_REF ?= stable/8.10
 
@@ -28,6 +28,8 @@ help:
 	@echo "  make docs-json   Emit rustdoc JSON for both crates (nightly: $(DOCS_TOOLCHAIN))"
 	@echo "  make docs-md     Generate the Docusaurus markdown under docs-md/"
 	@echo "  make test-docs   Unit-test the docs generator (no toolchain required)"
+	@echo "  make api-compat  Check the public API against the newest published release of this major"
+	@echo "  make test-api-compat  Test the API compatibility checker on synthetic crates"
 	@echo "  make check       Run the full CI gate (build, test, examples, lint, fmt, README sync)"
 	@echo "  make publish-dry-run  Package + verify both crates for crates.io without uploading"
 	@echo "  make clean       Remove build artifacts"
@@ -103,6 +105,16 @@ test-docs:
 # against the docs site.
 docs-md: docs-json
 	python3 scripts/generate-docusaurus-md.py --validate-links
+
+# Fail if the public API breaks code compiled against the newest published release of
+# the SDK's major (BASELINE_MAJOR=N to pick another). Needs the pinned
+# cargo-semver-checks and $(DOCS_TOOLCHAIN); see scripts/install-api-compat-tools.sh.
+api-compat:
+	python3 scripts/api_compat.py $(if $(BASELINE_MAJOR),--baseline-major $(BASELINE_MAJOR))
+
+# End-to-end checker tests: one synthetic crate pair per break class.
+test-api-compat:
+	API_COMPAT_E2E=1 python3 -m unittest scripts/test_api_compat.py
 
 # Full local CI gate.
 check: build test test-docs examples lint fmt-check sync-readme-check
