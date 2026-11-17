@@ -170,11 +170,36 @@ def download_crate(name: str, version: str, dest: Path, versions_json: Path | No
             if not (member.isfile() or member.isdir()) or base not in target.parents:
                 raise SetupError(f"refusing to extract {member.name!r} from {name}-{version}.crate")
         tar.extractall(dest)
-    # The extracted crate sits under this workspace's target/; make it its own root.
-    text = manifest.read_text(encoding="utf-8")
-    if not re.search(r"^\[workspace\]", text, re.M):
-        manifest.write_text(text + "\n[workspace]\n", encoding="utf-8")
     return manifest
+
+
+def pin_baseline(src: Path, manifests: dict[str, Path]) -> Path:
+    """Make the extracted crates one workspace whose members depend on each other by path.
+
+    A published SDK requires its client as `^N.x.y`, so on its own it can resolve a newer
+    client than the one it was released with (one with new exhaustive enum variants, say)
+    and stop compiling. Returns the workspace root, used by both checker layers."""
+    members = sorted(m.parent.name for m in manifests.values())
+    (src / "Cargo.toml").write_text(
+        "[workspace]\nresolver = \"2\"\nmembers = [" + ", ".join(f'"{m}"' for m in members) + "]\n",
+        encoding="utf-8",
+    )
+    for manifest in manifests.values():
+        text = manifest.read_text(encoding="utf-8")
+        # Earlier versions of this script made each extracted crate its own workspace root.
+        text = re.sub(r"\n\[workspace\]\n*\Z", "\n", text)
+        for name, dep in manifests.items():
+            if dep == manifest:
+                continue
+            rel = f"../{dep.parent.name}"
+            text = re.sub(
+                rf"^(\[(?:target\.[^\]\n]+\.)?(?:dev-|build-)?dependencies\.{re.escape(name)}\]\n)(?!path = )",
+                lambda m: f'{m.group(1)}path = "{rel}"\n',
+                text,
+                flags=re.M,
+            )
+        manifest.write_text(text, encoding="utf-8")
+    return src
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +247,7 @@ def parse_semver_checks(output: str) -> list[str]:
     return breaks
 
 
-def run_semver_checks(manifest: Path, baseline_version: str | None, baseline_root: Path | None) -> list[str]:
+def run_semver_checks(manifest: Path, baseline_root: Path) -> list[str]:
     cmd = [
         "cargo", "semver-checks", "check-release",
         "--manifest-path", str(manifest), "--workspace",
@@ -230,11 +255,10 @@ def run_semver_checks(manifest: Path, baseline_version: str | None, baseline_roo
         # major), so only changes that require a new major fail.
         "--release-type", "minor",
         "--color", "never",
+        # The pinned baseline workspace, not `--baseline-version`: that resolves the
+        # published SDK's client requirement afresh.
+        "--baseline-root", str(baseline_root),
     ]
-    if baseline_root is not None:
-        cmd += ["--baseline-root", str(baseline_root)]
-    else:
-        cmd += ["--baseline-version", str(baseline_version)]
     r = _run(cmd)
     output = r.stdout + r.stderr
     # Lint reports go to stdout, progress to stderr.
@@ -262,24 +286,49 @@ def docs_toolchain() -> str:
     return m.group(1)
 
 
-def build_rustdoc_json(manifest: Path, package: str, target_dir: Path) -> Path:
+def build_rustdoc_json(manifest: Path, package: str, target_dir: Path) -> tuple[Path, dict[str, str]]:
+    """The rustdoc JSON of `package`, and the semver-compatible version (`1`, `0.12`) of
+    every compiled dependency, keyed by artifact file name."""
     toolchain = docs_toolchain()
     cmd = [
         "cargo", f"+{toolchain}", "rustdoc", "--lib", "-p", package,
-        "--manifest-path", str(manifest),
+        "--manifest-path", str(manifest), "--message-format", "json",
         "--", "-Z", "unstable-options", "--output-format", "json",
     ]
     env = dict(os.environ, CARGO_TARGET_DIR=str(target_dir))
     r = _run(cmd, env=env)
     if r.returncode != 0:
         raise SetupError(
-            f"rustdoc JSON build failed for {package} ({manifest}):\n{r.stderr}\n"
+            f"rustdoc JSON build failed for {package} ({manifest}):\n{r.stderr}\n{r.stdout[-4000:]}\n"
             f"Install the toolchain with: rustup toolchain install {toolchain} --profile minimal"
         )
     out = target_dir / "doc" / f"{package.replace('-', '_')}.json"
     if not out.is_file():
         raise SetupError(f"rustdoc did not produce {out}")
-    return out
+    versions: dict[str, str] = {}
+    for line in r.stdout.splitlines():
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if msg.get("reason") != "compiler-artifact":
+            continue
+        bucket = _compat_bucket(msg.get("package_id", ""))
+        for f in msg.get("filenames", []):
+            versions[Path(f).name] = bucket
+    return out, versions
+
+
+def _compat_bucket(package_id: str) -> str:
+    """`registry+...#reqwest@0.12.5` -> `0.12`: versions within one bucket are compatible."""
+    version = package_id.rsplit("#", 1)[-1].rsplit("@", 1)[-1]
+    parsed = parse_version(version)
+    if parsed is None:
+        return version
+    major, minor, patch = parsed[:3]
+    if major:
+        return str(major)
+    return f"0.{minor}" if minor else f"0.0.{patch}"
 
 
 @dataclass(frozen=True)
@@ -312,7 +361,7 @@ _LOCAL = re.compile("\x1f([^\x1f]*)\x1f")
 class Surface:
     """Public API of one crate, keyed by public path."""
 
-    def __init__(self, doc: dict):
+    def __init__(self, doc: dict, dep_versions: dict[str, str] | None = None):
         version = doc.get("format_version")
         if version not in SUPPORTED_FORMAT_VERSIONS:
             raise SetupError(
@@ -322,6 +371,12 @@ class Surface:
         self.index: dict[str, dict] = doc["index"]
         self.paths: dict[str, dict] = doc.get("paths", {})
         self.crates: dict[str, dict] = doc.get("external_crates", {})
+        # Crate id -> compatible version of the dependency it was built from (std has none).
+        self.crate_versions: dict[str, str] = {}
+        for crate_id, crate in self.crates.items():
+            bucket = (dep_versions or {}).get(Path(crate.get("path") or "").name)
+            if bucket:
+                self.crate_versions[str(crate_id)] = bucket
         self.root = str(doc["root"])
         self.crate_name = self.index[self.root]["name"]
         self.public_path: dict[str, str] = {}
@@ -398,9 +453,13 @@ class Surface:
             return f"\x1f{item_id}\x1f"
         entry = self.paths.get(item_id) if item_id else None
         if entry and entry.get("path"):
-            # Full defining path: `mpsc::Receiver` and `oneshot::Receiver` must differ.
-            # Baselines build against this workspace's Cargo.lock, so it is stable.
-            return "::".join(entry["path"])
+            # Full defining path: `mpsc::Receiver` and `oneshot::Receiver` must differ. The
+            # dependency's compatible version too: `reqwest@0.12::Client` is not 0.13's.
+            path = list(entry["path"])
+            bucket = self.crate_versions.get(str(entry.get("crate_id")))
+            if bucket:
+                path[0] = f"{path[0]}@{bucket}"
+            return "::".join(path)
         return rp.get("path", "_")
 
     def render(self, t: Any, g: dict[str, str], obj_default: str | None = None) -> str:
@@ -935,18 +994,27 @@ def _canonical_lifetimes(s: str, collapse: bool = True):
 
 
 def _is_generic_target(target: dict, generics: dict | None) -> bool:
-    """Whether an inherent impl covers every instantiation (`impl<T> Holder<T>`), not one specialization."""
+    """Whether an inherent impl covers every instantiation (`impl<T> Holder<T>`), not one
+    specialization: each argument a distinct parameter (`impl<T> Pair<T, T>` is restricted)."""
     params = {p["name"] for p in (generics or {}).get("params", [])}
     args = ((target.get("resolved_path") or {}).get("args") or {}).get("angle_bracketed") or {}
+    seen: set[str] = set()
+
+    def distinct(name: str | None) -> bool:
+        if name not in params or name in seen:
+            return False
+        seen.add(name)
+        return True
+
     for a in args.get("args", []):
         if isinstance(a, dict) and "type" in a:
-            if a["type"].get("generic") not in params:
+            if not distinct(a["type"].get("generic")):
                 return False
         elif isinstance(a, dict) and "lifetime" in a:
-            if a["lifetime"] not in params and a["lifetime"] != "'_":
+            if a["lifetime"] != "'_" and not distinct(a["lifetime"]):
                 return False
         elif isinstance(a, dict) and "const" in a:
-            if a["const"].get("expr") not in params:
+            if not distinct(a["const"].get("expr")):
                 return False
     return True
 
@@ -1018,12 +1086,13 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
     return breaks
 
 
-def load_surface(path: Path) -> Surface:
+def load_surface(built: tuple[Path, dict[str, str]]) -> Surface:
+    path, dep_versions = built
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         raise SetupError(f"cannot read rustdoc JSON {path}: {e}") from e
-    return Surface(doc)
+    return Surface(doc, dep_versions)
 
 
 # ---------------------------------------------------------------------------
@@ -1035,21 +1104,22 @@ def check(manifest: Path, baseline_version: str | None, baseline_root: Path | No
           versions_json: Path | None, work_dir: Path) -> list[str]:
     check_semver_tool()
     packages = workspace_packages(manifest)
-    breaks = [f"[cargo-semver-checks] {b}" for b in run_semver_checks(manifest, baseline_version, baseline_root)]
 
-    if baseline_root is not None:
-        baseline_manifests = workspace_packages(baseline_root / "Cargo.toml")
-    else:
+    if baseline_root is None:
         src = work_dir / "baseline-src"
-        baseline_manifests = {
+        downloaded = {
             name: download_crate(name, str(baseline_version), src, versions_json if name == SDK_CRATE else None)
             for name in packages
         }
-        # Same dependency versions on both sides, so dependency type paths compare exactly.
+        baseline_root = pin_baseline(src, downloaded)
+        # Same third-party versions on both sides where the requirements allow; a dependency
+        # bumped across a compatibility boundary shows as a changed type path.
         lock = manifest.parent / "Cargo.lock"
         if lock.is_file():
-            for baseline_manifest in baseline_manifests.values():
-                shutil.copyfile(lock, baseline_manifest.parent / "Cargo.lock")
+            shutil.copyfile(lock, src / "Cargo.lock")
+    breaks = [f"[cargo-semver-checks] {b}" for b in run_semver_checks(manifest, baseline_root)]
+
+    baseline_manifests = workspace_packages(baseline_root / "Cargo.toml")
     for name in sorted(packages):
         if name not in baseline_manifests:
             continue  # a crate new since the baseline has nothing to break
