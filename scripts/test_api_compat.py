@@ -209,6 +209,8 @@ impl Record {
 pub struct Holder<T>(pub T);
 pub struct Bounded<T: Clone>(pub T);
 pub struct Relaxed<T>(pub T);
+pub type Borrowed<'a> = &'a str;
+pub type CloneVec<T: Clone> = Vec<T>;
 
 impl<T> Holder<T> {
     pub fn choose<U>(&self, keep: T, _other: U) -> T {
@@ -450,6 +452,20 @@ class SyntheticCrateTest(unittest.TestCase):
                 "bounded_where_lifetime_relax<'a, 'b>(_first: &'a str, _second: &'b str) {}",
             )
         )
+        self.assertEqual(rc, 0, out)
+
+    def test_type_alias_lifetime_narrowing_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub type Borrowed<'a> = &'a str;", "pub type Borrowed<'a> = &'static str;")),
+            f"{TAG} type alias signature changed: `api_compat_synthetic::Borrowed`",
+        )
+
+    def test_renaming_type_alias_lifetime_is_compatible(self):
+        rc, out = self.check(("pub type Borrowed<'a> = &'a str;", "pub type Borrowed<'b> = &'b str;"))
+        self.assertEqual(rc, 0, out)
+
+    def test_relaxing_type_alias_bound_is_compatible(self):
+        rc, out = self.check(("pub type CloneVec<T: Clone> = Vec<T>;", "pub type CloneVec<T> = Vec<T>;"))
         self.assertEqual(rc, 0, out)
 
     def test_implicit_and_explicit_unit_returns_are_compatible(self):
