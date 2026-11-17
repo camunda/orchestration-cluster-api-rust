@@ -1,11 +1,12 @@
 name: API compatibility
 
-# Blocks PRs to stable branches whose public Rust API would stop customer code compiled
-# against the last release of that major from compiling (see scripts/api_compat.py and
-# camunda/orchestration-cluster-api-csharp#545). When a break is intended (e.g. a bug fix
-# that must change the API), apply the `api-break-approved` label: the check still runs
-# and lists the breaks, but passes. The release workflow repeats the check on the code it
-# is about to publish.
+# Blocks PRs to stable branches that change the public Rust API in a way that stops customer
+# code from compiling (see scripts/api_compat.py and camunda/orchestration-cluster-api-csharp#545).
+# A PR is compared with its base branch, so it answers only for its own changes: an approved
+# break already merged does not fail every later PR. When a break is intended (e.g. a bug
+# fix that must change the API), apply the `api-break-approved` label: the check still runs
+# and lists the breaks, but passes. The release workflow compares the code it is about to
+# publish with the last release.
 
 on:
   pull_request:
@@ -32,6 +33,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Check out the base branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .api-compat-base
+          persist-credentials: false
       - name: Cache cargo registry and build
         uses: actions/cache@v4
         with:
@@ -49,13 +56,18 @@ jobs:
 
       - name: Check API compatibility
         env:
-          # stable/<N>: compared with the newest published N.x.y. A branch with no N.x
-          # release yet (just cut from main) has nothing to compare with and passes.
+          # stable/<N> with no N.x release yet (just cut from main) has no published API to
+          # protect and passes.
           MAJOR: ${{ github.base_ref }}
           APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'api-break-approved') }}
         run: |
+          released=$(python3 scripts/api_compat.py --print-baseline-major "${MAJOR#stable/}") || exit 2
+          if [ -z "$released" ]; then
+            echo "::notice::No ${MAJOR#stable/}.x release published yet; nothing to protect."
+            exit 0
+          fi
           set +e
-          python3 scripts/api_compat.py --baseline-major "${MAJOR#stable/}"
+          python3 scripts/api_compat.py --baseline-root .api-compat-base
           rc=$?
           set -e
           if [ "$rc" -eq 1 ] && [ "$APPROVED" = "true" ]; then
