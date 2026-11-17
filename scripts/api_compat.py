@@ -436,7 +436,9 @@ class Surface:
             fp = t["function_pointer"]
             header = fp.get("header") or {}
             safety = "unsafe " if header.get("is_unsafe") else ""
-            return safety + "fn" + self._sig(fp.get("sig", {}), g)
+            abi = header.get("abi", "Rust")
+            convention = "" if abi == "Rust" else f'extern "{abi}" '
+            return convention + safety + "fn" + self._sig(fp.get("sig", {}), g)
         if "pat" in t:
             return self.render(t["pat"].get("type"), g)
         return "_"

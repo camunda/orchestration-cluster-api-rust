@@ -402,6 +402,12 @@ class SyntheticCrateTest(unittest.TestCase):
             f"{TAG} field type changed: `api_compat_synthetic::Options.callback`",
         )
 
+    def test_function_pointer_abi_change_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub callback: fn(u8)", 'pub callback: extern "C" fn(u8)')),
+            f"{TAG} field type changed: `api_compat_synthetic::Options.callback`",
+        )
+
     def test_removed_item(self):
         self.assertBreaks(
             self.check(("pub fn helper() {}\n", "")),
