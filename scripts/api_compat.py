@@ -298,6 +298,10 @@ class Entry:
     # Functions/methods: (signature without `const` and bounds, bound atoms, is_const),
     # so adding `const` or relaxing a bound is not reported.
     relax: tuple[str, frozenset[str], bool] | None = None
+    # A method of a specialized impl (`impl Spec<u8>`): its key without the target, and
+    # whether this entry comes from an unbounded impl covering every target.
+    unspecialized: str | None = None
+    generic_impl: bool = False
 
 
 # Local types render as a placeholder holding their item id; `Surface.resolver` names
@@ -465,7 +469,8 @@ class Surface:
                     lifetime = a["lifetime"]
                     parts.append(g.get(lifetime, lifetime))
                 elif isinstance(a, dict) and "const" in a:
-                    parts.append(str(a["const"].get("expr", "")))
+                    expr = str(a["const"].get("expr", ""))
+                    parts.append(g.get(expr, expr))
                 elif a == "infer":
                     parts.append("_")
             for c in ab.get("constraints", []):
@@ -590,15 +595,28 @@ class Surface:
         out = sig.get("output")
         return "(" + ", ".join(params) + ")" + (f" -> {self.render(out, g)}" if out else "")
 
+    def _fn_parts(self, fn: dict, g: dict[str, str], atoms: set[str] | None = None):
+        """Generics, signature and where clause, with only the function's own lifetimes
+        (declared or elided) as rename-able sentinels; enclosing lifetimes keep their names."""
+        g2, params, where = self._generics_parts(fn.get("generics"), g, atoms)
+        own = [p["name"] for p in (fn.get("generics") or {}).get("params", []) if "lifetime" in (p.get("kind") or {})]
+        local = {g2[name]: f"\x1eD{i}\x1e" for i, name in enumerate(own)}
+        g2 = {k: local.get(v, v) for k, v in g2.items()}
+
+        def localize(text: str) -> str:
+            return re.sub(r"'L\d+", lambda m: local.get(m.group(0), m.group(0)), text)
+
+        sig = self._sig(_desugar_elision(fn.get("sig") or {}), g2)
+        return localize(params), sig, localize(where), localize
+
     def _fn(self, fn: dict, g: dict[str, str]) -> str:
         header = fn.get("header") or {}
         prefix = "".join(
             word for flag, word in (("is_const", "const "), ("is_async", "async "), ("is_unsafe", "unsafe "))
             if header.get(flag)
         )
-        g2, params, where = self._generics_parts(fn.get("generics"), g)
         # Param names are not part of the contract; their types and order are.
-        sig = self._sig(_desugar_elision(fn.get("sig") or {}), g2)
+        params, sig, where, _ = self._fn_parts(fn, g)
         rendered, _ = _canonical_lifetimes(f"{prefix}fn{params}{sig}{where}")
         return rendered
 
@@ -608,10 +626,9 @@ class Surface:
             word for flag, word in (("is_async", "async "), ("is_unsafe", "unsafe ")) if header.get(flag)
         )
         atoms: set[str] = set()
-        g, params, _ = self._generics_parts(fn.get("generics"), g, atoms)
-        sig = self._sig(_desugar_elision(fn.get("sig") or {}), g)
+        params, sig, _, localize = self._fn_parts(fn, g, atoms)
         rendered, rename = _canonical_lifetimes(f"{prefix}fn{params}{sig}", collapse=False)
-        return rendered, frozenset(rename(a) for a in atoms), bool(header.get("is_const"))
+        return rendered, frozenset(rename(localize(a)) for a in atoms), bool(header.get("is_const"))
 
     # -- recording ---------------------------------------------------------
 
@@ -773,6 +790,8 @@ class Surface:
                 if m is None or m.get("visibility") != "public" or not m.get("name"):
                     continue
                 name = f"{spec}::{m['name']}" if spec else m["name"]
+                unspecialized = f"{path}::{m['name']}" if spec else None
+                generic_impl = not spec and not impl_atoms
                 minner = m.get("inner", {})
                 if "function" in minner:
                     fn = minner["function"]
@@ -786,10 +805,15 @@ class Surface:
                             "method",
                             self._fn(fn, ig),
                             relax=(sig, atoms | frozenset(impl_atoms), const),
+                            unspecialized=unspecialized,
+                            generic_impl=generic_impl,
                         ),
                     )
                 elif "assoc_const" in minner:
-                    self._member(owner_id, path, "::", name, Entry("associated const", f"const: {self.render(minner['assoc_const'].get('type'), ig)}"))
+                    self._member(owner_id, path, "::", name, Entry(
+                        "associated const", f"const: {self.render(minner['assoc_const'].get('type'), ig)}",
+                        unspecialized=unspecialized, generic_impl=generic_impl,
+                    ))
 
     def _record_trait_impl(self, owner_id: str, path: str, impl: dict, g: dict[str, str]) -> None:
         """The impl and its associated types; method signatures are the trait's."""
@@ -871,7 +895,7 @@ def _input_lifetimes(t: Any, out: list[str]) -> None:
 def _desugar_elision(sig: dict) -> dict:
     """Apply Rust's lifetime-elision rules, so `fn(&str) -> &str` equals `fn<'a>(&'a str) -> &'a str`."""
     sig = json.loads(json.dumps(sig))
-    fresh = iter(f"'__elided{i}" for i in range(10_000))
+    fresh = iter(f"\x1eE{i}\x1e" for i in range(10_000))
     inputs = sig.get("inputs", [])
     _fill_elided([ty for _, ty in inputs], lambda: next(fresh))
     seen: list[str] = []
@@ -887,23 +911,25 @@ def _desugar_elision(sig: dict) -> dict:
     return sig
 
 
-_LIFETIME = re.compile(r"'(?!static\b)[A-Za-z_][A-Za-z0-9_]*")
+# Function-local lifetimes render as sentinels, so renaming them cannot touch an enclosing
+# lifetime or a char literal (`Tag<'a'>`).
+_SENTINEL = re.compile("\x1e[^\x1e]+\x1e")
 
 
 def _canonical_lifetimes(s: str, collapse: bool = True):
-    """Rename lifetimes by first appearance. With `collapse`, one used only once relates
-    nothing and is shown elided. Returns the string and the renaming for bound atoms."""
+    """Rename function-local lifetimes by first appearance. With `collapse`, one used only once
+    relates nothing and is shown elided. Returns the string and the renaming for bound atoms."""
     uses: dict[str, int] = {}
-    for m in _LIFETIME.finditer(s):
+    for m in _SENTINEL.finditer(s):
         uses[m.group(0)] = uses.get(m.group(0), 0) + 1
     names: dict[str, str] = {}
 
     def rename(text: str) -> str:
         def one(m: re.Match) -> str:
             if collapse and uses.get(m.group(0)) == 1:
-                return "'_"
+                return "\x1f_"
             return names.setdefault(m.group(0), f"'_{len(names)}")
-        return re.sub(r"&'_ ", "&", _LIFETIME.sub(one, text))
+        return _SENTINEL.sub(one, text).replace("&\x1f_ ", "&").replace("\x1f_", "'_")
 
     return rename(s), rename
 
@@ -920,7 +946,8 @@ def _is_generic_target(target: dict, generics: dict | None) -> bool:
             if a["lifetime"] not in params and a["lifetime"] != "'_":
                 return False
         elif isinstance(a, dict) and "const" in a:
-            return False
+            if a["const"].get("expr") not in params:
+                return False
     return True
 
 
@@ -959,6 +986,11 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
     for raw_path, before in sorted(old.entries.items()):
         path = ro(raw_path)
         after = new_entries.get(path)
+        if after is None and before.unspecialized is not None:
+            # Moved from `impl Spec<u8>` into an unbounded `impl<T> Spec<T>`: still callable.
+            moved = new_entries.get(ro(before.unspecialized))
+            if moved is not None and moved.generic_impl:
+                after = moved
         if after is None:
             if before.owner is not None and ro(before.owner) not in new_entries:
                 continue  # the owner's own removal is the break
