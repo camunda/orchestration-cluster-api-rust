@@ -238,7 +238,8 @@ pub fn inspect<T: ?Sized>(_value: &T) {}
 pub fn inspect_compat<T>(_value: &T) {}
 pub fn accepts_borrow<'a>(_value: &'a str) {}
 pub fn lifetime_relation<'a, 'b>(_first: &'a str, _second: &'b str) {}
-pub fn bounded_lifetime_relation<'a: 'b, 'b>(_first: &'a str, _second: &'b str) {}
+pub fn where_lifetime<'a, 'b>(_first: &'a str, _second: &'b str) {}
+pub fn bounded_where_lifetime_relax<'a, 'b>(_first: &'a str, _second: &'b str) where 'a: 'b {}
 
 impl std::str::FromStr for Mode {
     type Err = String;
@@ -431,13 +432,28 @@ class SyntheticCrateTest(unittest.TestCase):
             f"{TAG} function signature changed: `api_compat_synthetic::lifetime_relation`",
         )
 
-    def test_relaxing_lifetime_outlives_bound_is_compatible(self):
+    def test_tightening_where_lifetime_bound_is_breaking(self):
+        self.assertBreaks(
+            self.check(
+                (
+                    "where_lifetime<'a, 'b>(_first: &'a str, _second: &'b str) {}",
+                    "where_lifetime<'a, 'b>(_first: &'a str, _second: &'b str) where 'a: 'b {}",
+                )
+            ),
+            f"{TAG} function signature changed: `api_compat_synthetic::where_lifetime`",
+        )
+
+    def test_relaxing_where_lifetime_bound_is_compatible(self):
         rc, out = self.check(
             (
-                "bounded_lifetime_relation<'a: 'b, 'b>",
-                "bounded_lifetime_relation<'a, 'b>",
+                "bounded_where_lifetime_relax<'a, 'b>(_first: &'a str, _second: &'b str) where 'a: 'b {}",
+                "bounded_where_lifetime_relax<'a, 'b>(_first: &'a str, _second: &'b str) {}",
             )
         )
+        self.assertEqual(rc, 0, out)
+
+    def test_implicit_and_explicit_unit_returns_are_compatible(self):
+        rc, out = self.check(("pub fn helper() {}", "pub fn helper() -> () {}"))
         self.assertEqual(rc, 0, out)
 
     def test_removed_item(self):

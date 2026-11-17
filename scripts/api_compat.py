@@ -552,6 +552,14 @@ class Surface:
                 bounds = self._bounds(bp.get("bounds"), g)
                 if bounds:
                     preds.append(f"{self.render(bp.get('type'), g)}: {bounds}")
+            elif "lifetime_predicate" in wp:
+                lp = wp["lifetime_predicate"]
+                lifetime = g.get(lp.get("lifetime"), lp.get("lifetime"))
+                outlives = [g.get(parent, parent) for parent in lp.get("outlives", [])]
+                if atoms is None:
+                    preds.extend(f"{lifetime}: {parent}" for parent in outlives)
+                else:
+                    atoms.update(f"{lifetime}: {parent}" for parent in outlives)
             elif "eq_predicate" in wp:
                 ep = wp["eq_predicate"]
                 rhs = ep.get("rhs") or {}
