@@ -134,16 +134,18 @@ class CliBaselineTest(unittest.TestCase):
         self.assertIn("::notice::No 11.x release", out)
 
 
-class ReleaseGateOrderTest(unittest.TestCase):
-    """A manual publish creates no tag: the gate may only need it to search for approvals."""
-
-    def test_baseline_tag_is_only_required_for_the_approval_search(self):
-        workflow = (api_compat.REPO_ROOT / ".github" / "workflows" / "release.yml").read_text()
-        gate = workflow[workflow.index("- name: API compatibility gate"):]
-        tag_check = gate.index('git rev-parse -q --verify "refs/tags/${tag}"')
-        self.assertLess(gate.index('scripts/api_compat.py --baseline-version'), tag_check)
-        self.assertLess(gate.index('if [ "$DISPATCH_APPROVED" = "true" ]'), tag_check)
-        self.assertLess(tag_check, gate.index('scripts/api-break-approvals.sh "$tag" "$branch"'))
+def _git_repo(path: Path) -> tuple:
+    """A repo with `before` (tagged v10.0.0), then `first` and `second` (HEAD)."""
+    path.mkdir()
+    git = lambda *a: subprocess.run(["git", *a], cwd=path, check=True, capture_output=True, text=True).stdout.strip()
+    git("init", "-q")
+    shas = []
+    for message in ("before", "first", "second"):
+        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message)
+        shas.append(git("rev-parse", "HEAD"))
+        if message == "before":
+            git("tag", "v10.0.0")
+    return git, *shas
 
 
 @unittest.skipUnless(shutil.which("jq") and shutil.which("git"), "needs jq and git")
@@ -153,16 +155,8 @@ class ApprovalSearchTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
-        repo = self.tmp / "repo"
-        repo.mkdir()
-        git = lambda *a: subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
-        git("init", "-q")
-        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "before")
-        self.before = git("rev-parse", "HEAD")
-        git("tag", "v10.0.0")
-        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "after")
-        self.after = git("rev-parse", "HEAD")
-        self.repo = repo
+        self.repo = self.tmp / "repo"
+        _, self.before, self.first, self.second = _git_repo(self.repo)
         self.fixtures = self.tmp / "pulls"
         self.fixtures.mkdir()
         bin_dir = self.tmp / "bin"
@@ -186,37 +180,138 @@ class ApprovalSearchTest(unittest.TestCase):
             "labels": [{"name": "api-break-approved"}] if labelled else [],
         }
 
-    def approvals(self, *prs: dict) -> list[str]:
-        (self.fixtures / f"{self.after}.json").write_text(json.dumps(list(prs)))
-        r = subprocess.run(
+    def run_search(self, **by_commit: str) -> subprocess.CompletedProcess:
+        for sha, body in by_commit.items():
+            (self.fixtures / f"{sha}.json").write_text(body)
+        return subprocess.run(
             [str(api_compat.REPO_ROOT / "scripts" / "api-break-approvals.sh"), "v10.0.0", "stable/10"],
             cwd=self.repo, env=self.env, capture_output=True, text=True,
         )
+
+    def approvals(self, *prs: dict) -> list[str]:
+        r = self.run_search(**{self.second: json.dumps(list(prs))})
         self.assertEqual(r.returncode, 0, r.stderr)
-        return r.stdout.split()
+        return r.stdout.splitlines()
 
     def test_labelled_pr_merged_into_the_release_line_approves(self):
-        self.assertEqual(self.approvals(self.pr(1, "stable/10", self.after)), ["#1"])
+        self.assertEqual(self.approvals(self.pr(1, "stable/10", self.second)), [f"#1 {self.second}"])
 
     def test_pr_merged_into_another_branch_does_not_approve(self):
-        self.assertEqual(self.approvals(self.pr(2, "main", self.after)), [])
+        self.assertEqual(self.approvals(self.pr(2, "main", self.second)), [])
 
     def test_pr_merged_before_the_baseline_does_not_approve(self):
         self.assertEqual(self.approvals(self.pr(3, "stable/10", self.before)), [])
 
     def test_unlabelled_or_unmerged_pr_does_not_approve(self):
         self.assertEqual(
-            self.approvals(self.pr(4, "stable/10", self.after, labelled=False), self.pr(5, "stable/10", None)),
+            self.approvals(self.pr(4, "stable/10", self.second, labelled=False), self.pr(5, "stable/10", None)),
             [],
         )
 
-    def test_lookup_failure_is_an_error(self):
-        (self.fixtures / f"{self.after}.json").write_text("not json")
-        r = subprocess.run(
-            [str(api_compat.REPO_ROOT / "scripts" / "api-break-approvals.sh"), "v10.0.0", "stable/10"],
-            cwd=self.repo, env=self.env, capture_output=True, text=True,
+    def test_newest_merge_is_listed_first(self):
+        r = self.run_search(**{
+            self.first: json.dumps([self.pr(6, "stable/10", self.first)]),
+            self.second: json.dumps([self.pr(7, "stable/10", self.second)]),
+        })
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.splitlines(), [f"#7 {self.second}", f"#6 {self.first}"])
+
+    def test_lookup_failure_on_any_commit_is_an_error(self):
+        # The newest commit is looked up first; its failure must not be masked by later ones.
+        for broken in (self.second, self.first):
+            with self.subTest(broken=broken):
+                for f in self.fixtures.glob("*.json"):
+                    if f.name != "none.json":
+                        f.unlink()
+                r = self.run_search(**{broken: "not json"})
+                self.assertNotEqual(r.returncode, 0)
+
+
+@unittest.skipUnless(shutil.which("git"), "needs git")
+class ReleaseGateTest(unittest.TestCase):
+    """scripts/api-compat-release-gate.sh with the checker and approval search stubbed."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo = self.tmp / "repo"
+        self.git, _, self.first, self.second = _git_repo(self.repo)
+        scripts = self.tmp / "scripts"
+        scripts.mkdir()
+        shutil.copy(api_compat.REPO_ROOT / "scripts" / "api-compat-release-gate.sh", scripts)
+        # Exit codes per mode; a --baseline-root call also records the commit it was given.
+        (scripts / "api_compat.py").write_text(
+            "import os, subprocess, sys\n"
+            "args = sys.argv[1:]\n"
+            "with open(os.environ['CALLS'], 'a') as f:\n"
+            "    if '--baseline-version' in args:\n"
+            "        f.write('release\\n'); sys.exit(int(os.environ['RC_RELEASE']))\n"
+            "    root = args[args.index('--baseline-root') + 1]\n"
+            "    head = subprocess.run(['git', '-C', root, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()\n"
+            "    f.write(f'since {head}\\n'); sys.exit(int(os.environ['RC_SINCE']))\n"
         )
-        self.assertNotEqual(r.returncode, 0)
+        (scripts / "api-break-approvals.sh").write_text(
+            '#!/usr/bin/env bash\n[ -z "${APPROVALS_FAIL:-}" ] || exit 1\n'
+            '[ -z "${APPROVALS:-}" ] || printf "%s\\n" "$APPROVALS"\n'
+        )
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        (bin_dir / "gh").write_text("#!/usr/bin/env bash\nexit 0\n")
+        for f in (scripts / "api-compat-release-gate.sh", scripts / "api-break-approvals.sh", bin_dir / "gh"):
+            f.chmod(0o755)
+        self.gate = scripts / "api-compat-release-gate.sh"
+        self.calls = self.tmp / "calls"
+        self.env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                        CALLS=str(self.calls), GITHUB_REPOSITORY="o/r", RC_RELEASE="1", RC_SINCE="0")
+
+    def gate_run(self, baseline: str = "10.0.0", **env: str) -> tuple[int, str, list[str]]:
+        self.calls.write_text("")
+        r = subprocess.run([str(self.gate), baseline, "10"], cwd=self.repo,
+                           env={**self.env, **env}, capture_output=True, text=True)
+        return r.returncode, r.stdout + r.stderr, self.calls.read_text().splitlines()
+
+    def test_compatible_release_passes_without_an_approval_search(self):
+        rc, out, calls = self.gate_run(RC_RELEASE="0", APPROVALS_FAIL="1")
+        self.assertEqual((rc, calls), (0, ["release"]), out)
+
+    def test_checker_setup_error_is_a_setup_error(self):
+        self.assertEqual(self.gate_run(RC_RELEASE="2")[0], 2)
+
+    def test_dispatch_input_approves(self):
+        rc, out, _ = self.gate_run(DISPATCH_APPROVED="true")
+        self.assertEqual(rc, 0, out)
+
+    def test_break_without_a_baseline_tag_is_blocked(self):
+        rc, out, _ = self.gate_run(baseline="10.0.1", APPROVALS=f"#1 {self.second}")
+        self.assertEqual(rc, 1, out)
+
+    def test_unapproved_break_is_blocked(self):
+        rc, out, _ = self.gate_run()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Release blocked", out)
+
+    def test_failed_approval_search_is_a_setup_error(self):
+        self.assertEqual(self.gate_run(APPROVALS_FAIL="1")[0], 2)
+
+    def test_approval_at_head_passes(self):
+        rc, out, calls = self.gate_run(APPROVALS=f"#7 {self.second}")
+        self.assertEqual((rc, calls), (0, ["release"]), out)
+
+    def test_approval_covers_the_api_up_to_its_merge(self):
+        rc, out, calls = self.gate_run(APPROVALS=f"#6 {self.first}")
+        self.assertEqual((rc, calls), (0, ["release", f"since {self.first}"]), out)
+
+    def test_break_added_after_the_newest_approval_is_blocked(self):
+        rc, out, calls = self.gate_run(APPROVALS=f"#6 {self.first}", RC_SINCE="1")
+        self.assertEqual((rc, calls), (1, ["release", f"since {self.first}"]), out)
+        self.assertIn("added after #6", out)
+
+    def test_comparison_setup_error_after_approval_is_a_setup_error(self):
+        self.assertEqual(self.gate_run(APPROVALS=f"#6 {self.first}", RC_SINCE="2")[0], 2)
+
+    def test_approval_checkout_is_removed(self):
+        self.gate_run(APPROVALS=f"#6 {self.first}")
+        self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
 
 
 @unittest.skipUnless(shutil.which("cargo"), "needs cargo")

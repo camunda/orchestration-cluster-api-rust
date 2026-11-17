@@ -32,9 +32,11 @@ name: Release
 #
 # Before publishing a stable `N.x.y`, the API compatibility gate compares the code with
 # the newest published N.x release (scripts/api_compat.py) and blocks a breaking change.
-# Approve an intended break with the `api-break-approved` label on any PR merged since
-# that release; when no PR carries it (e.g. a direct push), re-run via workflow_dispatch
-# with `api_break_approved: true` (the tag push itself cannot carry an approval).
+# Approve an intended break with the `api-break-approved` label on the PR that made it,
+# merged into this release line since that release. A label approves the API as of that
+# PR's merge, so a break added later needs its own. When no PR carries it (e.g. a direct
+# push), re-run via workflow_dispatch with `api_break_approved: true` (the tag push itself
+# cannot carry an approval). See scripts/api-compat-release-gate.sh.
 
 on:
   push:
@@ -137,32 +139,8 @@ jobs:
             echo "::notice::No ${major}.x release published yet; nothing to compare against."
             exit 0
           fi
-          tag="v${baseline}"
           echo "Releasing ${version}; baseline: ${baseline}"
-          # Actions runs this with bash -e: capture the exit code instead of exiting on it.
-          rc=0
-          python3 scripts/api_compat.py --baseline-version "$baseline" || rc=$?
-          [ "$rc" -eq 1 ] || exit "$rc"
-          if [ "$DISPATCH_APPROVED" = "true" ]; then
-            echo "::warning::Breaking API changes approved by the api_break_approved input of this run."
-            exit 0
-          fi
-          # A manual publish creates no tag, so only the approval search depends on it.
-          git rev-parse -q --verify "refs/tags/${tag}" >/dev/null || {
-            echo "::error::Breaking API changes, and baseline ${baseline} has no ${tag} tag to list the PRs merged since. Re-run this workflow manually with api_break_approved if the break is intended."
-            exit 1
-          }
-          # Approvals count only from PRs merged into this release line since the baseline.
-          branch="stable/${major}"
-          gh api "repos/${GITHUB_REPOSITORY}/branches/${branch}" >/dev/null 2>&1 || branch="main"
-          approved=$(scripts/api-break-approvals.sh "$tag" "$branch") || exit 2
-          approved=$(echo "$approved" | xargs)
-          if [ -n "$approved" ]; then
-            echo "::warning::Breaking API changes approved with the api-break-approved label on: ${approved}"
-            exit 0
-          fi
-          echo "::error::Release blocked: the public API breaks compatibility with ${tag}. If intended, label the PR that made the change api-break-approved (or run this workflow manually with api_break_approved), then re-run."
-          exit 1
+          scripts/api-compat-release-gate.sh "$baseline" "$major"
 
       # OIDC auth is only needed when no bootstrap token is configured and we are
       # actually uploading. It fails unless a trusted publisher is registered for
