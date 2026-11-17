@@ -236,6 +236,9 @@ impl<T: Clone> From<T> for Holder<T> {
 
 pub fn inspect<T: ?Sized>(_value: &T) {}
 pub fn inspect_compat<T>(_value: &T) {}
+pub fn accepts_borrow<'a>(_value: &'a str) {}
+pub fn lifetime_relation<'a, 'b>(_first: &'a str, _second: &'b str) {}
+pub fn bounded_lifetime_relation<'a: 'b, 'b>(_first: &'a str, _second: &'b str) {}
 
 impl std::str::FromStr for Mode {
     type Err = String;
@@ -407,6 +410,35 @@ class SyntheticCrateTest(unittest.TestCase):
             self.check(("pub callback: fn(u8)", 'pub callback: extern "C" fn(u8)')),
             f"{TAG} field type changed: `api_compat_synthetic::Options.callback`",
         )
+
+    def test_borrowed_input_lifetime_narrowing_is_breaking(self):
+        self.assertBreaks(
+            self.check(("accepts_borrow<'a>(_value: &'a str)", "accepts_borrow(_value: &'static str)")),
+            f"{TAG} function signature changed: `api_compat_synthetic::accepts_borrow`",
+        )
+
+    def test_renaming_lifetime_is_compatible(self):
+        rc, out = self.check(
+            ("accepts_borrow<'a>(_value: &'a str)", "accepts_borrow<'b>(_value: &'b str)")
+        )
+        self.assertEqual(rc, 0, out)
+
+    def test_tightening_lifetime_outlives_bound_is_breaking(self):
+        self.assertBreaks(
+            self.check(
+                ("lifetime_relation<'a, 'b>", "lifetime_relation<'a: 'b, 'b>")
+            ),
+            f"{TAG} function signature changed: `api_compat_synthetic::lifetime_relation`",
+        )
+
+    def test_relaxing_lifetime_outlives_bound_is_compatible(self):
+        rc, out = self.check(
+            (
+                "bounded_lifetime_relation<'a: 'b, 'b>",
+                "bounded_lifetime_relation<'a, 'b>",
+            )
+        )
+        self.assertEqual(rc, 0, out)
 
     def test_removed_item(self):
         self.assertBreaks(

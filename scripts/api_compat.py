@@ -411,7 +411,9 @@ class Surface:
             return self._type_path(rp) + self._args(rp.get("args"), g)
         if "borrowed_ref" in t:
             br = t["borrowed_ref"]
-            return f"&{'mut ' if br.get('is_mutable') else ''}{self.render(br.get('type'), g)}"
+            lifetime = br.get("lifetime")
+            lifetime = f"{g.get(lifetime, lifetime)} " if lifetime else ""
+            return f"&{lifetime}{'mut ' if br.get('is_mutable') else ''}{self.render(br.get('type'), g)}"
         if "raw_pointer" in t:
             rp = t["raw_pointer"]
             return f"*{'mut' if rp.get('is_mutable') else 'const'} {self.render(rp.get('type'), g)}"
@@ -438,7 +440,8 @@ class Surface:
             safety = "unsafe " if header.get("is_unsafe") else ""
             abi = header.get("abi", "Rust")
             convention = "" if abi == "Rust" else f'extern "{abi}" '
-            return convention + safety + "fn" + self._sig(fp.get("sig", {}), g)
+            fg, _ = self._generics({"params": fp.get("generic_params", [])}, g)
+            return convention + safety + "fn" + self._sig(fp.get("sig", {}), fg)
         if "pat" in t:
             return self.render(t["pat"].get("type"), g)
         return "_"
@@ -452,6 +455,9 @@ class Surface:
             for a in ab.get("args", []):
                 if isinstance(a, dict) and "type" in a:
                     parts.append(self.render(a["type"], g))
+                elif isinstance(a, dict) and "lifetime" in a:
+                    lifetime = a["lifetime"]
+                    parts.append(g.get(lifetime, lifetime))
                 elif isinstance(a, dict) and "const" in a:
                     parts.append(str(a["const"].get("expr", "")))
                 elif a == "infer":
@@ -506,10 +512,20 @@ class Surface:
         for p in (generics or {}).get("params", []):
             kind = p.get("kind") or {}
             if "lifetime" in kind:
+                g[p["name"]] = _fresh_lifetime(g)
                 continue
             if "type" in kind and kind["type"].get("is_synthetic"):
                 continue  # `impl Trait` argument: rendered at the parameter instead
             g[p["name"]] = _fresh_generic(g)
+        if atoms is not None:
+            for p in (generics or {}).get("params", []):
+                kind = p.get("kind") or {}
+                if "lifetime" in kind:
+                    lifetime = g[p["name"]]
+                    atoms.update(
+                        f"{lifetime}: {g.get(parent, parent)}"
+                        for parent in kind["lifetime"].get("outlives", [])
+                    )
         rendered = []
         for p in (generics or {}).get("params", []):
             kind = p.get("kind") or {}
@@ -790,6 +806,11 @@ def _fresh_generic(g: dict[str, str]) -> str:
     # Not `len(g)`: a shadowing param (`impl<T>` on `Holder<T>`) replaces a key without growing g.
     used = [int(v[1:]) for v in g.values() if v[:1] == "G" and v[1:].isdigit()]
     return f"G{max(used, default=-1) + 1}"
+
+
+def _fresh_lifetime(g: dict[str, str]) -> str:
+    used = [int(v[2:]) for v in g.values() if v.startswith("'L") and v[2:].isdigit()]
+    return f"'L{max(used, default=-1) + 1}"
 
 
 def _became_optional(old: str, new: str) -> bool:
