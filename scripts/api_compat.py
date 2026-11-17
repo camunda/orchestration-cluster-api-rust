@@ -11,11 +11,12 @@ Two layers, because neither covers the whole surface on its own:
 
 1. cargo-semver-checks (pinned) — removals, new variants on exhaustive enums, new
    fields on constructible structs, new required trait methods, lost trait impls, ...
-2. A rustdoc-JSON signature diff — every public struct/variant field, function and
-   method signature, type alias, const and static is rendered with canonical paths
-   and compared. This covers the class cargo-semver-checks does not: a field, param
-   or return type changing (`T` -> `Option<T>` is the nullability drift the SDKs have
-   shipped before).
+2. A rustdoc-JSON signature diff — every public field, function and method signature,
+   type alias, const, static and trait impl is rendered as written, with canonical
+   paths, and compared verbatim. This covers the class cargo-semver-checks does not:
+   a field, param or return type changing (`T` -> `Option<T>` is the nullability
+   drift the SDKs have shipped before). It does not judge equivalence: a respelling
+   such as a renamed generic is reported, and needs the approval label.
 
 Exit codes: 0 compatible (or no baseline), 1 breaking changes (each one listed),
 2 tool/setup error.
@@ -344,13 +345,6 @@ class Entry:
     # The same element under its owner's shortest public path: an item re-exported at
     # several paths is one change, not one per path.
     canonical: str = ""
-    # Functions/methods: (signature without `const` and bounds, bound atoms, is_const),
-    # so adding `const` or relaxing a bound is not reported.
-    relax: tuple[str, frozenset[str], bool] | None = None
-    # A method of a specialized impl (`impl Spec<u8>`): its key without the target, and
-    # whether this entry comes from an unbounded impl covering every target.
-    unspecialized: str | None = None
-    generic_impl: bool = False
 
 
 # Local types render as a placeholder holding their item id; `Surface.resolver` names
@@ -462,60 +456,55 @@ class Surface:
             return "::".join(path)
         return rp.get("path", "_")
 
-    def render(self, t: Any, g: dict[str, str], obj_default: str | None = None) -> str:
+    def render(self, t: Any) -> str:
         if not isinstance(t, dict):
             return "_"
         if "primitive" in t:
             return t["primitive"]
         if "generic" in t:
-            return g.get(t["generic"], t["generic"])
+            return t["generic"]
         if "resolved_path" in t:
             rp = t["resolved_path"]
-            return self._type_path(rp) + self._args(rp.get("args"), g)
+            return self._type_path(rp) + self._args(rp.get("args"))
         if "borrowed_ref" in t:
             br = t["borrowed_ref"]
-            lifetime = br.get("lifetime")
-            lifetime = g.get(lifetime, lifetime) if lifetime else None
-            inner = self.render(br.get("type"), g, obj_default=lifetime)
-            return f"&{lifetime + ' ' if lifetime else ''}{'mut ' if br.get('is_mutable') else ''}{inner}"
+            lifetime = f"{br['lifetime']} " if br.get("lifetime") else ""
+            return f"&{lifetime}{'mut ' if br.get('is_mutable') else ''}{self.render(br.get('type'))}"
         if "raw_pointer" in t:
             rp = t["raw_pointer"]
-            return f"*{'mut' if rp.get('is_mutable') else 'const'} {self.render(rp.get('type'), g)}"
+            return f"*{'mut' if rp.get('is_mutable') else 'const'} {self.render(rp.get('type'))}"
         if "tuple" in t:
-            return "(" + ", ".join(self.render(x, g) for x in t["tuple"]) + ")"
+            return "(" + ", ".join(self.render(x) for x in t["tuple"]) + ")"
         if "slice" in t:
-            return f"[{self.render(t['slice'], g)}]"
+            return f"[{self.render(t['slice'])}]"
         if "array" in t:
             a = t["array"]
-            return f"[{self.render(a.get('type'), g)}; {a.get('len')}]"
+            return f"[{self.render(a.get('type'))}; {a.get('len')}]"
         if "impl_trait" in t:
-            return "impl " + self._bounds(t["impl_trait"], g)
+            return "impl " + self._bounds(t["impl_trait"])
         if "dyn_trait" in t:
             dt = t["dyn_trait"]
-            traits = [self._poly_trait(pt, g) for pt in dt.get("traits", [])]
-            # An omitted object lifetime defaults to the enclosing reference's, else 'static.
-            lifetime = dt.get("lifetime")
-            lifetime = g.get(lifetime, lifetime) if lifetime else obj_default
-            bound = f" + {lifetime}" if lifetime and lifetime != "'static" else ""
-            return "dyn " + " + ".join(traits) + bound
+            parts = [self._poly_trait(pt) for pt in dt.get("traits", [])]
+            if dt.get("lifetime"):
+                parts.append(dt["lifetime"])
+            return "dyn " + " + ".join(parts)
         if "qualified_path" in t:
             qp = t["qualified_path"]
             trait = qp.get("trait")
-            as_trait = f" as {self._type_path(trait)}{self._args(trait.get('args'), g)}" if trait else ""
-            return f"<{self.render(qp.get('self_type'), g)}{as_trait}>::{qp.get('name')}{self._args(qp.get('args'), g)}"
+            as_trait = f" as {self._type_path(trait)}{self._args(trait.get('args'))}" if trait else ""
+            return f"<{self.render(qp.get('self_type'))}{as_trait}>::{qp.get('name')}{self._args(qp.get('args'))}"
         if "function_pointer" in t:
             fp = t["function_pointer"]
             header = fp.get("header") or {}
             safety = "unsafe " if header.get("is_unsafe") else ""
             abi = header.get("abi", "Rust")
             convention = "" if abi == "Rust" else f'extern "{abi}" '
-            fg, _ = self._generics({"params": fp.get("generic_params", [])}, g)
-            return convention + safety + "fn" + self._sig(fp.get("sig", {}), fg)
+            return self._binder(fp.get("generic_params")) + convention + safety + "fn" + self._sig(fp.get("sig", {}))
         if "pat" in t:
-            return self.render(t["pat"].get("type"), g)
+            return self.render(t["pat"].get("type"))
         return "_"
 
-    def _args(self, args: Any, g: dict[str, str]) -> str:
+    def _args(self, args: Any) -> str:
         if not isinstance(args, dict):
             return ""
         if "angle_bracketed" in args:
@@ -523,171 +512,115 @@ class Surface:
             parts: list[str] = []
             for a in ab.get("args", []):
                 if isinstance(a, dict) and "type" in a:
-                    parts.append(self.render(a["type"], g))
+                    parts.append(self.render(a["type"]))
                 elif isinstance(a, dict) and "lifetime" in a:
-                    lifetime = a["lifetime"]
-                    parts.append(g.get(lifetime, lifetime))
+                    parts.append(a["lifetime"])
                 elif isinstance(a, dict) and "const" in a:
-                    expr = str(a["const"].get("expr", ""))
-                    parts.append(g.get(expr, expr))
+                    parts.append(str(a["const"].get("expr", "")))
                 elif a == "infer":
                     parts.append("_")
             for c in ab.get("constraints", []):
                 binding = c.get("binding") or {}
-                name = c.get("name", "") + self._args(c.get("args"), g)
+                name = c.get("name", "") + self._args(c.get("args"))
                 if "equality" in binding:
                     term = binding["equality"]
-                    value = self.render(term["type"], g) if "type" in term else str(term.get("constant", {}).get("expr", ""))
+                    value = self.render(term["type"]) if "type" in term else str(term.get("constant", {}).get("expr", ""))
                     parts.append(f"{name} = {value}")
                 elif "constraint" in binding:
-                    parts.append(f"{name}: {self._bounds(binding['constraint'], g)}")
+                    parts.append(f"{name}: {self._bounds(binding['constraint'])}")
             return f"<{', '.join(parts)}>" if parts else ""
         if "parenthesized" in args:
             p = args["parenthesized"]
             out = p.get("output")
-            ret = f" -> {self.render(out, g)}" if out else ""
-            return "(" + ", ".join(self.render(x, g) for x in p.get("inputs", [])) + ")" + ret
+            ret = f" -> {self.render(out)}" if out else ""
+            return "(" + ", ".join(self.render(x) for x in p.get("inputs", [])) + ")" + ret
         if "return_type_notation" in args:
             return "(..)"
         return ""
 
-    def _poly_trait(self, pt: dict, g: dict[str, str]) -> str:
-        tr = pt.get("trait") or {}
-        return self._type_path(tr) + self._args(tr.get("args"), g)
+    def _binder(self, params: list | None) -> str:
+        """`for<'a> ` of a higher-ranked bound or fn pointer, as written."""
+        rendered = self._params(params)
+        return f"for{rendered} " if rendered else ""
 
-    def _bound_list(self, bounds: list, g: dict[str, str]) -> list[str]:
+    def _poly_trait(self, pt: dict) -> str:
+        tr = pt.get("trait") or {}
+        return self._binder(pt.get("generic_params")) + self._type_path(tr) + self._args(tr.get("args"))
+
+    def _bound_list(self, bounds: list) -> list[str]:
         out: list[str] = []
         for b in bounds or []:
             if isinstance(b, dict) and "trait_bound" in b:
                 tb = b["trait_bound"]
                 mod = {"maybe": "?", "maybe_const": "~const "}.get(tb.get("modifier"), "")
-                out.append(mod + self._poly_trait(tb, g))
+                out.append(mod + self._poly_trait(tb))
             elif isinstance(b, dict) and "outlives" in b:
-                out.append(g.get(b["outlives"], b["outlives"]))
+                out.append(b["outlives"])
         return sorted(out)
 
-    def _bounds(self, bounds: list, g: dict[str, str]) -> str:
-        return " + ".join(self._bound_list(bounds, g))
+    def _bounds(self, bounds: list) -> str:
+        return " + ".join(self._bound_list(bounds))
 
-    def _generics(self, generics: dict | None, g: dict[str, str]) -> tuple[dict[str, str], str]:
-        g, params, where = self._generics_parts(generics, g)
-        return g, params + where
-
-    def _generics_parts(
-        self, generics: dict | None, g: dict[str, str], atoms: set[str] | None = None
-    ) -> tuple[dict[str, str], str, str]:
-        """Extend `g` with positional names for this item's params (renaming `T` to `U`
-        is not a break); render the param list and the where clause. With `atoms`, bounds
-        and predicates go there one per bound instead of into the rendering."""
-        g = dict(g)
-        for p in (generics or {}).get("params", []):
+    def _params(self, params: list | None) -> str:
+        """A generic parameter list as written: names, bounds and defaults."""
+        rendered = []
+        for p in params or []:
             kind = p.get("kind") or {}
             if "lifetime" in kind:
-                g[p["name"]] = _fresh_lifetime(g)
-                continue
-            if "type" in kind and kind["type"].get("is_synthetic"):
-                continue  # `impl Trait` argument: rendered at the parameter instead
-            g[p["name"]] = _fresh_generic(g)
-        lifetime_bounds = [
-            f"{g[p['name']]}: {g.get(parent, parent)}"
-            for p in (generics or {}).get("params", [])
-            if "lifetime" in (p.get("kind") or {})
-            for parent in p["kind"]["lifetime"].get("outlives", [])
-        ]
-        if atoms is not None:
-            atoms.update(lifetime_bounds)
-        rendered = []
-        for p in (generics or {}).get("params", []):
-            kind = p.get("kind") or {}
-            if p["name"] not in g or "lifetime" in kind:
-                continue
-            if "type" in kind and kind["type"].get("is_synthetic"):
-                continue
-            if "type" in kind:
-                bounds = self._bounds(kind["type"].get("bounds"), g)
-                default = kind["type"].get("default")
-                if atoms is not None:
-                    atoms.update(f"{g[p['name']]}: {b}" for b in self._bound_list(kind["type"].get("bounds"), g))
-                    bounds = ""
-                s = g[p["name"]] + (f": {bounds}" if bounds else "")
-                if default is not None:
-                    s += f" = {self.render(default, g)}"
+                outlives = kind["lifetime"].get("outlives", [])
+                rendered.append(p["name"] + (f": {' + '.join(outlives)}" if outlives else ""))
+            elif "type" in kind:
+                if kind["type"].get("is_synthetic"):
+                    continue  # `impl Trait` argument: rendered at the parameter instead
+                bounds = self._bounds(kind["type"].get("bounds"))
+                s = p["name"] + (f": {bounds}" if bounds else "")
+                if kind["type"].get("default") is not None:
+                    s += f" = {self.render(kind['type']['default'])}"
                 rendered.append(s)
             elif "const" in kind:
-                rendered.append(f"const {g[p['name']]}: {self.render(kind['const'].get('type'), g)}")
-        preds = [] if atoms is not None else list(lifetime_bounds)
+                s = f"const {p['name']}: {self.render(kind['const'].get('type'))}"
+                if kind["const"].get("default") is not None:
+                    s += f" = {kind['const']['default']}"
+                rendered.append(s)
+        return f"<{', '.join(rendered)}>" if rendered else ""
+
+    def _where(self, generics: dict | None) -> str:
+        preds = []
         for wp in (generics or {}).get("where_predicates", []):
             if "bound_predicate" in wp:
                 bp = wp["bound_predicate"]
-                bounds = self._bounds(bp.get("bounds"), g)
-                if bounds:
-                    preds.append(f"{self.render(bp.get('type'), g)}: {bounds}")
+                preds.append(
+                    f"{self._binder(bp.get('generic_params'))}{self.render(bp.get('type'))}: {self._bounds(bp.get('bounds'))}"
+                )
             elif "lifetime_predicate" in wp:
                 lp = wp["lifetime_predicate"]
-                lifetime = g.get(lp.get("lifetime"), lp.get("lifetime"))
-                outlives = [g.get(parent, parent) for parent in lp.get("outlives", [])]
-                if atoms is None:
-                    preds.extend(f"{lifetime}: {parent}" for parent in outlives)
-                else:
-                    atoms.update(f"{lifetime}: {parent}" for parent in outlives)
+                preds.append(f"{lp.get('lifetime')}: {' + '.join(lp.get('outlives', []))}")
             elif "eq_predicate" in wp:
                 ep = wp["eq_predicate"]
                 rhs = ep.get("rhs") or {}
-                rhs_s = self.render(rhs["type"], g) if "type" in rhs else str(rhs)
-                preds.append(f"{self.render(ep.get('lhs'), g)} == {rhs_s}")
-        if atoms is not None:
-            for wp in (generics or {}).get("where_predicates", []):
-                if "bound_predicate" in wp:
-                    bp = wp["bound_predicate"]
-                    ty = self.render(bp.get("type"), g)
-                    atoms.update(f"{ty}: {b}" for b in self._bound_list(bp.get("bounds"), g))
-            atoms.update(p for p in preds if " == " in p)
-            preds = []
-        params = f"<{', '.join(rendered)}>" if rendered else ""
-        where = " where " + ", ".join(sorted(preds)) if preds else ""
-        return g, params, where
+                rhs_s = self.render(rhs["type"]) if "type" in rhs else str(rhs)
+                preds.append(f"{self.render(ep.get('lhs'))} == {rhs_s}")
+        return " where " + ", ".join(sorted(preds)) if preds else ""
 
-    def _sig(self, sig: dict, g: dict[str, str]) -> str:
-        params = [self.render(ty, g) for _, ty in sig.get("inputs", [])]
+    def _generics(self, generics: dict | None) -> str:
+        return self._params((generics or {}).get("params")) + self._where(generics)
+
+    def _sig(self, sig: dict) -> str:
+        params = [self.render(ty) for _, ty in sig.get("inputs", [])]
         if sig.get("is_c_variadic"):
             params.append("...")
         out = sig.get("output")
-        return "(" + ", ".join(params) + ")" + (f" -> {self.render(out, g)}" if out else "")
+        return "(" + ", ".join(params) + ")" + (f" -> {self.render(out)}" if out else "")
 
-    def _fn_parts(self, fn: dict, g: dict[str, str], atoms: set[str] | None = None):
-        """Generics, signature and where clause, with only the function's own lifetimes
-        (declared or elided) as rename-able sentinels; enclosing lifetimes keep their names."""
-        g2, params, where = self._generics_parts(fn.get("generics"), g, atoms)
-        own = [p["name"] for p in (fn.get("generics") or {}).get("params", []) if "lifetime" in (p.get("kind") or {})]
-        local = {g2[name]: f"\x1eD{i}\x1e" for i, name in enumerate(own)}
-        g2 = {k: local.get(v, v) for k, v in g2.items()}
-
-        def localize(text: str) -> str:
-            return re.sub(r"'L\d+", lambda m: local.get(m.group(0), m.group(0)), text)
-
-        sig = self._sig(_desugar_elision(fn.get("sig") or {}), g2)
-        return localize(params), sig, localize(where), localize
-
-    def _fn(self, fn: dict, g: dict[str, str]) -> str:
+    def _fn(self, fn: dict) -> str:
         header = fn.get("header") or {}
         prefix = "".join(
             word for flag, word in (("is_const", "const "), ("is_async", "async "), ("is_unsafe", "unsafe "))
             if header.get(flag)
         )
+        generics = fn.get("generics")
         # Param names are not part of the contract; their types and order are.
-        params, sig, where, _ = self._fn_parts(fn, g)
-        rendered, _ = _canonical_lifetimes(f"{prefix}fn{params}{sig}{where}")
-        return rendered
-
-    def _fn_relax(self, fn: dict, g: dict[str, str]) -> tuple[str, frozenset[str], bool]:
-        header = fn.get("header") or {}
-        prefix = "".join(
-            word for flag, word in (("is_async", "async "), ("is_unsafe", "unsafe ")) if header.get(flag)
-        )
-        atoms: set[str] = set()
-        params, sig, _, localize = self._fn_parts(fn, g, atoms)
-        rendered, rename = _canonical_lifetimes(f"{prefix}fn{params}{sig}", collapse=False)
-        return rendered, frozenset(rename(localize(a)) for a in atoms), bool(header.get("is_const"))
+        return f"{prefix}fn{self._params((generics or {}).get('params'))}{self._sig(fn.get('sig') or {})}{self._where(generics)}"
 
     # -- recording ---------------------------------------------------------
 
@@ -708,18 +641,7 @@ class Surface:
         body = inner.get(kind) or {}
         canonical = self.public_path[item_id]
         if kind in ("struct", "union"):
-            g, generics = self._generics(body.get("generics"), {})
-            atoms: set[str] = set()
-            _, relaxed_generics, _ = self._generics_parts(body.get("generics"), {}, atoms)
-            self._add(
-                path,
-                Entry(
-                    kind,
-                    f"{kind}{generics}",
-                    canonical=canonical,
-                    relax=(f"{kind}{relaxed_generics}", frozenset(atoms), True),
-                ),
-            )
+            self._add(path, Entry(kind, f"{kind}{self._generics(body.get('generics'))}", canonical=canonical))
             if kind == "union":
                 fields = body.get("fields", [])
             else:
@@ -729,36 +651,27 @@ class Surface:
                     fields = skind["plain"].get("fields", [])
                 elif isinstance(skind, dict) and "tuple" in skind:
                     fields = skind["tuple"]
-            for pos, fid in enumerate(fields):
-                f = self.index.get(str(fid)) if fid is not None else None
-                if f is None or f.get("visibility") != "public":
-                    continue
-                name = f.get("name") or str(pos)
-                self._member(item_id, path, ".", name, Entry("field", self.render(f["inner"]["struct_field"], g)))
-            self._record_impls(item_id, path, body.get("impls", []), g)
+            self._record_fields(path, canonical, fields, public_only=True)
+            self._record_impls(item_id, path, body.get("impls", []))
         elif kind == "enum":
-            g, generics = self._generics(body.get("generics"), {})
-            atoms: set[str] = set()
-            _, relaxed_generics, _ = self._generics_parts(body.get("generics"), {}, atoms)
-            self._add(
-                path,
-                Entry(
-                    "enum",
-                    f"enum{generics}",
-                    canonical=canonical,
-                    relax=(f"enum{relaxed_generics}", frozenset(atoms), True),
-                ),
-            )
+            self._add(path, Entry("enum", f"enum{self._generics(body.get('generics'))}", canonical=canonical))
             for vid in body.get("variants", []):
                 v = self.index.get(str(vid))
                 if v is None:
                     continue
-                self._member(item_id, path, "::", v["name"], Entry("variant", self._variant(v["inner"]["variant"], g)))
-            self._record_impls(item_id, path, body.get("impls", []), g)
+                vkind = v["inner"]["variant"].get("kind")
+                shape = next(iter(vkind)) if isinstance(vkind, dict) else "unit"
+                self._member(item_id, path, "::", v["name"], Entry("variant", shape))
+                fields = vkind["tuple"] if shape == "tuple" else vkind["struct"].get("fields", []) if shape == "struct" else []
+                # Field by field: an added field is cargo-semver-checks' call (it knows `#[non_exhaustive]`).
+                self._record_fields(f"{path}::{v['name']}", f"{canonical}::{v['name']}", fields, public_only=False)
+            self._record_impls(item_id, path, body.get("impls", []))
         elif kind == "trait":
-            g, generics = self._generics(body.get("generics"), {"Self": "Self"})
-            supertraits = self._bounds(body.get("bounds"), g)
-            self._add(path, Entry("trait", f"trait{generics}" + (f": {supertraits}" if supertraits else ""), canonical=canonical))
+            supertraits = self._bounds(body.get("bounds"))
+            self._add(path, Entry(
+                "trait", f"trait{self._generics(body.get('generics'))}" + (f": {supertraits}" if supertraits else ""),
+                canonical=canonical,
+            ))
             for mid in body.get("items", []):
                 m = self.index.get(str(mid))
                 if m is None or not m.get("name"):
@@ -766,64 +679,51 @@ class Surface:
                 minner = m.get("inner", {})
                 if "function" in minner:
                     fn = minner["function"]
-                    entry = Entry("trait method", self._fn(fn, g), required=not fn.get("has_body"))
+                    entry = Entry("trait method", self._fn(fn), required=not fn.get("has_body"))
                 elif "assoc_type" in minner:
                     at = minner["assoc_type"]
-                    bounds = self._bounds(at.get("bounds"), g)
-                    entry = Entry("associated type", "type" + (f": {bounds}" if bounds else ""), required=at.get("type") is None)
+                    bounds = self._bounds(at.get("bounds"))
+                    entry = Entry(
+                        "associated type", f"type{self._generics(at.get('generics'))}" + (f": {bounds}" if bounds else ""),
+                        required=at.get("type") is None,
+                    )
                 elif "assoc_const" in minner:
                     ac = minner["assoc_const"]
-                    entry = Entry("associated const", f"const: {self.render(ac.get('type'), g)}", required=ac.get("value") is None)
+                    entry = Entry("associated const", f"const: {self.render(ac.get('type'))}", required=ac.get("value") is None)
                 else:
                     continue
                 self._member(item_id, path, "::", m["name"], entry)
         elif kind == "function":
-            self._add(path, Entry("function", self._fn(body, {}), canonical=canonical, relax=self._fn_relax(body, {})))
+            self._add(path, Entry("function", self._fn(body), canonical=canonical))
         elif kind == "type_alias":
-            g, generics = self._generics(body.get("generics"), {})
-            atoms: set[str] = set()
-            _, relaxed_generics, _ = self._generics_parts(body.get("generics"), {}, atoms)
-            self._add(
-                path,
-                Entry(
-                    "type alias",
-                    f"type{generics} = {self.render(body.get('type'), g)}",
-                    canonical=canonical,
-                    relax=(
-                        f"type{relaxed_generics} = {self.render(body.get('type'), g)}",
-                        frozenset(atoms),
-                        True,
-                    ),
-                ),
-            )
+            self._add(path, Entry(
+                "type alias", f"type{self._generics(body.get('generics'))} = {self.render(body.get('type'))}",
+                canonical=canonical,
+            ))
         elif kind == "constant":
-            self._add(path, Entry("const", f"const: {self.render(body.get('type'), {})}", canonical=canonical))
+            self._add(path, Entry("const", f"const: {self.render(body.get('type'))}", canonical=canonical))
         elif kind == "static":
             mut = "mut " if body.get("is_mutable") else ""
-            self._add(path, Entry("static", f"static {mut}{self.render(body.get('type'), {})}", canonical=canonical))
+            self._add(path, Entry("static", f"static {mut}{self.render(body.get('type'))}", canonical=canonical))
         elif kind in ("macro", "proc_macro", "module", "trait_alias"):
             self._add(path, Entry(kind, kind, canonical=canonical))
 
-    def _variant(self, variant: dict, g: dict[str, str]) -> str:
-        vkind = variant.get("kind")
-        if not isinstance(vkind, dict):
-            return "unit"
-        if "tuple" in vkind:
-            parts = []
-            for fid in vkind["tuple"]:
-                f = self.index.get(str(fid)) if fid is not None else None
-                parts.append(self.render(f["inner"]["struct_field"], g) if f else "_")
-            return f"({', '.join(parts)})"
-        if "struct" in vkind:
-            parts = []
-            for fid in vkind["struct"].get("fields", []):
-                f = self.index.get(str(fid))
-                if f:
-                    parts.append(f"{f['name']}: {self.render(f['inner']['struct_field'], g)}")
-            return "{ " + ", ".join(sorted(parts)) + " }"
-        return "unit"
+    def _record_fields(self, owner_path: str, owner_canonical: str, field_ids: list, public_only: bool) -> None:
+        for pos, fid in enumerate(field_ids):
+            f = self.index.get(str(fid)) if fid is not None else None
+            # Variant fields are as visible as their enum; rustdoc marks them `default`.
+            if f is None or (public_only and f.get("visibility") != "public"):
+                continue
+            name = f.get("name") or str(pos)
+            self._add(f"{owner_path}.{name}", Entry(
+                "field", self.render(f["inner"]["struct_field"]),
+                owner=owner_path, canonical=f"{owner_canonical}.{name}",
+            ))
 
-    def _record_impls(self, owner_id: str, path: str, impl_ids: list, g: dict[str, str]) -> None:
+    def _record_impls(self, owner_id: str, path: str, impl_ids: list) -> None:
+        # Methods of one name across inherent impls (`impl Spec<u8>` and `impl Spec<bool>`
+        # can both define `value`) are one entry: each signature with its impl header.
+        members: dict[str, tuple[str, list[str]]] = {}
         for impl_id in impl_ids:
             impl_item = self.index.get(str(impl_id))
             if impl_item is None:
@@ -833,70 +733,35 @@ class Surface:
             if impl.get("is_synthetic") or impl.get("blanket_impl"):
                 continue
             if impl.get("trait") is not None:
-                self._record_trait_impl(owner_id, path, impl, g)
+                self._record_trait_impl(owner_id, path, impl)
                 continue
-            impl_atoms: set[str] = set()
-            ig, _, _ = self._generics_parts(impl.get("generics"), g, impl_atoms)
-            # `Self` in an inherent impl is the owner type; writing either spelling is the same API.
-            ig["Self"] = self.render(impl.get("for"), ig)
-            # `impl Spec<u8>` and `impl Spec<bool>` can both define `value`: key them apart.
-            target = impl.get("for") or {}
-            spec = "" if _is_generic_target(target, impl.get("generics")) else self._args(
-                (target.get("resolved_path") or {}).get("args"), ig
-            )
+            generics = impl.get("generics")
+            header = f"impl{self._params((generics or {}).get('params'))} {self.render(impl.get('for'))}{self._where(generics)}"
             for mid in impl.get("items", []):
                 m = self.index.get(str(mid))
                 if m is None or m.get("visibility") != "public" or not m.get("name"):
                     continue
-                name = f"{spec}::{m['name']}" if spec else m["name"]
-                unspecialized = f"{path}::{m['name']}" if spec else None
-                generic_impl = not spec and not impl_atoms
                 minner = m.get("inner", {})
                 if "function" in minner:
-                    fn = minner["function"]
-                    sig, atoms, const = self._fn_relax(fn, ig)
-                    self._member(
-                        owner_id,
-                        path,
-                        "::",
-                        name,
-                        Entry(
-                            "method",
-                            self._fn(fn, ig),
-                            relax=(sig, atoms | frozenset(impl_atoms), const),
-                            unspecialized=unspecialized,
-                            generic_impl=generic_impl,
-                        ),
-                    )
+                    kind, sig = "method", self._fn(minner["function"])
                 elif "assoc_const" in minner:
-                    self._member(owner_id, path, "::", name, Entry(
-                        "associated const", f"const: {self.render(minner['assoc_const'].get('type'), ig)}",
-                        unspecialized=unspecialized, generic_impl=generic_impl,
-                    ))
+                    kind, sig = "associated const", f"const: {self.render(minner['assoc_const'].get('type'))}"
+                else:
+                    continue
+                members.setdefault(m["name"], (kind, []))[1].append(f"{header} {{ {sig} }}")
+        for name, (kind, sigs) in members.items():
+            self._member(owner_id, path, "::", name, Entry(kind, " | ".join(sorted(sigs))))
 
-    def _record_trait_impl(self, owner_id: str, path: str, impl: dict, g: dict[str, str]) -> None:
+    def _record_trait_impl(self, owner_id: str, path: str, impl: dict) -> None:
         """The impl and its associated types; method signatures are the trait's."""
         tr = impl["trait"]
         trait_id = str(tr.get("id")) if tr.get("id") is not None else None
         known = self.paths.get(trait_id) if trait_id else None
         if trait_id not in self.all_paths and (known is None or known.get("crate_id") == 0):
             return  # a private trait: downstream cannot name it
-        atoms: set[str] = set()
-        ig, params, where = self._generics_parts(impl.get("generics"), g)
-        _, relaxed_params, _ = self._generics_parts(impl.get("generics"), g, atoms)
         neg = "!" if impl.get("is_negative") else ""
-        name = f"<impl {neg}{self._type_path(tr)}{self._args(tr.get('args'), ig)} for {self.render(impl.get('for'), ig)}>"
-        self._member(
-            owner_id,
-            path,
-            "::",
-            name,
-            Entry(
-                "trait impl",
-                f"impl{params}{where}",
-                relax=(f"impl{relaxed_params}", frozenset(atoms), True),
-            ),
-        )
+        name = f"<impl {neg}{self._type_path(tr)}{self._args(tr.get('args'))} for {self.render(impl.get('for'))}>"
+        self._member(owner_id, path, "::", name, Entry("trait impl", f"impl{self._generics(impl.get('generics'))}"))
         impl_key = f"{path}::{name}"
         for mid in impl.get("items", []):
             m = self.index.get(str(mid))
@@ -904,142 +769,18 @@ class Surface:
             if at is None or not m.get("name"):
                 continue
             self._add(f"{impl_key}::{m['name']}", Entry(
-                "associated type", f"type = {self.render(at.get('type'), ig)}",
+                "associated type", f"type = {self.render(at.get('type'))}",
                 owner=impl_key, canonical=f"{self.public_path[owner_id]}::{name}::{m['name']}",
             ))
-
-
-def _fresh_generic(g: dict[str, str]) -> str:
-    # Not `len(g)`: a shadowing param (`impl<T>` on `Holder<T>`) replaces a key without growing g.
-    used = [int(v[1:]) for v in g.values() if v[:1] == "G" and v[1:].isdigit()]
-    return f"G{max(used, default=-1) + 1}"
-
-
-def _fresh_lifetime(g: dict[str, str]) -> str:
-    used = [int(v[2:]) for v in g.values() if v.startswith("'L") and v[2:].isdigit()]
-    return f"'L{max(used, default=-1) + 1}"
-
-
-def _fill_elided(t: Any, make) -> None:
-    """Replace elided lifetimes (`&T`, `Cow<'_, T>`) in place; nested `fn`/`Fn()` keep their own scope."""
-    if isinstance(t, list):
-        for v in t:
-            _fill_elided(v, make)
-        return
-    if not isinstance(t, dict):
-        return
-    if "borrowed_ref" in t and t["borrowed_ref"].get("lifetime") is None:
-        t["borrowed_ref"]["lifetime"] = make()
-    if set(t) == {"lifetime"} and t["lifetime"] == "'_":
-        t["lifetime"] = make()
-    for key, v in t.items():
-        if key not in ("function_pointer", "parenthesized"):
-            _fill_elided(v, make)
-
-
-def _input_lifetimes(t: Any, out: list[str]) -> None:
-    if isinstance(t, list):
-        for v in t:
-            _input_lifetimes(v, out)
-    elif isinstance(t, dict):
-        if "borrowed_ref" in t and t["borrowed_ref"].get("lifetime"):
-            out.append(t["borrowed_ref"]["lifetime"])
-        if set(t) == {"lifetime"} and t["lifetime"]:
-            out.append(t["lifetime"])
-        for key, v in t.items():
-            if key not in ("function_pointer", "parenthesized"):
-                _input_lifetimes(v, out)
-
-
-def _desugar_elision(sig: dict) -> dict:
-    """Apply Rust's lifetime-elision rules, so `fn(&str) -> &str` equals `fn<'a>(&'a str) -> &'a str`."""
-    sig = json.loads(json.dumps(sig))
-    fresh = iter(f"\x1eE{i}\x1e" for i in range(10_000))
-    inputs = sig.get("inputs", [])
-    _fill_elided([ty for _, ty in inputs], lambda: next(fresh))
-    seen: list[str] = []
-    _input_lifetimes([ty for _, ty in inputs], seen)
-    receiver = inputs[0][1].get("borrowed_ref") if inputs and inputs[0][0] == "self" else None
-    if receiver:
-        out_lifetime = receiver["lifetime"]
-    elif len(set(seen)) == 1:
-        out_lifetime = seen[0]
-    else:
-        return sig  # an elided output lifetime would not compile; leave it as written
-    _fill_elided(sig.get("output"), lambda: out_lifetime)
-    return sig
-
-
-# Function-local lifetimes render as sentinels, so renaming them cannot touch an enclosing
-# lifetime or a char literal (`Tag<'a'>`).
-_SENTINEL = re.compile("\x1e[^\x1e]+\x1e")
-
-
-def _canonical_lifetimes(s: str, collapse: bool = True):
-    """Rename function-local lifetimes by first appearance. With `collapse`, one used only once
-    relates nothing and is shown elided. Returns the string and the renaming for bound atoms."""
-    uses: dict[str, int] = {}
-    for m in _SENTINEL.finditer(s):
-        uses[m.group(0)] = uses.get(m.group(0), 0) + 1
-    names: dict[str, str] = {}
-
-    def rename(text: str) -> str:
-        def one(m: re.Match) -> str:
-            if collapse and uses.get(m.group(0)) == 1:
-                return "\x1f_"
-            return names.setdefault(m.group(0), f"'_{len(names)}")
-        return _SENTINEL.sub(one, text).replace("&\x1f_ ", "&").replace("\x1f_", "'_")
-
-    return rename(s), rename
-
-
-def _is_generic_target(target: dict, generics: dict | None) -> bool:
-    """Whether an inherent impl covers every instantiation (`impl<T> Holder<T>`), not one
-    specialization: each argument a distinct parameter (`impl<T> Pair<T, T>` is restricted)."""
-    params = {p["name"] for p in (generics or {}).get("params", [])}
-    args = ((target.get("resolved_path") or {}).get("args") or {}).get("angle_bracketed") or {}
-    seen: set[str] = set()
-
-    def distinct(name: str | None) -> bool:
-        if name not in params or name in seen:
-            return False
-        seen.add(name)
-        return True
-
-    for a in args.get("args", []):
-        if isinstance(a, dict) and "type" in a:
-            if not distinct(a["type"].get("generic")):
-                return False
-        elif isinstance(a, dict) and "lifetime" in a:
-            if a["lifetime"] != "'_" and not distinct(a["lifetime"]):
-                return False
-        elif isinstance(a, dict) and "const" in a:
-            if not distinct(a["const"].get("expr")):
-                return False
-    return True
 
 
 def _became_optional(old: str, new: str) -> bool:
     return new in (f"core::option::Option<{old}>", f"core::option::Option<alloc::boxed::Box<{old}>>")
 
 
-def _relaxed_only(before: Entry, after: Entry, ro, rn) -> bool:
-    """Callers still compile: same shape, no new bound, no `?Sized` dropped, `const` kept."""
-    if before.relax is None or after.relax is None:
-        return False
-    (b_sig, b_atoms, b_const), (a_sig, a_atoms, a_const) = before.relax, after.relax
-    a_set, b_set = {rn(a) for a in a_atoms}, {ro(a) for a in b_atoms}
-    return (
-        ro(b_sig) == rn(a_sig)
-        and {a for a in a_set if ": ?" not in a} <= b_set
-        # Dropping `?Sized` restores the implicit `Sized` bound.
-        and {a for a in b_set if ": ?" in a} <= a_set
-        and (a_const or not b_const)
-    )
-
-
 def diff_surfaces(old: Surface, new: Surface) -> list[str]:
-    """Breaking differences in `new` relative to `old`. Additions are compatible."""
+    """Breaking differences in `new` relative to `old`. Additions are compatible; an
+    equivalent respelling is not recognised (see the module docstring)."""
     breaks: list[str] = []
     reported: set[tuple[str, str]] = set()
     ro, rn = old.resolver(new), new.resolver(old)
@@ -1054,11 +795,6 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
     for raw_path, before in sorted(old.entries.items()):
         path = ro(raw_path)
         after = new_entries.get(path)
-        if after is None and before.unspecialized is not None:
-            # Moved from `impl Spec<u8>` into an unbounded `impl<T> Spec<T>`: still callable.
-            moved = new_entries.get(ro(before.unspecialized))
-            if moved is not None and moved.generic_impl:
-                after = moved
         if after is None:
             if before.owner is not None and ro(before.owner) not in new_entries:
                 continue  # the owner's own removal is the break
@@ -1068,9 +804,7 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
             report((before.canonical, "kind"), f"`{path}` changed from {before.kind} to {after.kind}")
             continue
         b_sig, a_sig = ro(before.sig), rn(after.sig)
-        if (
-            b_sig != a_sig or before.relax != after.relax
-        ) and not _relaxed_only(before, after, ro, rn):
+        if b_sig != a_sig:
             label = f"{before.kind} type" if before.kind == "field" else f"{before.kind} signature"
             note = " (became optional)" if _became_optional(b_sig, a_sig) else ""
             report(
