@@ -264,6 +264,10 @@ def run_semver_checks(manifest: Path, baseline_root: Path) -> list[str]:
     output = r.stdout + r.stderr
     # Lint reports go to stdout, progress to stderr.
     breaks = parse_semver_checks(r.stdout)
+    # A crate that fails to build is unchecked even when another crate reported lints, and
+    # an approval must not cover that. A lint-only failure prints no `error:` line.
+    if re.search(r"^error(\[|:)", r.stderr, re.M):
+        raise SetupError(f"cargo-semver-checks could not check every crate:\n{output}")
     if r.returncode != 0 and not breaks:
         raise SetupError(f"cargo-semver-checks failed without reporting a lint:\n{output}")
     if r.returncode == 0 and breaks:
@@ -750,7 +754,7 @@ class Surface:
                     continue
                 members.setdefault(m["name"], (kind, []))[1].append(f"{header} {{ {sig} }}")
         for name, (kind, sigs) in members.items():
-            self._member(owner_id, path, "::", name, Entry(kind, " | ".join(sorted(sigs))))
+            self._member(owner_id, path, "::", name, Entry(kind, _ALT.join(sigs)))
 
     def _record_trait_impl(self, owner_id: str, path: str, impl: dict) -> None:
         """The impl and its associated types; method signatures are the trait's."""
@@ -778,6 +782,15 @@ def _became_optional(old: str, new: str) -> bool:
     return new in (f"core::option::Option<{old}>", f"core::option::Option<alloc::boxed::Box<{old}>>")
 
 
+# Separates one method's signatures across inherent impls. They are ordered only after local
+# item ids resolve to paths: ids are per build, so sorting earlier can flip the order.
+_ALT = "\x1d"
+
+
+def _sig_text(resolve, sig: str) -> str:
+    return " | ".join(sorted(resolve(s) for s in sig.split(_ALT)))
+
+
 def diff_surfaces(old: Surface, new: Surface) -> list[str]:
     """Breaking differences in `new` relative to `old`. Additions are compatible; an
     equivalent respelling is not recognised (see the module docstring)."""
@@ -803,7 +816,7 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
         if before.kind != after.kind:
             report((before.canonical, "kind"), f"`{path}` changed from {before.kind} to {after.kind}")
             continue
-        b_sig, a_sig = ro(before.sig), rn(after.sig)
+        b_sig, a_sig = _sig_text(ro, before.sig), _sig_text(rn, after.sig)
         if b_sig != a_sig:
             label = f"{before.kind} type" if before.kind == "field" else f"{before.kind} signature"
             note = " (became optional)" if _became_optional(b_sig, a_sig) else ""
