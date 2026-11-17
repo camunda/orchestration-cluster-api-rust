@@ -16,6 +16,7 @@ import io
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -133,6 +134,256 @@ class CliBaselineTest(unittest.TestCase):
         self.assertIn("::notice::No 11.x release", out)
 
 
+def _git_repo(path: Path) -> tuple:
+    """A repo with `before` (tagged v10.0.0), then `first` and `second` (HEAD)."""
+    path.mkdir()
+    git = lambda *a: subprocess.run(["git", *a], cwd=path, check=True, capture_output=True, text=True).stdout.strip()
+    git("init", "-q")
+    shas = []
+    for message in ("before", "first", "second"):
+        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message)
+        shas.append(git("rev-parse", "HEAD"))
+        if message == "before":
+            git("tag", "v10.0.0")
+    return git, *shas
+
+
+@unittest.skipUnless(shutil.which("jq") and shutil.which("git"), "needs jq and git")
+class ApprovalSearchTest(unittest.TestCase):
+    """Only a labelled PR merged into the release line after the baseline approves a break."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo = self.tmp / "repo"
+        _, self.before, self.first, self.second = _git_repo(self.repo)
+        self.fixtures = self.tmp / "pulls"
+        self.fixtures.mkdir()
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        # `gh api repos/<r>/commits/<sha>/pulls --jq <filter>`, answered from a fixture file.
+        (bin_dir / "gh").write_text(
+            '#!/usr/bin/env bash\nset -euo pipefail\nsha="${2##*/commits/}"; sha="${sha%/pulls}"\n'
+            'f="$FIXTURES/$sha.json"; [ -f "$f" ] || f="$FIXTURES/none.json"\njq -r "$4" "$f"\n'
+        )
+        (bin_dir / "gh").chmod(0o755)
+        (self.fixtures / "none.json").write_text("[]")
+        self.env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                        FIXTURES=str(self.fixtures), GITHUB_REPOSITORY="o/r")
+
+    def pr(self, number: int, base: str, merge_sha: str | None, labelled: bool = True) -> dict:
+        return {
+            "number": number,
+            "merged_at": "2026-01-01T00:00:00Z" if merge_sha else None,
+            "merge_commit_sha": merge_sha,
+            "base": {"ref": base},
+            "labels": [{"name": "api-break-approved"}] if labelled else [],
+        }
+
+    def run_search(self, **by_commit: str) -> subprocess.CompletedProcess:
+        for sha, body in by_commit.items():
+            (self.fixtures / f"{sha}.json").write_text(body)
+        return subprocess.run(
+            [str(api_compat.REPO_ROOT / "scripts" / "api-break-approvals.sh"), "v10.0.0", "stable/10"],
+            cwd=self.repo, env=self.env, capture_output=True, text=True,
+        )
+
+    def approvals(self, *prs: dict) -> list[str]:
+        r = self.run_search(**{self.second: json.dumps(list(prs))})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return r.stdout.splitlines()
+
+    def test_labelled_pr_merged_into_the_release_line_approves(self):
+        self.assertEqual(self.approvals(self.pr(1, "stable/10", self.second)), [f"#1 {self.second}"])
+
+    def test_pr_merged_into_another_branch_does_not_approve(self):
+        self.assertEqual(self.approvals(self.pr(2, "main", self.second)), [])
+
+    def test_pr_merged_before_the_baseline_does_not_approve(self):
+        self.assertEqual(self.approvals(self.pr(3, "stable/10", self.before)), [])
+
+    def test_unlabelled_or_unmerged_pr_does_not_approve(self):
+        self.assertEqual(
+            self.approvals(self.pr(4, "stable/10", self.second, labelled=False), self.pr(5, "stable/10", None)),
+            [],
+        )
+
+    def test_newest_merge_is_listed_first(self):
+        r = self.run_search(**{
+            self.first: json.dumps([self.pr(6, "stable/10", self.first)]),
+            self.second: json.dumps([self.pr(7, "stable/10", self.second)]),
+        })
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.splitlines(), [f"#7 {self.second}", f"#6 {self.first}"])
+
+    def test_lookup_failure_on_any_commit_is_an_error(self):
+        # The newest commit is looked up first; its failure must not be masked by later ones.
+        for broken in (self.second, self.first):
+            with self.subTest(broken=broken):
+                for f in self.fixtures.glob("*.json"):
+                    if f.name != "none.json":
+                        f.unlink()
+                r = self.run_search(**{broken: "not json"})
+                self.assertNotEqual(r.returncode, 0)
+
+
+@unittest.skipUnless(shutil.which("git"), "needs git")
+class ReleaseGateTest(unittest.TestCase):
+    """scripts/api-compat-release-gate.sh with the checker and approval search stubbed."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo = self.tmp / "repo"
+        self.git, _, self.first, self.second = _git_repo(self.repo)
+        scripts = self.tmp / "scripts"
+        scripts.mkdir()
+        shutil.copy(api_compat.REPO_ROOT / "scripts" / "api-compat-release-gate.sh", scripts)
+        # Exit codes per mode; a --baseline-root call also records the commit it was given.
+        (scripts / "api_compat.py").write_text(
+            "import os, subprocess, sys\n"
+            "args = sys.argv[1:]\n"
+            "with open(os.environ['CALLS'], 'a') as f:\n"
+            "    if '--baseline-version' in args:\n"
+            "        f.write('release\\n'); sys.exit(int(os.environ['RC_RELEASE']))\n"
+            "    root = args[args.index('--baseline-root') + 1]\n"
+            "    head = subprocess.run(['git', '-C', root, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()\n"
+            "    f.write(f'since {head}\\n'); sys.exit(int(os.environ['RC_SINCE']))\n"
+        )
+        (scripts / "api-break-approvals.sh").write_text(
+            '#!/usr/bin/env bash\necho "approvals $2" >> "$CALLS"\n[ -z "${APPROVALS_FAIL:-}" ] || exit 1\n'
+            '[ -z "${APPROVALS:-}" ] || printf "%s\\n" "$APPROVALS"\n'
+        )
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        # `gh api .../branches/<b>`: found, missing (404) or failing (502), per GH_BRANCH.
+        (bin_dir / "gh").write_text(
+            '#!/usr/bin/env bash\ncase "${GH_BRANCH:-found}" in\n  found) echo "{}" ;;\n'
+            '  missing) echo "gh: Branch not found (HTTP 404)" >&2; exit 1 ;;\n'
+            '  *) echo "gh: Bad Gateway (HTTP 502)" >&2; exit 1 ;;\nesac\n'
+        )
+        for f in (scripts / "api-compat-release-gate.sh", scripts / "api-break-approvals.sh", bin_dir / "gh"):
+            f.chmod(0o755)
+        self.gate = scripts / "api-compat-release-gate.sh"
+        self.calls = self.tmp / "calls"
+        self.env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                        CALLS=str(self.calls), GITHUB_REPOSITORY="o/r", RC_RELEASE="1", RC_SINCE="0")
+
+    def gate_run(self, baseline: str = "10.0.0", **env: str) -> tuple[int, str, list[str]]:
+        self.calls.write_text("")
+        r = subprocess.run([str(self.gate), baseline, "10"], cwd=self.repo,
+                           env={**self.env, **env}, capture_output=True, text=True)
+        return r.returncode, r.stdout + r.stderr, self.calls.read_text().splitlines()
+
+    def test_compatible_release_passes_without_an_approval_search(self):
+        rc, out, calls = self.gate_run(RC_RELEASE="0", APPROVALS_FAIL="1")
+        self.assertEqual((rc, calls), (0, ["release"]), out)
+
+    def test_checker_setup_error_is_a_setup_error(self):
+        self.assertEqual(self.gate_run(RC_RELEASE="2")[0], 2)
+
+    def test_dispatch_input_approves(self):
+        rc, out, _ = self.gate_run(DISPATCH_APPROVED="true")
+        self.assertEqual(rc, 0, out)
+
+    def test_break_without_a_baseline_tag_is_blocked(self):
+        rc, out, _ = self.gate_run(baseline="10.0.1", APPROVALS=f"#1 {self.second}")
+        self.assertEqual(rc, 1, out)
+
+    def test_unapproved_break_is_blocked(self):
+        rc, out, _ = self.gate_run()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Release blocked", out)
+
+    def test_failed_approval_search_is_a_setup_error(self):
+        self.assertEqual(self.gate_run(APPROVALS_FAIL="1")[0], 2)
+
+    def test_approval_at_head_passes(self):
+        rc, out, calls = self.gate_run(APPROVALS=f"#7 {self.second}")
+        self.assertEqual((rc, calls), (0, ["release", "approvals stable/10"]), out)
+
+    def test_approval_covers_the_api_up_to_its_merge(self):
+        rc, out, calls = self.gate_run(APPROVALS=f"#6 {self.first}")
+        self.assertEqual((rc, calls), (0, ["release", "approvals stable/10", f"since {self.first}"]), out)
+
+    def test_break_added_after_the_newest_approval_is_blocked(self):
+        rc, out, calls = self.gate_run(APPROVALS=f"#6 {self.first}", RC_SINCE="1")
+        self.assertEqual((rc, calls), (1, ["release", "approvals stable/10", f"since {self.first}"]), out)
+        self.assertIn("added after #6", out)
+
+    def test_missing_stable_branch_searches_main(self):
+        rc, out, calls = self.gate_run(APPROVALS=f"#7 {self.second}", GH_BRANCH="missing")
+        self.assertEqual((rc, calls), (0, ["release", "approvals main"]), out)
+
+    def test_failed_branch_lookup_is_a_setup_error(self):
+        # Falling back to main here would let a main approval pass a stable release.
+        rc, out, calls = self.gate_run(APPROVALS=f"#7 {self.second}", GH_BRANCH="error")
+        self.assertEqual((rc, calls), (2, ["release"]), out)
+
+    def test_comparison_setup_error_after_approval_is_a_setup_error(self):
+        self.assertEqual(self.gate_run(APPROVALS=f"#6 {self.first}", RC_SINCE="2")[0], 2)
+
+    def test_approval_checkout_is_removed(self):
+        self.gate_run(APPROVALS=f"#6 {self.first}")
+        self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
+
+
+class MergedMethodOrderTest(unittest.TestCase):
+    """rustdoc item ids are per build: renumbering local types alone is not a change."""
+
+    @staticmethod
+    def surface(ids: dict[str, str], sig: str):
+        s = api_compat.Surface.__new__(api_compat.Surface)
+        s.all_paths = {i: {p} for i, p in ids.items()}
+        s.entries = {
+            "c::Spec": api_compat.Entry("struct", "struct", canonical="c::Spec"),
+            "c::Spec::value": api_compat.Entry("method", sig, owner="c::Spec", canonical="c::Spec::value"),
+        }
+        return s
+
+    def test_renumbered_impl_targets_are_unchanged(self):
+        # The same two impls, `Spec<A>` and `Spec<B>`; the new build numbers them the other
+        # way round, so raw-id order is B, A.
+        impl = "impl c::Spec<\x1f{}\x1f> {{ fn() }}"
+        old = self.surface({"1": "c::A", "2": "c::B"}, api_compat._ALT.join([impl.format(1), impl.format(2)]))
+        new = self.surface({"2": "c::A", "1": "c::B"}, api_compat._ALT.join([impl.format(1), impl.format(2)]))
+        self.assertEqual(api_compat.diff_surfaces(old, new), [])
+
+    def test_changed_alternative_is_reported(self):
+        impl = "impl c::Spec<\x1f{}\x1f> {{ fn() -> {} }}"
+        old = self.surface({"1": "c::A", "2": "c::B"}, api_compat._ALT.join([impl.format(1, "u8"), impl.format(2, "u8")]))
+        new = self.surface({"1": "c::A", "2": "c::B"}, api_compat._ALT.join([impl.format(1, "u8"), impl.format(2, "u16")]))
+        self.assertEqual(len(api_compat.diff_surfaces(old, new)), 1)
+
+
+@unittest.skipUnless(os.environ.get("API_COMPAT_E2E") == "1", "set API_COMPAT_E2E=1 (make test-api-compat)")
+class PinBaselineTest(unittest.TestCase):
+    """The baseline SDK must build against its own published client, not a newer one."""
+
+    def test_sdk_is_pinned_to_the_extracted_client(self):
+        src = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, src, ignore_errors=True)
+        client = src / "camunda-orchestration-api-client-10.0.0"
+        sdk = src / "camunda-orchestration-sdk-10.0.0"
+        for crate, deps in ((client, ""), (sdk, '[dependencies.camunda-orchestration-api-client]\nversion = "10.0.0"\ndefault-features = false\n')):
+            (crate / "src").mkdir(parents=True)
+            (crate / "src" / "lib.rs").write_text("")
+            name = crate.name.rsplit("-", 1)[0]
+            (crate / "Cargo.toml").write_text(f'[package]\nname = "{name}"\nversion = "10.0.0"\nedition = "2021"\n\n{deps}')
+        root = api_compat.pin_baseline(src, {"camunda-orchestration-sdk": sdk / "Cargo.toml", "camunda-orchestration-api-client": client / "Cargo.toml"})
+        # Offline: resolving only succeeds if the client comes from the extracted path.
+        r = subprocess.run(
+            ["cargo", "metadata", "--offline", "--format-version", "1", "--manifest-path", str(root / "Cargo.toml")],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(r.returncode, 0, r.stderr)
+        meta = json.loads(r.stdout)
+        resolved = next(p for p in meta["packages"] if p["name"] == "camunda-orchestration-api-client")
+        self.assertIsNone(resolved["source"])
+        self.assertEqual(Path(resolved["manifest_path"]).resolve(), (client / "Cargo.toml").resolve())
+        self.assertEqual(len(meta["workspace_members"]), 2)
+
+
 # ---------------------------------------------------------------------------
 # Synthetic crates: one per break class
 # ---------------------------------------------------------------------------
@@ -236,12 +487,84 @@ impl<T: Clone> From<T> for Holder<T> {
     }
 }
 
+pub struct DynHolder<'a> {
+    pub handler: Box<dyn Fn() + 'a>,
+    pub marker: std::marker::PhantomData<&'a ()>,
+}
+
+pub struct DynDefault {
+    pub handler: Box<dyn Fn()>,
+}
+
+pub trait Lifetimes {
+    fn pair<'a, 'b>(&self, first: &'a str, second: &'b str);
+}
+
+pub fn elided(value: &str) -> &str {
+    value
+}
+
+pub struct Spec<T>(pub T);
+
+impl Spec<u8> {
+    pub fn value(&self) -> u8 {
+        self.0
+    }
+
+    pub fn width() -> u8 {
+        8
+    }
+}
+
+pub trait Lending<'a, 'b> {
+    fn get(&self) -> &'a str;
+}
+
+pub struct Tag<const C: char>;
+
+pub fn tag(_tag: Tag<'a'>) {}
+
+pub struct Buffer<const N: usize>;
+
+impl<const N: usize> Buffer<N> {
+    pub fn capacity(&self) -> usize {
+        N
+    }
+}
+
+impl Spec<bool> {
+    pub fn value(&self) -> bool {
+        self.0
+    }
+}
+
+pub struct Lent<'a>(pub &'a str);
+
+impl<'a> Lent<'a> {
+    pub fn accepts(_x: &str) {}
+}
+
+pub struct Pair<T, U>(pub T, pub U);
+
+impl<T, U> Pair<T, U> {
+    pub fn make() -> u8 {
+        0
+    }
+}
+
 pub fn inspect<T: ?Sized>(_value: &T) {}
-pub fn inspect_compat<T>(_value: &T) {}
 pub fn accepts_borrow<'a>(_value: &'a str) {}
 pub fn lifetime_relation<'a, 'b>(_first: &'a str, _second: &'b str) {}
 pub fn where_lifetime<'a, 'b>(_first: &'a str, _second: &'b str) {}
-pub fn bounded_where_lifetime_relax<'a, 'b>(_first: &'a str, _second: &'b str) where 'a: 'b {}
+
+pub trait Callbacks {
+    fn visit<'a>(&self, callback: fn(&'a str));
+}
+
+pub enum Action {
+    #[non_exhaustive]
+    Complete { code: u8 },
+}
 
 impl std::str::FromStr for Mode {
     type Err = String;
@@ -328,13 +651,8 @@ class SyntheticCrateTest(unittest.TestCase):
         )
         self.assertEqual(rc, 0, out)
 
-    def test_renaming_impl_generic_is_compatible(self):
-        rc, out = self.check(("impl<T> Holder<T> {\n    pub fn choose<U>(&self, keep: T, _other: U) -> T", "impl<V> Holder<V> {\n    pub fn choose<U>(&self, keep: V, _other: U) -> V"))
-        self.assertEqual(rc, 0, out)
-
-    def test_renaming_generics_and_params_is_compatible(self):
+    def test_renaming_params_is_compatible(self):
         rc, out = self.check(
-            ("pub fn wrap<T: Clone>(item: T) -> Vec<T> {\n    vec![item]", "pub fn wrap<U: Clone>(value: U) -> Vec<U> {\n    vec![value]"),
             ("pub fn lookup(key: String) -> Record {\n    Record { name: key,", "pub fn lookup(id: String) -> Record {\n    Record { name: id,"),
         )
         self.assertEqual(rc, 0, out)
@@ -343,41 +661,26 @@ class SyntheticCrateTest(unittest.TestCase):
         rc, out = self.check(("pub use private::Reexported;", "pub use private::Reexported;\npub use nested::Inner;"))
         self.assertEqual(rc, 0, out)
 
-    def test_self_and_the_owner_type_are_the_same(self):
-        rc, out = self.check(
-            ("-> Record {\n        Record { count", "-> Self {\n        Self { count"),
-            ("pub fn wrap(value: T) -> Holder<T>", "pub fn wrap(value: T) -> Self"),
+    def test_equivalent_respelling_is_reported(self):
+        """By design: signatures compare as written, so an equivalent respelling needs the
+        approval label rather than a model of the compiler's equivalence rules."""
+        self.assertBreaks(
+            self.check(("pub fn wrap<T: Clone>(item: T) -> Vec<T> {\n    vec![item]", "pub fn wrap<U: Clone>(item: U) -> Vec<U> {\n    vec![item]")),
+            f"{TAG} function signature changed: `api_compat_synthetic::wrap`",
         )
-        self.assertEqual(rc, 0, out)
 
-    def test_relaxed_generic_type_and_trait_impl_bounds_are_compatible(self):
-        rc, out = self.check(
-            ("pub struct Bounded<T: Clone>(pub T);", "pub struct Bounded<T>(pub T);"),
-            ("impl<T: Clone> From<T> for Holder<T>", "impl<T> From<T> for Holder<T>"),
-        )
-        self.assertEqual(rc, 0, out)
-
-    def test_adding_maybe_sized_bound_is_compatible(self):
-        rc, out = self.check(("pub fn inspect_compat<T>", "pub fn inspect_compat<T: ?Sized>"))
-        self.assertEqual(rc, 0, out)
-
-    def test_relaxed_inherent_impl_bound_is_compatible(self):
-        rc, out = self.check(
-            (
-                "impl<T: Clone> Relaxed<T> {\n    pub fn clone_value",
-                "impl<T> Relaxed<T> {\n    pub fn clone_value",
-            )
-        )
-        self.assertEqual(rc, 0, out)
-
-    def test_const_and_relaxed_bounds_are_compatible(self):
-        rc, out = self.check(
-            ("pub fn helper() {}", "pub const fn helper() {}"),
-            ("pub fn wrap<T: Clone>(item: T) -> Vec<T> {\n    vec![item]", "pub fn wrap<T>(item: T) -> Vec<T> {\n    vec![item]"),
-        )
+    def test_new_field_on_non_exhaustive_variant_is_compatible(self):
+        rc, out = self.check(("    Complete { code: u8 },", "    Complete { code: u8, reason: String },"))
         self.assertEqual(rc, 0, out)
 
     # -- breaking ----------------------------------------------------------
+
+    def test_function_pointer_lifetime_change_is_breaking(self):
+        # A `fn(&'a str)` caller-chosen lifetime vs a `for<'x> fn(&'x str)` callback.
+        self.assertBreaks(
+            self.check(("fn visit<'a>(&self, callback: fn(&'a str));", "fn visit(&self, callback: fn(&str));")),
+            f"{TAG} trait method signature changed: `api_compat_synthetic::Callbacks::visit`",
+        )
 
     def test_dependency_type_with_same_name_in_another_module(self):
         self.assertBreaks(
@@ -420,11 +723,127 @@ class SyntheticCrateTest(unittest.TestCase):
             f"{TAG} function signature changed: `api_compat_synthetic::accepts_borrow`",
         )
 
-    def test_renaming_lifetime_is_compatible(self):
-        rc, out = self.check(
-            ("accepts_borrow<'a>(_value: &'a str)", "accepts_borrow<'b>(_value: &'b str)")
+    def test_enclosing_lifetime_change_in_trait_method_is_breaking(self):
+        self.assertBreaks(
+            self.check(("fn get(&self) -> &'a str;", "fn get(&self) -> &'b str;")),
+            f"{TAG} trait method signature changed: `api_compat_synthetic::Lending::get`",
         )
+
+    def test_char_const_argument_change_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub fn tag(_tag: Tag<'a'>) {}", "pub fn tag(_tag: Tag<'b'>) {}")),
+            f"{TAG} function signature changed: `api_compat_synthetic::tag`",
+        )
+
+    def test_impl_lifetime_in_method_is_breaking(self):
+        # `Lent::<'static>::accepts(&local)` stops compiling.
+        self.assertBreaks(
+            self.check(("pub fn accepts(_x: &str) {}", "pub fn accepts(_x: &'a str) {}")),
+            f"{TAG} method signature changed: `api_compat_synthetic::Lent::accepts`",
+        )
+
+    def test_impl_restricted_by_repeated_parameter_is_breaking(self):
+        # `Pair::<u8, bool>::make()` no longer exists.
+        self.assertBreaks(
+            self.check(("impl<T, U> Pair<T, U> {", "impl<T> Pair<T, T> {")),
+            f"{TAG} method signature changed: `api_compat_synthetic::Pair::make`",
+        )
+
+    def _dependency_case(self, old_version: str, new_version: str) -> tuple[int, str]:
+        """Baseline and current expose `dep::Thing`; only the resolved `dep` version differs."""
+        case = self.root / self.id().rsplit(".", 1)[-1]
+        for side, version in (("baseline", old_version), ("current", new_version)):
+            dep = case / f"dep-{side}"
+            (dep / "src").mkdir(parents=True)
+            (dep / "Cargo.toml").write_text(
+                f'[package]\nname = "dep"\nversion = "{version}"\nedition = "2021"\n'
+            )
+            (dep / "src" / "lib.rs").write_text("pub struct Thing;\n")
+            crate = case / side
+            (crate / "src").mkdir(parents=True)
+            (crate / "Cargo.toml").write_text(
+                f'[package]\nname = "{PACKAGE}"\nversion = "1.0.0"\nedition = "2021"\n\n'
+                f'[dependencies]\ndep = {{ path = "../dep-{side}" }}\n\n[workspace]\n'
+            )
+            (crate / "src" / "lib.rs").write_text("pub fn thing() -> dep::Thing {\n    dep::Thing\n}\n")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            rc = api_compat.main([
+                "--manifest-path", str(case / "current" / "Cargo.toml"),
+                "--baseline-root", str(case / "baseline"),
+                "--work-dir", str(case / "work"),
+            ])
+        return rc, out.getvalue()
+
+    def test_dependency_major_upgrade_is_breaking(self):
+        # Same path, `dep::Thing`, but a 1.x value is not a 2.x value.
+        self.assertBreaks(
+            self._dependency_case("1.0.0", "2.0.0"),
+            f"{TAG} function signature changed: `api_compat_synthetic::thing`",
+        )
+
+    def test_dependency_compatible_upgrade_is_compatible(self):
+        rc, out = self._dependency_case("1.0.0", "1.4.0")
         self.assertEqual(rc, 0, out)
+
+    def test_semver_checks_build_error_beside_a_lint_is_a_setup_error(self):
+        # Crate `a` reports a lint while baseline `b` fails to build for cargo-semver-checks
+        # (which enables non-default features) yet builds for the rustdoc layer (defaults
+        # only): an approval must not cover the crate that was never checked.
+        case = self.root / self.id().rsplit(".", 1)[-1]
+        broken = '#[cfg(feature = "extra")]\ncompile_error!("broken");\npub fn g() {}\n'
+        for side, a_src, b_src in (
+            ("baseline", "pub fn f() {}\n", broken),
+            ("current", "", "pub fn g() {}\n"),
+        ):
+            root = case / side
+            root.mkdir(parents=True)
+            (root / "Cargo.toml").write_text('[workspace]\nresolver = "2"\nmembers = ["a", "b"]\n')
+            for crate, src in (("a", a_src), ("b", b_src)):
+                (root / crate / "src").mkdir(parents=True)
+                (root / crate / "Cargo.toml").write_text(
+                    f'[package]\nname = "api-compat-{crate}"\nversion = "1.0.0"\nedition = "2021"\n\n[features]\nextra = []\n'
+                )
+                (root / crate / "src" / "lib.rs").write_text(src)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            rc = api_compat.main([
+                "--manifest-path", str(case / "current" / "Cargo.toml"),
+                "--baseline-root", str(case / "baseline"),
+                "--work-dir", str(case / "work"),
+            ])
+        self.assertEqual(rc, 2, out.getvalue())
+        self.assertIn("could not check every crate", out.getvalue())
+
+    def test_trait_object_lifetime_narrowing_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub handler: Box<dyn Fn() + 'a>,", "pub handler: Box<dyn Fn() + 'static>,")),
+            f"{TAG} field type changed: `api_compat_synthetic::DynHolder.handler`",
+        )
+
+    def test_static_bound_on_type_parameter_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub fn wrap<T: Clone>(", "pub fn wrap<T: Clone + 'static>(")),
+            f"{TAG} function signature changed: `api_compat_synthetic::wrap`",
+        )
+
+    def test_trait_method_lifetime_bound_is_breaking(self):
+        self.assertBreaks(
+            self.check(("fn pair<'a, 'b>(&self", "fn pair<'a: 'b, 'b>(&self")),
+            f"{TAG} trait method signature changed: `api_compat_synthetic::Lifetimes::pair`",
+        )
+
+    def test_change_in_first_specialized_impl_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub fn value(&self) -> u8 {\n        self.0", "pub fn value(&self) -> Option<u8> {\n        Some(self.0)")),
+            f"{TAG} method signature changed: `api_compat_synthetic::Spec::value`",
+        )
+
+    def test_change_in_second_specialized_impl_is_breaking(self):
+        self.assertBreaks(
+            self.check(("pub fn value(&self) -> bool {\n        self.0", "pub fn value(&self) -> Option<bool> {\n        Some(self.0)")),
+            f"{TAG} method signature changed: `api_compat_synthetic::Spec::value`",
+        )
 
     def test_tightening_lifetime_outlives_bound_is_breaking(self):
         self.assertBreaks(
@@ -445,32 +864,11 @@ class SyntheticCrateTest(unittest.TestCase):
             f"{TAG} function signature changed: `api_compat_synthetic::where_lifetime`",
         )
 
-    def test_relaxing_where_lifetime_bound_is_compatible(self):
-        rc, out = self.check(
-            (
-                "bounded_where_lifetime_relax<'a, 'b>(_first: &'a str, _second: &'b str) where 'a: 'b {}",
-                "bounded_where_lifetime_relax<'a, 'b>(_first: &'a str, _second: &'b str) {}",
-            )
-        )
-        self.assertEqual(rc, 0, out)
-
     def test_type_alias_lifetime_narrowing_is_breaking(self):
         self.assertBreaks(
             self.check(("pub type Borrowed<'a> = &'a str;", "pub type Borrowed<'a> = &'static str;")),
             f"{TAG} type alias signature changed: `api_compat_synthetic::Borrowed`",
         )
-
-    def test_renaming_type_alias_lifetime_is_compatible(self):
-        rc, out = self.check(("pub type Borrowed<'a> = &'a str;", "pub type Borrowed<'b> = &'b str;"))
-        self.assertEqual(rc, 0, out)
-
-    def test_relaxing_type_alias_bound_is_compatible(self):
-        rc, out = self.check(("pub type CloneVec<T: Clone> = Vec<T>;", "pub type CloneVec<T> = Vec<T>;"))
-        self.assertEqual(rc, 0, out)
-
-    def test_implicit_and_explicit_unit_returns_are_compatible(self):
-        rc, out = self.check(("pub fn helper() {}", "pub fn helper() -> () {}"))
-        self.assertEqual(rc, 0, out)
 
     def test_removed_item(self):
         self.assertBreaks(
@@ -501,13 +899,13 @@ class SyntheticCrateTest(unittest.TestCase):
         case = self.root / "semver_checks_blind_spot"
         self._crate(case / "baseline", BASELINE)
         self._crate(case / "current", BASELINE.replace("    pub count: u32,", "    pub count: Option<u32>,").replace("count: 0 }", "count: None }"))
-        breaks = api_compat.run_semver_checks(case / "current" / "Cargo.toml", None, case / "baseline")
+        breaks = api_compat.run_semver_checks(case / "current" / "Cargo.toml", case / "baseline")
         self.assertEqual(breaks, [])
 
     def test_enum_variant_payload_becoming_optional(self):
         self.assertBreaks(
             self.check(("    Created(String),", "    Created(Option<String>),")),
-            f"{TAG} variant signature changed: `api_compat_synthetic::Event::Created`: `(alloc::string::String)` -> `(core::option::Option<alloc::string::String>)`",
+            f"{TAG} field type changed (became optional): `api_compat_synthetic::Event::Created.0`: `alloc::string::String` -> `core::option::Option<alloc::string::String>`",
         )
 
     def test_changed_function_signature(self):
@@ -521,7 +919,7 @@ class SyntheticCrateTest(unittest.TestCase):
             self.check(
                 ("    pub fn label(&self) -> String {\n        self.name.clone()", "    pub fn label(&self) -> Option<String> {\n        Some(self.name.clone())"),
             ),
-            f"{TAG} method signature changed: `api_compat_synthetic::Record::label`: `fn(&api_compat_synthetic::Record) -> alloc::string::String` -> `fn(&api_compat_synthetic::Record) -> core::option::Option<alloc::string::String>`",
+            f"{TAG} method signature changed: `api_compat_synthetic::Record::label`: `impl api_compat_synthetic::Record {{ fn(&Self) -> alloc::string::String }}` -> `impl api_compat_synthetic::Record {{ fn(&Self) -> core::option::Option<alloc::string::String> }}`",
         )
 
     def test_tightened_generic_bound(self):

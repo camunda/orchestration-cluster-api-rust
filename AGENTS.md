@@ -175,17 +175,21 @@ SDK's path dependency on the client; refresh `Cargo.lock` with `cargo update -w`
 
 `stable/N` regenerates from upstream `stable/8.x`, so spec drift can break the public API
 of an `N.x` patch. The `API compatibility` check (`.github/workflows/api-compat.yml`) runs
-on every PR to `stable/**`, and `release.yml` repeats it before publishing a stable
-version. Both compare both crates (the client is public through `client`, `apis` and
-`models`) with the newest non-yanked, non-prerelease `N.x.y` on crates.io, using
+on every PR to `stable/**` and compares it with its base branch, so a PR answers only for
+its own changes. Once an `N.x` release exists, `release.yml` compares the version it is
+about to publish with the newest non-yanked, non-prerelease `N.x.y` on crates.io. Both check
+both crates (the client is public through `client`, `apis` and `models`) using
 `scripts/api_compat.py`: pinned cargo-semver-checks plus a rustdoc JSON diff of every
-public field/variant/fn/method signature, which catches `T` -> `Option<T>` (cargo-semver-checks
-does not). Run it locally with `make api-compat`; test the checker with `make test-api-compat`.
+public field/variant/fn/method signature, compared as written, which catches `T` ->
+`Option<T>` (cargo-semver-checks does not). An equivalent respelling, such as a renamed
+generic, is reported too. Run it locally with `make api-compat`; test the checker with
+`make test-api-compat`.
 
 A break is fixed by making the change compatible. If it is intended, a maintainer adds the
-`api-break-approved` label to the PR; the release gate then passes because a PR merged
-since the baseline tag carries the label (or via `workflow_dispatch` with
-`api_break_approved: true`).
+`api-break-approved` label to the PR. The release gate (`scripts/api-compat-release-gate.sh`)
+accepts the label only on a PR merged into the release line since the baseline, and only
+for the API as of that PR's merge: a break added afterwards needs its own approval (or a
+`workflow_dispatch` run with `api_break_approved: true`).
 
 ## Commit messages
 

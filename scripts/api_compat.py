@@ -11,11 +11,12 @@ Two layers, because neither covers the whole surface on its own:
 
 1. cargo-semver-checks (pinned) — removals, new variants on exhaustive enums, new
    fields on constructible structs, new required trait methods, lost trait impls, ...
-2. A rustdoc-JSON signature diff — every public struct/variant field, function and
-   method signature, type alias, const and static is rendered with canonical paths
-   and compared. This covers the class cargo-semver-checks does not: a field, param
-   or return type changing (`T` -> `Option<T>` is the nullability drift the SDKs have
-   shipped before).
+2. A rustdoc-JSON signature diff — every public field, function and method signature,
+   type alias, const, static and trait impl is rendered as written, with canonical
+   paths, and compared verbatim. This covers the class cargo-semver-checks does not:
+   a field, param or return type changing (`T` -> `Option<T>` is the nullability
+   drift the SDKs have shipped before). It does not judge equivalence: a respelling
+   such as a renamed generic is reported, and needs the approval label.
 
 Exit codes: 0 compatible (or no baseline), 1 breaking changes (each one listed),
 2 tool/setup error.
@@ -170,11 +171,36 @@ def download_crate(name: str, version: str, dest: Path, versions_json: Path | No
             if not (member.isfile() or member.isdir()) or base not in target.parents:
                 raise SetupError(f"refusing to extract {member.name!r} from {name}-{version}.crate")
         tar.extractall(dest)
-    # The extracted crate sits under this workspace's target/; make it its own root.
-    text = manifest.read_text(encoding="utf-8")
-    if not re.search(r"^\[workspace\]", text, re.M):
-        manifest.write_text(text + "\n[workspace]\n", encoding="utf-8")
     return manifest
+
+
+def pin_baseline(src: Path, manifests: dict[str, Path]) -> Path:
+    """Make the extracted crates one workspace whose members depend on each other by path.
+
+    A published SDK requires its client as `^N.x.y`, so on its own it can resolve a newer
+    client than the one it was released with (one with new exhaustive enum variants, say)
+    and stop compiling. Returns the workspace root, used by both checker layers."""
+    members = sorted(m.parent.name for m in manifests.values())
+    (src / "Cargo.toml").write_text(
+        "[workspace]\nresolver = \"2\"\nmembers = [" + ", ".join(f'"{m}"' for m in members) + "]\n",
+        encoding="utf-8",
+    )
+    for manifest in manifests.values():
+        text = manifest.read_text(encoding="utf-8")
+        # Earlier versions of this script made each extracted crate its own workspace root.
+        text = re.sub(r"\n\[workspace\]\n*\Z", "\n", text)
+        for name, dep in manifests.items():
+            if dep == manifest:
+                continue
+            rel = f"../{dep.parent.name}"
+            text = re.sub(
+                rf"^(\[(?:target\.[^\]\n]+\.)?(?:dev-|build-)?dependencies\.{re.escape(name)}\]\n)(?!path = )",
+                lambda m: f'{m.group(1)}path = "{rel}"\n',
+                text,
+                flags=re.M,
+            )
+        manifest.write_text(text, encoding="utf-8")
+    return src
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +248,7 @@ def parse_semver_checks(output: str) -> list[str]:
     return breaks
 
 
-def run_semver_checks(manifest: Path, baseline_version: str | None, baseline_root: Path | None) -> list[str]:
+def run_semver_checks(manifest: Path, baseline_root: Path) -> list[str]:
     cmd = [
         "cargo", "semver-checks", "check-release",
         "--manifest-path", str(manifest), "--workspace",
@@ -230,15 +256,18 @@ def run_semver_checks(manifest: Path, baseline_version: str | None, baseline_roo
         # major), so only changes that require a new major fail.
         "--release-type", "minor",
         "--color", "never",
+        # The pinned baseline workspace, not `--baseline-version`: that resolves the
+        # published SDK's client requirement afresh.
+        "--baseline-root", str(baseline_root),
     ]
-    if baseline_root is not None:
-        cmd += ["--baseline-root", str(baseline_root)]
-    else:
-        cmd += ["--baseline-version", str(baseline_version)]
     r = _run(cmd)
     output = r.stdout + r.stderr
     # Lint reports go to stdout, progress to stderr.
     breaks = parse_semver_checks(r.stdout)
+    # A crate that fails to build is unchecked even when another crate reported lints, and
+    # an approval must not cover that. A lint-only failure prints no `error:` line.
+    if re.search(r"^error(\[|:)", r.stderr, re.M):
+        raise SetupError(f"cargo-semver-checks could not check every crate:\n{output}")
     if r.returncode != 0 and not breaks:
         raise SetupError(f"cargo-semver-checks failed without reporting a lint:\n{output}")
     if r.returncode == 0 and breaks:
@@ -262,24 +291,49 @@ def docs_toolchain() -> str:
     return m.group(1)
 
 
-def build_rustdoc_json(manifest: Path, package: str, target_dir: Path) -> Path:
+def build_rustdoc_json(manifest: Path, package: str, target_dir: Path) -> tuple[Path, dict[str, str]]:
+    """The rustdoc JSON of `package`, and the semver-compatible version (`1`, `0.12`) of
+    every compiled dependency, keyed by artifact file name."""
     toolchain = docs_toolchain()
     cmd = [
         "cargo", f"+{toolchain}", "rustdoc", "--lib", "-p", package,
-        "--manifest-path", str(manifest),
+        "--manifest-path", str(manifest), "--message-format", "json",
         "--", "-Z", "unstable-options", "--output-format", "json",
     ]
     env = dict(os.environ, CARGO_TARGET_DIR=str(target_dir))
     r = _run(cmd, env=env)
     if r.returncode != 0:
         raise SetupError(
-            f"rustdoc JSON build failed for {package} ({manifest}):\n{r.stderr}\n"
+            f"rustdoc JSON build failed for {package} ({manifest}):\n{r.stderr}\n{r.stdout[-4000:]}\n"
             f"Install the toolchain with: rustup toolchain install {toolchain} --profile minimal"
         )
     out = target_dir / "doc" / f"{package.replace('-', '_')}.json"
     if not out.is_file():
         raise SetupError(f"rustdoc did not produce {out}")
-    return out
+    versions: dict[str, str] = {}
+    for line in r.stdout.splitlines():
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if msg.get("reason") != "compiler-artifact":
+            continue
+        bucket = _compat_bucket(msg.get("package_id", ""))
+        for f in msg.get("filenames", []):
+            versions[Path(f).name] = bucket
+    return out, versions
+
+
+def _compat_bucket(package_id: str) -> str:
+    """`registry+...#reqwest@0.12.5` -> `0.12`: versions within one bucket are compatible."""
+    version = package_id.rsplit("#", 1)[-1].rsplit("@", 1)[-1]
+    parsed = parse_version(version)
+    if parsed is None:
+        return version
+    major, minor, patch = parsed[:3]
+    if major:
+        return str(major)
+    return f"0.{minor}" if minor else f"0.0.{patch}"
 
 
 @dataclass(frozen=True)
@@ -295,9 +349,6 @@ class Entry:
     # The same element under its owner's shortest public path: an item re-exported at
     # several paths is one change, not one per path.
     canonical: str = ""
-    # Functions/methods: (signature without `const` and bounds, bound atoms, is_const),
-    # so adding `const` or relaxing a bound is not reported.
-    relax: tuple[str, frozenset[str], bool] | None = None
 
 
 # Local types render as a placeholder holding their item id; `Surface.resolver` names
@@ -308,7 +359,7 @@ _LOCAL = re.compile("\x1f([^\x1f]*)\x1f")
 class Surface:
     """Public API of one crate, keyed by public path."""
 
-    def __init__(self, doc: dict):
+    def __init__(self, doc: dict, dep_versions: dict[str, str] | None = None):
         version = doc.get("format_version")
         if version not in SUPPORTED_FORMAT_VERSIONS:
             raise SetupError(
@@ -318,6 +369,12 @@ class Surface:
         self.index: dict[str, dict] = doc["index"]
         self.paths: dict[str, dict] = doc.get("paths", {})
         self.crates: dict[str, dict] = doc.get("external_crates", {})
+        # Crate id -> compatible version of the dependency it was built from (std has none).
+        self.crate_versions: dict[str, str] = {}
+        for crate_id, crate in self.crates.items():
+            bucket = (dep_versions or {}).get(Path(crate.get("path") or "").name)
+            if bucket:
+                self.crate_versions[str(crate_id)] = bucket
         self.root = str(doc["root"])
         self.crate_name = self.index[self.root]["name"]
         self.public_path: dict[str, str] = {}
@@ -394,59 +451,64 @@ class Surface:
             return f"\x1f{item_id}\x1f"
         entry = self.paths.get(item_id) if item_id else None
         if entry and entry.get("path"):
-            # Full defining path: `mpsc::Receiver` and `oneshot::Receiver` must differ.
-            # Baselines build against this workspace's Cargo.lock, so it is stable.
-            return "::".join(entry["path"])
+            # Full defining path: `mpsc::Receiver` and `oneshot::Receiver` must differ. The
+            # dependency's compatible version too: `reqwest@0.12::Client` is not 0.13's.
+            path = list(entry["path"])
+            bucket = self.crate_versions.get(str(entry.get("crate_id")))
+            if bucket:
+                path[0] = f"{path[0]}@{bucket}"
+            return "::".join(path)
         return rp.get("path", "_")
 
-    def render(self, t: Any, g: dict[str, str]) -> str:
+    def render(self, t: Any) -> str:
         if not isinstance(t, dict):
             return "_"
         if "primitive" in t:
             return t["primitive"]
         if "generic" in t:
-            return g.get(t["generic"], t["generic"])
+            return t["generic"]
         if "resolved_path" in t:
             rp = t["resolved_path"]
-            return self._type_path(rp) + self._args(rp.get("args"), g)
+            return self._type_path(rp) + self._args(rp.get("args"))
         if "borrowed_ref" in t:
             br = t["borrowed_ref"]
-            lifetime = br.get("lifetime")
-            lifetime = f"{g.get(lifetime, lifetime)} " if lifetime else ""
-            return f"&{lifetime}{'mut ' if br.get('is_mutable') else ''}{self.render(br.get('type'), g)}"
+            lifetime = f"{br['lifetime']} " if br.get("lifetime") else ""
+            return f"&{lifetime}{'mut ' if br.get('is_mutable') else ''}{self.render(br.get('type'))}"
         if "raw_pointer" in t:
             rp = t["raw_pointer"]
-            return f"*{'mut' if rp.get('is_mutable') else 'const'} {self.render(rp.get('type'), g)}"
+            return f"*{'mut' if rp.get('is_mutable') else 'const'} {self.render(rp.get('type'))}"
         if "tuple" in t:
-            return "(" + ", ".join(self.render(x, g) for x in t["tuple"]) + ")"
+            return "(" + ", ".join(self.render(x) for x in t["tuple"]) + ")"
         if "slice" in t:
-            return f"[{self.render(t['slice'], g)}]"
+            return f"[{self.render(t['slice'])}]"
         if "array" in t:
             a = t["array"]
-            return f"[{self.render(a.get('type'), g)}; {a.get('len')}]"
+            return f"[{self.render(a.get('type'))}; {a.get('len')}]"
         if "impl_trait" in t:
-            return "impl " + self._bounds(t["impl_trait"], g)
+            return "impl " + self._bounds(t["impl_trait"])
         if "dyn_trait" in t:
-            traits = [self._poly_trait(pt, g) for pt in t["dyn_trait"].get("traits", [])]
-            return "dyn " + " + ".join(traits)
+            dt = t["dyn_trait"]
+            parts = [self._poly_trait(pt) for pt in dt.get("traits", [])]
+            if dt.get("lifetime"):
+                parts.append(dt["lifetime"])
+            return "dyn " + " + ".join(parts)
         if "qualified_path" in t:
             qp = t["qualified_path"]
             trait = qp.get("trait")
-            as_trait = f" as {self._type_path(trait)}{self._args(trait.get('args'), g)}" if trait else ""
-            return f"<{self.render(qp.get('self_type'), g)}{as_trait}>::{qp.get('name')}{self._args(qp.get('args'), g)}"
+            as_trait = f" as {self._type_path(trait)}{self._args(trait.get('args'))}" if trait else ""
+            return f"<{self.render(qp.get('self_type'))}{as_trait}>::{qp.get('name')}{self._args(qp.get('args'))}"
         if "function_pointer" in t:
             fp = t["function_pointer"]
             header = fp.get("header") or {}
             safety = "unsafe " if header.get("is_unsafe") else ""
             abi = header.get("abi", "Rust")
             convention = "" if abi == "Rust" else f'extern "{abi}" '
-            fg, _ = self._generics({"params": fp.get("generic_params", [])}, g)
-            return convention + safety + "fn" + self._sig(fp.get("sig", {}), fg)
+            return self._binder(fp.get("generic_params")) + convention + safety + "fn" + self._sig(fp.get("sig", {}))
         if "pat" in t:
-            return self.render(t["pat"].get("type"), g)
+            return self.render(t["pat"].get("type"))
         return "_"
 
-    def _args(self, args: Any, g: dict[str, str]) -> str:
+    def _args(self, args: Any) -> str:
         if not isinstance(args, dict):
             return ""
         if "angle_bracketed" in args:
@@ -454,154 +516,115 @@ class Surface:
             parts: list[str] = []
             for a in ab.get("args", []):
                 if isinstance(a, dict) and "type" in a:
-                    parts.append(self.render(a["type"], g))
+                    parts.append(self.render(a["type"]))
                 elif isinstance(a, dict) and "lifetime" in a:
-                    lifetime = a["lifetime"]
-                    parts.append(g.get(lifetime, lifetime))
+                    parts.append(a["lifetime"])
                 elif isinstance(a, dict) and "const" in a:
                     parts.append(str(a["const"].get("expr", "")))
                 elif a == "infer":
                     parts.append("_")
             for c in ab.get("constraints", []):
                 binding = c.get("binding") or {}
-                name = c.get("name", "") + self._args(c.get("args"), g)
+                name = c.get("name", "") + self._args(c.get("args"))
                 if "equality" in binding:
                     term = binding["equality"]
-                    value = self.render(term["type"], g) if "type" in term else str(term.get("constant", {}).get("expr", ""))
+                    value = self.render(term["type"]) if "type" in term else str(term.get("constant", {}).get("expr", ""))
                     parts.append(f"{name} = {value}")
                 elif "constraint" in binding:
-                    parts.append(f"{name}: {self._bounds(binding['constraint'], g)}")
+                    parts.append(f"{name}: {self._bounds(binding['constraint'])}")
             return f"<{', '.join(parts)}>" if parts else ""
         if "parenthesized" in args:
             p = args["parenthesized"]
             out = p.get("output")
-            ret = f" -> {self.render(out, g)}" if out else ""
-            return "(" + ", ".join(self.render(x, g) for x in p.get("inputs", [])) + ")" + ret
+            ret = f" -> {self.render(out)}" if out else ""
+            return "(" + ", ".join(self.render(x) for x in p.get("inputs", [])) + ")" + ret
         if "return_type_notation" in args:
             return "(..)"
         return ""
 
-    def _poly_trait(self, pt: dict, g: dict[str, str]) -> str:
-        tr = pt.get("trait") or {}
-        return self._type_path(tr) + self._args(tr.get("args"), g)
+    def _binder(self, params: list | None) -> str:
+        """`for<'a> ` of a higher-ranked bound or fn pointer, as written."""
+        rendered = self._params(params)
+        return f"for{rendered} " if rendered else ""
 
-    def _bound_list(self, bounds: list, g: dict[str, str]) -> list[str]:
+    def _poly_trait(self, pt: dict) -> str:
+        tr = pt.get("trait") or {}
+        return self._binder(pt.get("generic_params")) + self._type_path(tr) + self._args(tr.get("args"))
+
+    def _bound_list(self, bounds: list) -> list[str]:
         out: list[str] = []
         for b in bounds or []:
             if isinstance(b, dict) and "trait_bound" in b:
                 tb = b["trait_bound"]
                 mod = {"maybe": "?", "maybe_const": "~const "}.get(tb.get("modifier"), "")
-                out.append(mod + self._poly_trait(tb, g))
-        # Lifetime bounds are elided throughout: they are not part of what this layer checks.
+                out.append(mod + self._poly_trait(tb))
+            elif isinstance(b, dict) and "outlives" in b:
+                out.append(b["outlives"])
         return sorted(out)
 
-    def _bounds(self, bounds: list, g: dict[str, str]) -> str:
-        return " + ".join(self._bound_list(bounds, g))
+    def _bounds(self, bounds: list) -> str:
+        return " + ".join(self._bound_list(bounds))
 
-    def _generics(self, generics: dict | None, g: dict[str, str]) -> tuple[dict[str, str], str]:
-        g, params, where = self._generics_parts(generics, g)
-        return g, params + where
-
-    def _generics_parts(
-        self, generics: dict | None, g: dict[str, str], atoms: set[str] | None = None
-    ) -> tuple[dict[str, str], str, str]:
-        """Extend `g` with positional names for this item's params (renaming `T` to `U`
-        is not a break); render the param list and the where clause. With `atoms`, bounds
-        and predicates go there one per bound instead of into the rendering."""
-        g = dict(g)
-        for p in (generics or {}).get("params", []):
+    def _params(self, params: list | None) -> str:
+        """A generic parameter list as written: names, bounds and defaults."""
+        rendered = []
+        for p in params or []:
             kind = p.get("kind") or {}
             if "lifetime" in kind:
-                g[p["name"]] = _fresh_lifetime(g)
-                continue
-            if "type" in kind and kind["type"].get("is_synthetic"):
-                continue  # `impl Trait` argument: rendered at the parameter instead
-            g[p["name"]] = _fresh_generic(g)
-        if atoms is not None:
-            for p in (generics or {}).get("params", []):
-                kind = p.get("kind") or {}
-                if "lifetime" in kind:
-                    lifetime = g[p["name"]]
-                    atoms.update(
-                        f"{lifetime}: {g.get(parent, parent)}"
-                        for parent in kind["lifetime"].get("outlives", [])
-                    )
-        rendered = []
-        for p in (generics or {}).get("params", []):
-            kind = p.get("kind") or {}
-            if p["name"] not in g or "lifetime" in kind:
-                continue
-            if "type" in kind and kind["type"].get("is_synthetic"):
-                continue
-            if "type" in kind:
-                bounds = self._bounds(kind["type"].get("bounds"), g)
-                default = kind["type"].get("default")
-                if atoms is not None:
-                    atoms.update(f"{g[p['name']]}: {b}" for b in self._bound_list(kind["type"].get("bounds"), g))
-                    bounds = ""
-                s = g[p["name"]] + (f": {bounds}" if bounds else "")
-                if default is not None:
-                    s += f" = {self.render(default, g)}"
+                outlives = kind["lifetime"].get("outlives", [])
+                rendered.append(p["name"] + (f": {' + '.join(outlives)}" if outlives else ""))
+            elif "type" in kind:
+                if kind["type"].get("is_synthetic"):
+                    continue  # `impl Trait` argument: rendered at the parameter instead
+                bounds = self._bounds(kind["type"].get("bounds"))
+                s = p["name"] + (f": {bounds}" if bounds else "")
+                if kind["type"].get("default") is not None:
+                    s += f" = {self.render(kind['type']['default'])}"
                 rendered.append(s)
             elif "const" in kind:
-                rendered.append(f"const {g[p['name']]}: {self.render(kind['const'].get('type'), g)}")
+                s = f"const {p['name']}: {self.render(kind['const'].get('type'))}"
+                if kind["const"].get("default") is not None:
+                    s += f" = {kind['const']['default']}"
+                rendered.append(s)
+        return f"<{', '.join(rendered)}>" if rendered else ""
+
+    def _where(self, generics: dict | None) -> str:
         preds = []
         for wp in (generics or {}).get("where_predicates", []):
             if "bound_predicate" in wp:
                 bp = wp["bound_predicate"]
-                bounds = self._bounds(bp.get("bounds"), g)
-                if bounds:
-                    preds.append(f"{self.render(bp.get('type'), g)}: {bounds}")
+                preds.append(
+                    f"{self._binder(bp.get('generic_params'))}{self.render(bp.get('type'))}: {self._bounds(bp.get('bounds'))}"
+                )
             elif "lifetime_predicate" in wp:
                 lp = wp["lifetime_predicate"]
-                lifetime = g.get(lp.get("lifetime"), lp.get("lifetime"))
-                outlives = [g.get(parent, parent) for parent in lp.get("outlives", [])]
-                if atoms is None:
-                    preds.extend(f"{lifetime}: {parent}" for parent in outlives)
-                else:
-                    atoms.update(f"{lifetime}: {parent}" for parent in outlives)
+                preds.append(f"{lp.get('lifetime')}: {' + '.join(lp.get('outlives', []))}")
             elif "eq_predicate" in wp:
                 ep = wp["eq_predicate"]
                 rhs = ep.get("rhs") or {}
-                rhs_s = self.render(rhs["type"], g) if "type" in rhs else str(rhs)
-                preds.append(f"{self.render(ep.get('lhs'), g)} == {rhs_s}")
-        if atoms is not None:
-            for wp in (generics or {}).get("where_predicates", []):
-                if "bound_predicate" in wp:
-                    bp = wp["bound_predicate"]
-                    ty = self.render(bp.get("type"), g)
-                    atoms.update(f"{ty}: {b}" for b in self._bound_list(bp.get("bounds"), g))
-            atoms.update(p for p in preds if " == " in p)
-            preds = []
-        params = f"<{', '.join(rendered)}>" if rendered else ""
-        where = " where " + ", ".join(sorted(preds)) if preds else ""
-        return g, params, where
+                rhs_s = self.render(rhs["type"]) if "type" in rhs else str(rhs)
+                preds.append(f"{self.render(ep.get('lhs'))} == {rhs_s}")
+        return " where " + ", ".join(sorted(preds)) if preds else ""
 
-    def _sig(self, sig: dict, g: dict[str, str]) -> str:
-        params = [self.render(ty, g) for _, ty in sig.get("inputs", [])]
+    def _generics(self, generics: dict | None) -> str:
+        return self._params((generics or {}).get("params")) + self._where(generics)
+
+    def _sig(self, sig: dict) -> str:
+        params = [self.render(ty) for _, ty in sig.get("inputs", [])]
         if sig.get("is_c_variadic"):
             params.append("...")
         out = sig.get("output")
-        return "(" + ", ".join(params) + ")" + (f" -> {self.render(out, g)}" if out else "")
+        return "(" + ", ".join(params) + ")" + (f" -> {self.render(out)}" if out else "")
 
-    def _fn(self, fn: dict, g: dict[str, str]) -> str:
+    def _fn(self, fn: dict) -> str:
         header = fn.get("header") or {}
         prefix = "".join(
             word for flag, word in (("is_const", "const "), ("is_async", "async "), ("is_unsafe", "unsafe "))
             if header.get(flag)
         )
-        g2, params, where = self._generics_parts(fn.get("generics"), g)
+        generics = fn.get("generics")
         # Param names are not part of the contract; their types and order are.
-        return f"{prefix}fn{params}{self._sig(fn.get('sig') or {}, g2)}{where}"
-
-    def _fn_relax(self, fn: dict, g: dict[str, str]) -> tuple[str, frozenset[str], bool]:
-        header = fn.get("header") or {}
-        prefix = "".join(
-            word for flag, word in (("is_async", "async "), ("is_unsafe", "unsafe ")) if header.get(flag)
-        )
-        atoms: set[str] = set()
-        g, params, _ = self._generics_parts(fn.get("generics"), g, atoms)
-        return f"{prefix}fn{params}{self._sig(fn.get('sig') or {}, g)}", frozenset(atoms), bool(header.get("is_const"))
+        return f"{prefix}fn{self._params((generics or {}).get('params'))}{self._sig(fn.get('sig') or {})}{self._where(generics)}"
 
     # -- recording ---------------------------------------------------------
 
@@ -622,18 +645,7 @@ class Surface:
         body = inner.get(kind) or {}
         canonical = self.public_path[item_id]
         if kind in ("struct", "union"):
-            g, generics = self._generics(body.get("generics"), {})
-            atoms: set[str] = set()
-            _, relaxed_generics, _ = self._generics_parts(body.get("generics"), {}, atoms)
-            self._add(
-                path,
-                Entry(
-                    kind,
-                    f"{kind}{generics}",
-                    canonical=canonical,
-                    relax=(f"{kind}{relaxed_generics}", frozenset(atoms), True),
-                ),
-            )
+            self._add(path, Entry(kind, f"{kind}{self._generics(body.get('generics'))}", canonical=canonical))
             if kind == "union":
                 fields = body.get("fields", [])
             else:
@@ -643,36 +655,27 @@ class Surface:
                     fields = skind["plain"].get("fields", [])
                 elif isinstance(skind, dict) and "tuple" in skind:
                     fields = skind["tuple"]
-            for pos, fid in enumerate(fields):
-                f = self.index.get(str(fid)) if fid is not None else None
-                if f is None or f.get("visibility") != "public":
-                    continue
-                name = f.get("name") or str(pos)
-                self._member(item_id, path, ".", name, Entry("field", self.render(f["inner"]["struct_field"], g)))
-            self._record_impls(item_id, path, body.get("impls", []), g)
+            self._record_fields(path, canonical, fields, public_only=True)
+            self._record_impls(item_id, path, body.get("impls", []))
         elif kind == "enum":
-            g, generics = self._generics(body.get("generics"), {})
-            atoms: set[str] = set()
-            _, relaxed_generics, _ = self._generics_parts(body.get("generics"), {}, atoms)
-            self._add(
-                path,
-                Entry(
-                    "enum",
-                    f"enum{generics}",
-                    canonical=canonical,
-                    relax=(f"enum{relaxed_generics}", frozenset(atoms), True),
-                ),
-            )
+            self._add(path, Entry("enum", f"enum{self._generics(body.get('generics'))}", canonical=canonical))
             for vid in body.get("variants", []):
                 v = self.index.get(str(vid))
                 if v is None:
                     continue
-                self._member(item_id, path, "::", v["name"], Entry("variant", self._variant(v["inner"]["variant"], g)))
-            self._record_impls(item_id, path, body.get("impls", []), g)
+                vkind = v["inner"]["variant"].get("kind")
+                shape = next(iter(vkind)) if isinstance(vkind, dict) else "unit"
+                self._member(item_id, path, "::", v["name"], Entry("variant", shape))
+                fields = vkind["tuple"] if shape == "tuple" else vkind["struct"].get("fields", []) if shape == "struct" else []
+                # Field by field: an added field is cargo-semver-checks' call (it knows `#[non_exhaustive]`).
+                self._record_fields(f"{path}::{v['name']}", f"{canonical}::{v['name']}", fields, public_only=False)
+            self._record_impls(item_id, path, body.get("impls", []))
         elif kind == "trait":
-            g, generics = self._generics(body.get("generics"), {"Self": "Self"})
-            supertraits = self._bounds(body.get("bounds"), g)
-            self._add(path, Entry("trait", f"trait{generics}" + (f": {supertraits}" if supertraits else ""), canonical=canonical))
+            supertraits = self._bounds(body.get("bounds"))
+            self._add(path, Entry(
+                "trait", f"trait{self._generics(body.get('generics'))}" + (f": {supertraits}" if supertraits else ""),
+                canonical=canonical,
+            ))
             for mid in body.get("items", []):
                 m = self.index.get(str(mid))
                 if m is None or not m.get("name"):
@@ -680,64 +683,51 @@ class Surface:
                 minner = m.get("inner", {})
                 if "function" in minner:
                     fn = minner["function"]
-                    entry = Entry("trait method", self._fn(fn, g), required=not fn.get("has_body"))
+                    entry = Entry("trait method", self._fn(fn), required=not fn.get("has_body"))
                 elif "assoc_type" in minner:
                     at = minner["assoc_type"]
-                    bounds = self._bounds(at.get("bounds"), g)
-                    entry = Entry("associated type", "type" + (f": {bounds}" if bounds else ""), required=at.get("type") is None)
+                    bounds = self._bounds(at.get("bounds"))
+                    entry = Entry(
+                        "associated type", f"type{self._generics(at.get('generics'))}" + (f": {bounds}" if bounds else ""),
+                        required=at.get("type") is None,
+                    )
                 elif "assoc_const" in minner:
                     ac = minner["assoc_const"]
-                    entry = Entry("associated const", f"const: {self.render(ac.get('type'), g)}", required=ac.get("value") is None)
+                    entry = Entry("associated const", f"const: {self.render(ac.get('type'))}", required=ac.get("value") is None)
                 else:
                     continue
                 self._member(item_id, path, "::", m["name"], entry)
         elif kind == "function":
-            self._add(path, Entry("function", self._fn(body, {}), canonical=canonical, relax=self._fn_relax(body, {})))
+            self._add(path, Entry("function", self._fn(body), canonical=canonical))
         elif kind == "type_alias":
-            g, generics = self._generics(body.get("generics"), {})
-            atoms: set[str] = set()
-            _, relaxed_generics, _ = self._generics_parts(body.get("generics"), {}, atoms)
-            self._add(
-                path,
-                Entry(
-                    "type alias",
-                    f"type{generics} = {self.render(body.get('type'), g)}",
-                    canonical=canonical,
-                    relax=(
-                        f"type{relaxed_generics} = {self.render(body.get('type'), g)}",
-                        frozenset(atoms),
-                        True,
-                    ),
-                ),
-            )
+            self._add(path, Entry(
+                "type alias", f"type{self._generics(body.get('generics'))} = {self.render(body.get('type'))}",
+                canonical=canonical,
+            ))
         elif kind == "constant":
-            self._add(path, Entry("const", f"const: {self.render(body.get('type'), {})}", canonical=canonical))
+            self._add(path, Entry("const", f"const: {self.render(body.get('type'))}", canonical=canonical))
         elif kind == "static":
             mut = "mut " if body.get("is_mutable") else ""
-            self._add(path, Entry("static", f"static {mut}{self.render(body.get('type'), {})}", canonical=canonical))
+            self._add(path, Entry("static", f"static {mut}{self.render(body.get('type'))}", canonical=canonical))
         elif kind in ("macro", "proc_macro", "module", "trait_alias"):
             self._add(path, Entry(kind, kind, canonical=canonical))
 
-    def _variant(self, variant: dict, g: dict[str, str]) -> str:
-        vkind = variant.get("kind")
-        if not isinstance(vkind, dict):
-            return "unit"
-        if "tuple" in vkind:
-            parts = []
-            for fid in vkind["tuple"]:
-                f = self.index.get(str(fid)) if fid is not None else None
-                parts.append(self.render(f["inner"]["struct_field"], g) if f else "_")
-            return f"({', '.join(parts)})"
-        if "struct" in vkind:
-            parts = []
-            for fid in vkind["struct"].get("fields", []):
-                f = self.index.get(str(fid))
-                if f:
-                    parts.append(f"{f['name']}: {self.render(f['inner']['struct_field'], g)}")
-            return "{ " + ", ".join(sorted(parts)) + " }"
-        return "unit"
+    def _record_fields(self, owner_path: str, owner_canonical: str, field_ids: list, public_only: bool) -> None:
+        for pos, fid in enumerate(field_ids):
+            f = self.index.get(str(fid)) if fid is not None else None
+            # Variant fields are as visible as their enum; rustdoc marks them `default`.
+            if f is None or (public_only and f.get("visibility") != "public"):
+                continue
+            name = f.get("name") or str(pos)
+            self._add(f"{owner_path}.{name}", Entry(
+                "field", self.render(f["inner"]["struct_field"]),
+                owner=owner_path, canonical=f"{owner_canonical}.{name}",
+            ))
 
-    def _record_impls(self, owner_id: str, path: str, impl_ids: list, g: dict[str, str]) -> None:
+    def _record_impls(self, owner_id: str, path: str, impl_ids: list) -> None:
+        # Methods of one name across inherent impls (`impl Spec<u8>` and `impl Spec<bool>`
+        # can both define `value`) are one entry: each signature with its impl header.
+        members: dict[str, tuple[str, list[str]]] = {}
         for impl_id in impl_ids:
             impl_item = self.index.get(str(impl_id))
             if impl_item is None:
@@ -747,57 +737,35 @@ class Surface:
             if impl.get("is_synthetic") or impl.get("blanket_impl"):
                 continue
             if impl.get("trait") is not None:
-                self._record_trait_impl(owner_id, path, impl, g)
+                self._record_trait_impl(owner_id, path, impl)
                 continue
-            impl_atoms: set[str] = set()
-            ig, _, _ = self._generics_parts(impl.get("generics"), g, impl_atoms)
-            # `Self` in an inherent impl is the owner type; writing either spelling is the same API.
-            ig["Self"] = self.render(impl.get("for"), ig)
+            generics = impl.get("generics")
+            header = f"impl{self._params((generics or {}).get('params'))} {self.render(impl.get('for'))}{self._where(generics)}"
             for mid in impl.get("items", []):
                 m = self.index.get(str(mid))
                 if m is None or m.get("visibility") != "public" or not m.get("name"):
                     continue
                 minner = m.get("inner", {})
                 if "function" in minner:
-                    fn = minner["function"]
-                    sig, atoms, const = self._fn_relax(fn, ig)
-                    self._member(
-                        owner_id,
-                        path,
-                        "::",
-                        m["name"],
-                        Entry(
-                            "method",
-                            self._fn(fn, ig),
-                            relax=(sig, atoms | frozenset(impl_atoms), const),
-                        ),
-                    )
+                    kind, sig = "method", self._fn(minner["function"])
                 elif "assoc_const" in minner:
-                    self._member(owner_id, path, "::", m["name"], Entry("associated const", f"const: {self.render(minner['assoc_const'].get('type'), ig)}"))
+                    kind, sig = "associated const", f"const: {self.render(minner['assoc_const'].get('type'))}"
+                else:
+                    continue
+                members.setdefault(m["name"], (kind, []))[1].append(f"{header} {{ {sig} }}")
+        for name, (kind, sigs) in members.items():
+            self._member(owner_id, path, "::", name, Entry(kind, _ALT.join(sigs)))
 
-    def _record_trait_impl(self, owner_id: str, path: str, impl: dict, g: dict[str, str]) -> None:
+    def _record_trait_impl(self, owner_id: str, path: str, impl: dict) -> None:
         """The impl and its associated types; method signatures are the trait's."""
         tr = impl["trait"]
         trait_id = str(tr.get("id")) if tr.get("id") is not None else None
         known = self.paths.get(trait_id) if trait_id else None
         if trait_id not in self.all_paths and (known is None or known.get("crate_id") == 0):
             return  # a private trait: downstream cannot name it
-        atoms: set[str] = set()
-        ig, params, where = self._generics_parts(impl.get("generics"), g)
-        _, relaxed_params, _ = self._generics_parts(impl.get("generics"), g, atoms)
         neg = "!" if impl.get("is_negative") else ""
-        name = f"<impl {neg}{self._type_path(tr)}{self._args(tr.get('args'), ig)} for {self.render(impl.get('for'), ig)}>"
-        self._member(
-            owner_id,
-            path,
-            "::",
-            name,
-            Entry(
-                "trait impl",
-                f"impl{params}{where}",
-                relax=(f"impl{relaxed_params}", frozenset(atoms), True),
-            ),
-        )
+        name = f"<impl {neg}{self._type_path(tr)}{self._args(tr.get('args'))} for {self.render(impl.get('for'))}>"
+        self._member(owner_id, path, "::", name, Entry("trait impl", f"impl{self._generics(impl.get('generics'))}"))
         impl_key = f"{path}::{name}"
         for mid in impl.get("items", []):
             m = self.index.get(str(mid))
@@ -805,43 +773,27 @@ class Surface:
             if at is None or not m.get("name"):
                 continue
             self._add(f"{impl_key}::{m['name']}", Entry(
-                "associated type", f"type = {self.render(at.get('type'), ig)}",
+                "associated type", f"type = {self.render(at.get('type'))}",
                 owner=impl_key, canonical=f"{self.public_path[owner_id]}::{name}::{m['name']}",
             ))
-
-
-def _fresh_generic(g: dict[str, str]) -> str:
-    # Not `len(g)`: a shadowing param (`impl<T>` on `Holder<T>`) replaces a key without growing g.
-    used = [int(v[1:]) for v in g.values() if v[:1] == "G" and v[1:].isdigit()]
-    return f"G{max(used, default=-1) + 1}"
-
-
-def _fresh_lifetime(g: dict[str, str]) -> str:
-    used = [int(v[2:]) for v in g.values() if v.startswith("'L") and v[2:].isdigit()]
-    return f"'L{max(used, default=-1) + 1}"
 
 
 def _became_optional(old: str, new: str) -> bool:
     return new in (f"core::option::Option<{old}>", f"core::option::Option<alloc::boxed::Box<{old}>>")
 
 
-def _relaxed_only(before: Entry, after: Entry, ro, rn) -> bool:
-    """Callers still compile: same shape, no new bound, no `?Sized` dropped, `const` kept."""
-    if before.relax is None or after.relax is None:
-        return False
-    (b_sig, b_atoms, b_const), (a_sig, a_atoms, a_const) = before.relax, after.relax
-    a_set, b_set = {rn(a) for a in a_atoms}, {ro(a) for a in b_atoms}
-    return (
-        ro(b_sig) == rn(a_sig)
-        and {a for a in a_set if ": ?" not in a} <= b_set
-        # Dropping `?Sized` restores the implicit `Sized` bound.
-        and {a for a in b_set if ": ?" in a} <= a_set
-        and (a_const or not b_const)
-    )
+# Separates one method's signatures across inherent impls. They are ordered only after local
+# item ids resolve to paths: ids are per build, so sorting earlier can flip the order.
+_ALT = "\x1d"
+
+
+def _sig_text(resolve, sig: str) -> str:
+    return " | ".join(sorted(resolve(s) for s in sig.split(_ALT)))
 
 
 def diff_surfaces(old: Surface, new: Surface) -> list[str]:
-    """Breaking differences in `new` relative to `old`. Additions are compatible."""
+    """Breaking differences in `new` relative to `old`. Additions are compatible; an
+    equivalent respelling is not recognised (see the module docstring)."""
     breaks: list[str] = []
     reported: set[tuple[str, str]] = set()
     ro, rn = old.resolver(new), new.resolver(old)
@@ -864,10 +816,8 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
         if before.kind != after.kind:
             report((before.canonical, "kind"), f"`{path}` changed from {before.kind} to {after.kind}")
             continue
-        b_sig, a_sig = ro(before.sig), rn(after.sig)
-        if (
-            b_sig != a_sig or before.relax != after.relax
-        ) and not _relaxed_only(before, after, ro, rn):
+        b_sig, a_sig = _sig_text(ro, before.sig), _sig_text(rn, after.sig)
+        if b_sig != a_sig:
             label = f"{before.kind} type" if before.kind == "field" else f"{before.kind} signature"
             note = " (became optional)" if _became_optional(b_sig, a_sig) else ""
             report(
@@ -883,12 +833,13 @@ def diff_surfaces(old: Surface, new: Surface) -> list[str]:
     return breaks
 
 
-def load_surface(path: Path) -> Surface:
+def load_surface(built: tuple[Path, dict[str, str]]) -> Surface:
+    path, dep_versions = built
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         raise SetupError(f"cannot read rustdoc JSON {path}: {e}") from e
-    return Surface(doc)
+    return Surface(doc, dep_versions)
 
 
 # ---------------------------------------------------------------------------
@@ -900,21 +851,22 @@ def check(manifest: Path, baseline_version: str | None, baseline_root: Path | No
           versions_json: Path | None, work_dir: Path) -> list[str]:
     check_semver_tool()
     packages = workspace_packages(manifest)
-    breaks = [f"[cargo-semver-checks] {b}" for b in run_semver_checks(manifest, baseline_version, baseline_root)]
 
-    if baseline_root is not None:
-        baseline_manifests = workspace_packages(baseline_root / "Cargo.toml")
-    else:
+    if baseline_root is None:
         src = work_dir / "baseline-src"
-        baseline_manifests = {
+        downloaded = {
             name: download_crate(name, str(baseline_version), src, versions_json if name == SDK_CRATE else None)
             for name in packages
         }
-        # Same dependency versions on both sides, so dependency type paths compare exactly.
+        baseline_root = pin_baseline(src, downloaded)
+        # Same third-party versions on both sides where the requirements allow; a dependency
+        # bumped across a compatibility boundary shows as a changed type path.
         lock = manifest.parent / "Cargo.lock"
         if lock.is_file():
-            for baseline_manifest in baseline_manifests.values():
-                shutil.copyfile(lock, baseline_manifest.parent / "Cargo.lock")
+            shutil.copyfile(lock, src / "Cargo.lock")
+    breaks = [f"[cargo-semver-checks] {b}" for b in run_semver_checks(manifest, baseline_root)]
+
+    baseline_manifests = workspace_packages(baseline_root / "Cargo.toml")
     for name in sorted(packages):
         if name not in baseline_manifests:
             continue  # a crate new since the baseline has nothing to break
