@@ -54,7 +54,9 @@ on:
         default: false
 
 concurrency:
-  group: release-${{ github.ref }}
+  # One release at a time across tags, so each resolves its baseline after the previous one
+  # has published. A newer run cancels a still-pending one: re-run it.
+  group: release
   cancel-in-progress: false
 
 permissions:

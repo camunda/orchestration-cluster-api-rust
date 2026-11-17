@@ -251,12 +251,17 @@ class ReleaseGateTest(unittest.TestCase):
             "    f.write(f'since {head}\\n'); sys.exit(int(os.environ['RC_SINCE']))\n"
         )
         (scripts / "api-break-approvals.sh").write_text(
-            '#!/usr/bin/env bash\n[ -z "${APPROVALS_FAIL:-}" ] || exit 1\n'
+            '#!/usr/bin/env bash\necho "approvals $2" >> "$CALLS"\n[ -z "${APPROVALS_FAIL:-}" ] || exit 1\n'
             '[ -z "${APPROVALS:-}" ] || printf "%s\\n" "$APPROVALS"\n'
         )
         bin_dir = self.tmp / "bin"
         bin_dir.mkdir()
-        (bin_dir / "gh").write_text("#!/usr/bin/env bash\nexit 0\n")
+        # `gh api .../branches/<b>`: found, missing (404) or failing (502), per GH_BRANCH.
+        (bin_dir / "gh").write_text(
+            '#!/usr/bin/env bash\ncase "${GH_BRANCH:-found}" in\n  found) echo "{}" ;;\n'
+            '  missing) echo "gh: Branch not found (HTTP 404)" >&2; exit 1 ;;\n'
+            '  *) echo "gh: Bad Gateway (HTTP 502)" >&2; exit 1 ;;\nesac\n'
+        )
         for f in (scripts / "api-compat-release-gate.sh", scripts / "api-break-approvals.sh", bin_dir / "gh"):
             f.chmod(0o755)
         self.gate = scripts / "api-compat-release-gate.sh"
@@ -295,16 +300,25 @@ class ReleaseGateTest(unittest.TestCase):
 
     def test_approval_at_head_passes(self):
         rc, out, calls = self.gate_run(APPROVALS=f"#7 {self.second}")
-        self.assertEqual((rc, calls), (0, ["release"]), out)
+        self.assertEqual((rc, calls), (0, ["release", "approvals stable/10"]), out)
 
     def test_approval_covers_the_api_up_to_its_merge(self):
         rc, out, calls = self.gate_run(APPROVALS=f"#6 {self.first}")
-        self.assertEqual((rc, calls), (0, ["release", f"since {self.first}"]), out)
+        self.assertEqual((rc, calls), (0, ["release", "approvals stable/10", f"since {self.first}"]), out)
 
     def test_break_added_after_the_newest_approval_is_blocked(self):
         rc, out, calls = self.gate_run(APPROVALS=f"#6 {self.first}", RC_SINCE="1")
-        self.assertEqual((rc, calls), (1, ["release", f"since {self.first}"]), out)
+        self.assertEqual((rc, calls), (1, ["release", "approvals stable/10", f"since {self.first}"]), out)
         self.assertIn("added after #6", out)
+
+    def test_missing_stable_branch_searches_main(self):
+        rc, out, calls = self.gate_run(APPROVALS=f"#7 {self.second}", GH_BRANCH="missing")
+        self.assertEqual((rc, calls), (0, ["release", "approvals main"]), out)
+
+    def test_failed_branch_lookup_is_a_setup_error(self):
+        # Falling back to main here would let a main approval pass a stable release.
+        rc, out, calls = self.gate_run(APPROVALS=f"#7 {self.second}", GH_BRANCH="error")
+        self.assertEqual((rc, calls), (2, ["release"]), out)
 
     def test_comparison_setup_error_after_approval_is_a_setup_error(self):
         self.assertEqual(self.gate_run(APPROVALS=f"#6 {self.first}", RC_SINCE="2")[0], 2)
@@ -314,7 +328,35 @@ class ReleaseGateTest(unittest.TestCase):
         self.assertEqual(len(self.git("worktree", "list").splitlines()), 1)
 
 
-@unittest.skipUnless(shutil.which("cargo"), "needs cargo")
+class MergedMethodOrderTest(unittest.TestCase):
+    """rustdoc item ids are per build: renumbering local types alone is not a change."""
+
+    @staticmethod
+    def surface(ids: dict[str, str], sig: str):
+        s = api_compat.Surface.__new__(api_compat.Surface)
+        s.all_paths = {i: {p} for i, p in ids.items()}
+        s.entries = {
+            "c::Spec": api_compat.Entry("struct", "struct", canonical="c::Spec"),
+            "c::Spec::value": api_compat.Entry("method", sig, owner="c::Spec", canonical="c::Spec::value"),
+        }
+        return s
+
+    def test_renumbered_impl_targets_are_unchanged(self):
+        # The same two impls, `Spec<A>` and `Spec<B>`; the new build numbers them the other
+        # way round, so raw-id order is B, A.
+        impl = "impl c::Spec<\x1f{}\x1f> {{ fn() }}"
+        old = self.surface({"1": "c::A", "2": "c::B"}, api_compat._ALT.join([impl.format(1), impl.format(2)]))
+        new = self.surface({"2": "c::A", "1": "c::B"}, api_compat._ALT.join([impl.format(1), impl.format(2)]))
+        self.assertEqual(api_compat.diff_surfaces(old, new), [])
+
+    def test_changed_alternative_is_reported(self):
+        impl = "impl c::Spec<\x1f{}\x1f> {{ fn() -> {} }}"
+        old = self.surface({"1": "c::A", "2": "c::B"}, api_compat._ALT.join([impl.format(1, "u8"), impl.format(2, "u8")]))
+        new = self.surface({"1": "c::A", "2": "c::B"}, api_compat._ALT.join([impl.format(1, "u8"), impl.format(2, "u16")]))
+        self.assertEqual(len(api_compat.diff_surfaces(old, new)), 1)
+
+
+@unittest.skipUnless(os.environ.get("API_COMPAT_E2E") == "1", "set API_COMPAT_E2E=1 (make test-api-compat)")
 class PinBaselineTest(unittest.TestCase):
     """The baseline SDK must build against its own published client, not a newer one."""
 
@@ -743,6 +785,35 @@ class SyntheticCrateTest(unittest.TestCase):
     def test_dependency_compatible_upgrade_is_compatible(self):
         rc, out = self._dependency_case("1.0.0", "1.4.0")
         self.assertEqual(rc, 0, out)
+
+    def test_semver_checks_build_error_beside_a_lint_is_a_setup_error(self):
+        # Crate `a` reports a lint while baseline `b` fails to build for cargo-semver-checks
+        # (which enables non-default features) yet builds for the rustdoc layer (defaults
+        # only): an approval must not cover the crate that was never checked.
+        case = self.root / self.id().rsplit(".", 1)[-1]
+        broken = '#[cfg(feature = "extra")]\ncompile_error!("broken");\npub fn g() {}\n'
+        for side, a_src, b_src in (
+            ("baseline", "pub fn f() {}\n", broken),
+            ("current", "", "pub fn g() {}\n"),
+        ):
+            root = case / side
+            root.mkdir(parents=True)
+            (root / "Cargo.toml").write_text('[workspace]\nresolver = "2"\nmembers = ["a", "b"]\n')
+            for crate, src in (("a", a_src), ("b", b_src)):
+                (root / crate / "src").mkdir(parents=True)
+                (root / crate / "Cargo.toml").write_text(
+                    f'[package]\nname = "api-compat-{crate}"\nversion = "1.0.0"\nedition = "2021"\n\n[features]\nextra = []\n'
+                )
+                (root / crate / "src" / "lib.rs").write_text(src)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            rc = api_compat.main([
+                "--manifest-path", str(case / "current" / "Cargo.toml"),
+                "--baseline-root", str(case / "baseline"),
+                "--work-dir", str(case / "work"),
+            ])
+        self.assertEqual(rc, 2, out.getvalue())
+        self.assertIn("could not check every crate", out.getvalue())
 
     def test_trait_object_lifetime_narrowing_is_breaking(self):
         self.assertBreaks(

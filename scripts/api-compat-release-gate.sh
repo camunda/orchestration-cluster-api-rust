@@ -28,7 +28,14 @@ if ! git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
 fi
 
 branch="stable/${major}"
-gh api "repos/${GITHUB_REPOSITORY}/branches/${branch}" >/dev/null 2>&1 || branch="main"
+# Only a confirmed-missing branch falls back to main: an API error must not widen approvals.
+if ! lookup=$(gh api "repos/${GITHUB_REPOSITORY}/branches/${branch}" 2>&1 >/dev/null); then
+  if ! grep -q "HTTP 404" <<<"$lookup"; then
+    echo "::error::Cannot look up ${branch}: ${lookup}"
+    exit 2
+  fi
+  branch="main"
+fi
 approved=$("$here/api-break-approvals.sh" "$tag" "$branch") || exit 2
 if [ -z "$approved" ]; then
   echo "::error::Release blocked: the public API breaks compatibility with ${tag}. If intended, label the PR that made the change api-break-approved (or run this workflow manually with api_break_approved), then re-run."
