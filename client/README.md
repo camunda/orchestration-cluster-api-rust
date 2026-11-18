@@ -193,8 +193,10 @@ Class | Method | HTTP request | Description
 *ProcessDefinitionApi* | [**get_process_definition_statistics**](docs/ProcessDefinitionApi.md#get_process_definition_statistics) | **POST** /process-definitions/{processDefinitionKey}/statistics/element-instances | Get process definition statistics
 *ProcessDefinitionApi* | [**get_process_definition_xml**](docs/ProcessDefinitionApi.md#get_process_definition_xml) | **GET** /process-definitions/{processDefinitionKey}/xml | Get process definition XML
 *ProcessDefinitionApi* | [**get_start_process_form**](docs/ProcessDefinitionApi.md#get_start_process_form) | **GET** /process-definitions/{processDefinitionKey}/form | Get process start form
+*ProcessDefinitionApi* | [**resume_process_definitions**](docs/ProcessDefinitionApi.md#resume_process_definitions) | **POST** /process-definitions/resumption | Resume process definitions
 *ProcessDefinitionApi* | [**search_process_definition_variable_names**](docs/ProcessDefinitionApi.md#search_process_definition_variable_names) | **POST** /process-definitions/{processDefinitionKey}/variable-names/search | Search process definition variable names
 *ProcessDefinitionApi* | [**search_process_definitions**](docs/ProcessDefinitionApi.md#search_process_definitions) | **POST** /process-definitions/search | Search process definitions
+*ProcessDefinitionApi* | [**suspend_process_definitions**](docs/ProcessDefinitionApi.md#suspend_process_definitions) | **POST** /process-definitions/suspension | Suspend process definitions
 *ProcessInstanceApi* | [**assign_process_instance_business_id**](docs/ProcessInstanceApi.md#assign_process_instance_business_id) | **POST** /process-instances/{processInstanceKey}/business-id-assignment | Assign business id to process instance
 *ProcessInstanceApi* | [**cancel_process_instance**](docs/ProcessInstanceApi.md#cancel_process_instance) | **POST** /process-instances/{processInstanceKey}/cancellation | Cancel process instance
 *ProcessInstanceApi* | [**cancel_process_instances_batch_operation**](docs/ProcessInstanceApi.md#cancel_process_instances_batch_operation) | **POST** /process-instances/cancellation | Cancel process instances (batch)
@@ -796,10 +798,20 @@ Class | Method | HTTP request | Description
  - [ProcessDefinitionMessageSubscriptionStatisticsQueryResult](docs/ProcessDefinitionMessageSubscriptionStatisticsQueryResult.md)
  - [ProcessDefinitionMessageSubscriptionStatisticsResult](docs/ProcessDefinitionMessageSubscriptionStatisticsResult.md)
  - [ProcessDefinitionResult](docs/ProcessDefinitionResult.md)
+ - [ProcessDefinitionResumptionInstruction](docs/ProcessDefinitionResumptionInstruction.md)
+ - [ProcessDefinitionResumptionInstructionById](docs/ProcessDefinitionResumptionInstructionById.md)
+ - [ProcessDefinitionResumptionInstructionByKey](docs/ProcessDefinitionResumptionInstructionByKey.md)
+ - [ProcessDefinitionResumptionResult](docs/ProcessDefinitionResumptionResult.md)
+ - [ProcessDefinitionResumptionVersionResult](docs/ProcessDefinitionResumptionVersionResult.md)
  - [ProcessDefinitionSearchQuery](docs/ProcessDefinitionSearchQuery.md)
  - [ProcessDefinitionSearchQueryResult](docs/ProcessDefinitionSearchQueryResult.md)
  - [ProcessDefinitionSearchQuerySortRequest](docs/ProcessDefinitionSearchQuerySortRequest.md)
  - [ProcessDefinitionStatisticsFilter](docs/ProcessDefinitionStatisticsFilter.md)
+ - [ProcessDefinitionSuspensionInstruction](docs/ProcessDefinitionSuspensionInstruction.md)
+ - [ProcessDefinitionSuspensionInstructionById](docs/ProcessDefinitionSuspensionInstructionById.md)
+ - [ProcessDefinitionSuspensionInstructionByKey](docs/ProcessDefinitionSuspensionInstructionByKey.md)
+ - [ProcessDefinitionSuspensionResult](docs/ProcessDefinitionSuspensionResult.md)
+ - [ProcessDefinitionSuspensionVersionResult](docs/ProcessDefinitionSuspensionVersionResult.md)
  - [ProcessDefinitionVariableNameFilter](docs/ProcessDefinitionVariableNameFilter.md)
  - [ProcessDefinitionVariableNameSearchQuery](docs/ProcessDefinitionVariableNameSearchQuery.md)
  - [ProcessDefinitionVariableNameSearchQueryResult](docs/ProcessDefinitionVariableNameSearchQueryResult.md)

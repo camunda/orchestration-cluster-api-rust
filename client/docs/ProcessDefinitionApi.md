@@ -11,8 +11,10 @@ Method | HTTP request | Description
 [**get_process_definition_statistics**](ProcessDefinitionApi.md#get_process_definition_statistics) | **POST** /process-definitions/{processDefinitionKey}/statistics/element-instances | Get process definition statistics
 [**get_process_definition_xml**](ProcessDefinitionApi.md#get_process_definition_xml) | **GET** /process-definitions/{processDefinitionKey}/xml | Get process definition XML
 [**get_start_process_form**](ProcessDefinitionApi.md#get_start_process_form) | **GET** /process-definitions/{processDefinitionKey}/form | Get process start form
+[**resume_process_definitions**](ProcessDefinitionApi.md#resume_process_definitions) | **POST** /process-definitions/resumption | Resume process definitions
 [**search_process_definition_variable_names**](ProcessDefinitionApi.md#search_process_definition_variable_names) | **POST** /process-definitions/{processDefinitionKey}/variable-names/search | Search process definition variable names
 [**search_process_definitions**](ProcessDefinitionApi.md#search_process_definitions) | **POST** /process-definitions/search | Search process definitions
+[**suspend_process_definitions**](ProcessDefinitionApi.md#suspend_process_definitions) | **POST** /process-definitions/suspension | Suspend process definitions
 
 
 
@@ -227,6 +229,36 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## resume_process_definitions
+
+> models::ProcessDefinitionResumptionResult resume_process_definitions(process_definition_resumption_instruction)
+Resume process definitions
+
+Resumes suspended process definitions so that process instances can be created from them again. The definition is selected either by `processDefinitionKey`, which identifies exactly one version, or by `processDefinitionId` with an optional `processDefinitionVersion` and `tenantId`. Without a version, all versions of the process definition ID are resumed. Set `includeProcessInstances` to also resume the suspended process instances of the affected versions; the instances are changed by a batch operation, returned as `batchOperationKey`. 
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**process_definition_resumption_instruction** | [**ProcessDefinitionResumptionInstruction**](ProcessDefinitionResumptionInstruction.md) |  | [required] |
+
+### Return type
+
+[**models::ProcessDefinitionResumptionResult**](ProcessDefinitionResumptionResult.md)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json, application/problem+json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## search_process_definition_variable_names
 
 > models::ProcessDefinitionVariableNameSearchQueryResult search_process_definition_variable_names(process_definition_key, process_definition_variable_name_search_query)
@@ -275,6 +307,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::ProcessDefinitionSearchQueryResult**](ProcessDefinitionSearchQueryResult.md)
+
+### Authorization
+
+[basicAuth](../README.md#basicAuth), [bearerAuth](../README.md#bearerAuth)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json, application/problem+json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## suspend_process_definitions
+
+> models::ProcessDefinitionSuspensionResult suspend_process_definitions(process_definition_suspension_instruction)
+Suspend process definitions
+
+Suspends process definitions so that no new process instances can be created from them. The definition is selected either by `processDefinitionKey`, which identifies exactly one version, or by `processDefinitionId` with an optional `processDefinitionVersion` and `tenantId`. Without a version, all versions of the process definition ID are suspended. Set `includeProcessInstances` to also suspend the running process instances of the affected versions; the instances are changed by a batch operation, returned as `batchOperationKey`. 
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**process_definition_suspension_instruction** | [**ProcessDefinitionSuspensionInstruction**](ProcessDefinitionSuspensionInstruction.md) |  | [required] |
+
+### Return type
+
+[**models::ProcessDefinitionSuspensionResult**](ProcessDefinitionSuspensionResult.md)
 
 ### Authorization
 
