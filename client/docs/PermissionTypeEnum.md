@@ -47,6 +47,7 @@
 | ReadTaskListener | READ_TASK_LISTENER |
 | Restore | RESTORE |
 | Reveal | REVEAL |
+| SuspendProcessDefinition | SUSPEND_PROCESS_DEFINITION |
 | SuspendProcessInstance | SUSPEND_PROCESS_INSTANCE |
 | Update | UPDATE |
 | UpdateProcessInstance | UPDATE_PROCESS_INSTANCE |

@@ -64,6 +64,12 @@ pub struct GetStartProcessFormParams {
     pub process_definition_key: String,
 }
 
+/// struct for passing parameters to the method [`resume_process_definitions`]
+#[derive(Clone, Debug)]
+pub struct ResumeProcessDefinitionsParams {
+    pub process_definition_resumption_instruction: models::ProcessDefinitionResumptionInstruction,
+}
+
 /// struct for passing parameters to the method [`search_process_definition_variable_names`]
 #[derive(Clone, Debug)]
 pub struct SearchProcessDefinitionVariableNamesParams {
@@ -77,6 +83,12 @@ pub struct SearchProcessDefinitionVariableNamesParams {
 #[derive(Clone, Debug)]
 pub struct SearchProcessDefinitionsParams {
     pub process_definition_search_query: Option<models::ProcessDefinitionSearchQuery>,
+}
+
+/// struct for passing parameters to the method [`suspend_process_definitions`]
+#[derive(Clone, Debug)]
+pub struct SuspendProcessDefinitionsParams {
+    pub process_definition_suspension_instruction: models::ProcessDefinitionSuspensionInstruction,
 }
 
 /// struct for typed errors of method [`get_process_definition`]
@@ -281,6 +293,40 @@ impl GetStartProcessFormError {
     }
 }
 
+/// struct for typed errors of method [`resume_process_definitions`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ResumeProcessDefinitionsError {
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status404(models::ProblemDetail),
+    Status409(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
+    UnknownValue(serde_json::Value),
+}
+
+impl ResumeProcessDefinitionsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
 /// struct for typed errors of method [`search_process_definition_variable_names`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -331,6 +377,40 @@ impl SearchProcessDefinitionsError {
             401 => serde_json::from_str(content).ok().map(Self::Status401),
             403 => serde_json::from_str(content).ok().map(Self::Status403),
             500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
+/// struct for typed errors of method [`suspend_process_definitions`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SuspendProcessDefinitionsError {
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status404(models::ProblemDetail),
+    Status409(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    Status503(models::ProblemDetail),
+    UnknownValue(serde_json::Value),
+}
+
+impl SuspendProcessDefinitionsError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
+            404 => serde_json::from_str(content).ok().map(Self::Status404),
+            409 => serde_json::from_str(content).ok().map(Self::Status409),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            503 => serde_json::from_str(content).ok().map(Self::Status503),
             _ => None,
         };
         declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
@@ -734,6 +814,57 @@ pub async fn get_start_process_form(
     }
 }
 
+/// Resumes suspended process definitions so that process instances can be created from them again. The definition is selected either by `processDefinitionKey`, which identifies exactly one version, or by `processDefinitionId` with an optional `processDefinitionVersion` and `tenantId`. Without a version, all versions of the process definition ID are resumed. Set `includeProcessInstances` to also resume the suspended process instances of the affected versions; the instances are changed by a batch operation, returned as `batchOperationKey`.
+pub async fn resume_process_definitions(
+    configuration: &configuration::Configuration,
+    params: ResumeProcessDefinitionsParams,
+) -> Result<models::ProcessDefinitionResumptionResult, Error<ResumeProcessDefinitionsError>> {
+    let uri_str = format!("{}/process-definitions/resumption", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.process_definition_resumption_instruction);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ProcessDefinitionResumptionResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ProcessDefinitionResumptionResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ResumeProcessDefinitionsError> =
+            ResumeProcessDefinitionsError::from_response(status.as_u16(), &content);
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Search for distinct variable names defined on a process definition, optionally narrowed by the name filter.
 pub async fn search_process_definition_variable_names(
     configuration: &configuration::Configuration,
@@ -839,6 +970,57 @@ pub async fn search_process_definitions(
         let content = resp.text().await?;
         let entity: Option<SearchProcessDefinitionsError> =
             SearchProcessDefinitionsError::from_response(status.as_u16(), &content);
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Suspends process definitions so that no new process instances can be created from them. The definition is selected either by `processDefinitionKey`, which identifies exactly one version, or by `processDefinitionId` with an optional `processDefinitionVersion` and `tenantId`. Without a version, all versions of the process definition ID are suspended. Set `includeProcessInstances` to also suspend the running process instances of the affected versions; the instances are changed by a batch operation, returned as `batchOperationKey`.
+pub async fn suspend_process_definitions(
+    configuration: &configuration::Configuration,
+    params: SuspendProcessDefinitionsParams,
+) -> Result<models::ProcessDefinitionSuspensionResult, Error<SuspendProcessDefinitionsError>> {
+    let uri_str = format!("{}/process-definitions/suspension", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.process_definition_suspension_instruction);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ProcessDefinitionSuspensionResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ProcessDefinitionSuspensionResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<SuspendProcessDefinitionsError> =
+            SuspendProcessDefinitionsError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
