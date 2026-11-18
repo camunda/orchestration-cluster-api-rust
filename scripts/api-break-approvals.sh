@@ -9,7 +9,7 @@ set -euo pipefail
 
 tag="$1"
 branch="$2"
-shas=$(git log --format=%H "${tag}..HEAD")
+shas=$(git log --ancestry-path --format=%H "${tag}..HEAD")
 
 # A file, not `$(...)`: command substitution does not inherit `set -e`, so a failed lookup
 # on any but the last commit would be swallowed.

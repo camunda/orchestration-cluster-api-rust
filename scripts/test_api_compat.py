@@ -202,6 +202,13 @@ class ApprovalSearchTest(unittest.TestCase):
     def test_pr_merged_before_the_baseline_does_not_approve(self):
         self.assertEqual(self.approvals(self.pr(3, "stable/10", self.before)), [])
 
+    def test_pr_merged_outside_the_published_history_does_not_approve(self):
+        # A reset or recreated release branch: the published tag is not an ancestor of HEAD.
+        git = lambda *a: subprocess.run(["git", *a], cwd=self.repo, check=True, capture_output=True, text=True).stdout.strip()
+        published = git("-c", "user.name=t", "-c", "user.email=t@t", "commit-tree", "HEAD^{tree}", "-p", self.before, "-m", "published")
+        git("tag", "-f", "v10.0.0", published)
+        self.assertEqual(self.approvals(self.pr(8, "stable/10", self.second)), [])
+
     def test_unlabelled_or_unmerged_pr_does_not_approve(self):
         self.assertEqual(
             self.approvals(self.pr(4, "stable/10", self.second, labelled=False), self.pr(5, "stable/10", None)),
