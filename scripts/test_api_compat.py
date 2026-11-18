@@ -209,6 +209,19 @@ class ApprovalSearchTest(unittest.TestCase):
         git("tag", "-f", "v10.0.0", published)
         self.assertEqual(self.approvals(self.pr(8, "stable/10", self.second)), [])
 
+    def test_tag_reached_only_through_a_second_parent_does_not_approve(self):
+        # A reset release branch that merged the published history back in: every later merge
+        # descends from the tag, but none was made on the line the tag was released from.
+        git = lambda *a: subprocess.run(["git", *a], cwd=self.repo, check=True, capture_output=True, text=True).stdout.strip()
+        tree = ("-c", "user.name=t", "-c", "user.email=t@t", "commit-tree", "HEAD^{tree}")
+        published = git(*tree, "-p", self.before, "-m", "published")
+        git("tag", "-f", "v10.0.0", published)
+        merged = git(*tree, "-p", "HEAD", "-p", published, "-m", "merge old history")
+        approved = git(*tree, "-p", merged, "-m", "labelled PR")
+        git("reset", "-q", "--hard", approved)
+        r = self.run_search(**{approved: json.dumps([self.pr(9, "stable/10", approved)])})
+        self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
+
     def test_unlabelled_or_unmerged_pr_does_not_approve(self):
         self.assertEqual(
             self.approvals(self.pr(4, "stable/10", self.second, labelled=False), self.pr(5, "stable/10", None)),
