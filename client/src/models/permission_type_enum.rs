@@ -101,6 +101,8 @@ pub enum PermissionTypeEnum {
     Restore,
     #[serde(rename = "REVEAL")]
     Reveal,
+    #[serde(rename = "SUSPEND_PROCESS_DEFINITION")]
+    SuspendProcessDefinition,
     #[serde(rename = "SUSPEND_PROCESS_INSTANCE")]
     SuspendProcessInstance,
     #[serde(rename = "UPDATE")]
@@ -177,6 +179,7 @@ impl std::fmt::Display for PermissionTypeEnum {
             Self::ReadTaskListener => write!(f, "READ_TASK_LISTENER"),
             Self::Restore => write!(f, "RESTORE"),
             Self::Reveal => write!(f, "REVEAL"),
+            Self::SuspendProcessDefinition => write!(f, "SUSPEND_PROCESS_DEFINITION"),
             Self::SuspendProcessInstance => write!(f, "SUSPEND_PROCESS_INSTANCE"),
             Self::Update => write!(f, "UPDATE"),
             Self::UpdateProcessInstance => write!(f, "UPDATE_PROCESS_INSTANCE"),

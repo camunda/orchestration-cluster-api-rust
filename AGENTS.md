@@ -163,6 +163,46 @@ alters `client/`, split into two commits:
 
 This keeps cherry-picks clean and reviews readable, and preserves `git blame` on both surfaces.
 
+## Backporting to stable branches
+
+`.github/workflows/backport.yml` calls camunda/sdk-infra's shared `sdk-backport.yml`
+(`korthout/backport-action`, running as `camunda-sdk-automation`; the same flow as the other
+SDKs). It is configured by `.github/backport.yml` and `.github/actions/codegen-setup` (Java
+for openapi-generator), both read from the **target** branch, so keep them on `main` and on
+every live `stable/N`. It opens cherry-pick PRs onto `stable/*` branches:
+
+- Add the label `backport stable/<N>` to a PR. The backport PR opens when the PR merges,
+  or right away if it is already merged.
+- Or comment `/backport` on a merged PR to re-run it for its labels. PRs from forks can
+  only be backported this way.
+
+Backport hand-written runtime, infra and generator changes (`src/`, `scripts/`, `tests/`)
+when the affected code exists on the stable branch. Never backport generated output on its
+own (e.g. a regeneration for upstream spec drift); each branch regenerates from its own
+upstream spec.
+
+After the cherry-pick, the workflow adds a `chore(gen): regenerate for backport of #N`
+commit. The derived files (`generated-paths`: `external-spec/`, `client/`,
+`src/runtime/facade_generated.rs`, `src/runtime/present_when_generated.rs`) are restored
+from the target branch and regenerated with `./scripts/generate.sh && cargo test
+--workspace --no-run`. PRs are squash-merged, so the cherry-pick carries `main`'s copies,
+but a stable branch must build from its own spec (`stable/10` builds camunda
+`stable/8.10`). This also clears cherry-pick conflicts in those files. When the derived
+paths change (e.g. a new hook writes another `*_generated.rs`), update `generated-paths` on
+every branch.
+
+If the cherry-pick conflicts, the action opens a **draft** PR with the conflicts committed.
+A draft always means a conflict, even without conflict markers: if the source changes a file
+the target lacks, `main`'s whole file is committed. Resolve it on the backport branch, then
+comment `/backport` on the source PR to regenerate. If fix B builds on fix A, merge A's
+backport first, then rebuild B's branch from the updated target (`git switch -C
+backport-<B>-to-stable/N origin/stable/N && git cherry-pick -x <B's merge commit>`, push
+with `--force-with-lease`, comment `/backport`).
+
+If regenerating fails, the bot comments on the backport PR. If the change depends on spec
+the stable branch doesn't have, it can't be backported as-is: close the backport PR, or
+reduce it to what applies to the stable spec.
+
 ## Versioning
 
 The SDK major tracks the Camunda server minor (server 8.10 → SDK 10.x): `stable/10` is
@@ -170,6 +210,26 @@ The SDK major tracks the Camunda server minor (server 8.10 → SDK 10.x): `stabl
 `client/Cargo.toml` (from `packageVersion` in `openapi-generator-config.yaml`) and the
 SDK's path dependency on the client; refresh `Cargo.lock` with `cargo update -w`. A
 `vX.Y.Z` tag publishes to crates.io, and a published version can only be yanked.
+
+### API compatibility on stable branches
+
+`stable/N` regenerates from upstream `stable/8.x`, so spec drift can break the public API
+of an `N.x` patch. The `API compatibility` check (`.github/workflows/api-compat.yml`) runs
+on every PR to `stable/**` and compares it with its base branch, so a PR answers only for
+its own changes. Once an `N.x` release exists, `release.yml` compares the version it is
+about to publish with the newest non-yanked, non-prerelease `N.x.y` on crates.io. Both check
+both crates (the client is public through `client`, `apis` and `models`) using
+`scripts/api_compat.py`: pinned cargo-semver-checks plus a rustdoc JSON diff of every
+public field/variant/fn/method signature, compared as written, which catches `T` ->
+`Option<T>` (cargo-semver-checks does not). An equivalent respelling, such as a renamed
+generic, is reported too. Run it locally with `make api-compat`; test the checker with
+`make test-api-compat`.
+
+A break is fixed by making the change compatible. If it is intended, a maintainer adds the
+`api-break-approved` label to the PR. The release gate (`scripts/api-compat-release-gate.sh`)
+accepts the label only on a PR merged into the release line since the baseline, and only
+for the API as of that PR's merge: a break added afterwards needs its own approval (or a
+`workflow_dispatch` run with `api_break_approved: true`).
 
 ## Commit messages
 
