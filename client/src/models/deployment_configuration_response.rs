@@ -21,7 +21,7 @@ pub struct DeploymentConfigurationResponse {
     #[serde(rename = "isTenantsApiEnabled")]
     pub is_tenants_api_enabled: bool,
     /// Whether wait-state tracking is enabled.
-    #[serde(rename = "isWaitStatesEnabled")]
+    #[serde(default, rename = "isWaitStatesEnabled")]
     pub is_wait_states_enabled: bool,
     /// The maximum HTTP request size in bytes.
     #[serde(rename = "maxRequestSize")]
