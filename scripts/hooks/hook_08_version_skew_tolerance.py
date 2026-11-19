@@ -39,8 +39,6 @@ _DEFAULTABLE = [
     ("activated_job_result.rs", "jobLeaseToken"),
     # Added in 8.10.10; earlier servers omit it and never answer an anonymous caller.
     ("camunda_user_result.rs", "isAnonymous"),
-    # Added in 8.11; servers predating it omit it (absent means disabled).
-    ("deployment_configuration_response.rs", "isWaitStatesEnabled"),
 ]
 
 
