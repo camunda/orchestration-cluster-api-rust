@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CamundaUserResult {
     /// Whether the caller has no identity. Only an unprotected API answers an anonymous caller; a protected API returns `401` instead. When `true`, `username`, `displayName` and `email` are `null` and the lists are empty.
-    #[serde(rename = "isAnonymous")]
+    #[serde(default, rename = "isAnonymous")]
     pub is_anonymous: bool,
     /// The username of the user. `null` when `isAnonymous` is `true`.
     #[serde(rename = "username", deserialize_with = "Option::deserialize")]
