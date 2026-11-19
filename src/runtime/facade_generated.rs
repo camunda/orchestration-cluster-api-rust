@@ -2269,6 +2269,21 @@ impl CamundaClient {
         .await
     }
 
+    /// Resume process definitions (`POST /process-definitions/resumption`).
+    pub async fn resume_process_definitions(
+        &self,
+        params: camunda_orchestration_api_client::apis::process_definition_api::ResumeProcessDefinitionsParams,
+    ) -> Result<models::ProcessDefinitionResumptionResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::process_definition_api::resume_process_definitions(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
     /// Search process definition variable names (`POST /process-definitions/{processDefinitionKey}/variable-names/search`).
     pub async fn search_process_definition_variable_names(
         &self,
@@ -2294,6 +2309,21 @@ impl CamundaClient {
             async move {
                 let cfg = self.configuration().await?;
                 Ok(camunda_orchestration_api_client::apis::process_definition_api::search_process_definitions(&cfg, params).await?)
+            }
+        })
+        .await
+    }
+
+    /// Suspend process definitions (`POST /process-definitions/suspension`).
+    pub async fn suspend_process_definitions(
+        &self,
+        params: camunda_orchestration_api_client::apis::process_definition_api::SuspendProcessDefinitionsParams,
+    ) -> Result<models::ProcessDefinitionSuspensionResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(camunda_orchestration_api_client::apis::process_definition_api::suspend_process_definitions(&cfg, params).await?)
             }
         })
         .await

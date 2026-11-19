@@ -251,6 +251,54 @@ A handler returns a `JobAction`:
 The `Job` exposes `key()`, `job_type()`, `process_instance_key()`, `variables()`, and
 `variables_as::<T>()` for typed deserialization.
 
+### Job variables are untrusted input
+
+Job variables reach your handler from the server, but their **content is set by whoever can
+write variables into the process instance**, and that is not only whoever started it. It is
+also whoever published or correlated a message that carries variables, whatever completed an
+earlier job, user task or connector step with a result (including workers owned by other
+teams), and anyone who can set or update variables through the API. For a process started
+from a public form, an inbound connector or another team's service, that is not you. Treat
+`job.variables()` and `job.variables_as::<T>()` as untrusted input and validate them before
+use, exactly as you would an HTTP request body. A value that was valid when an earlier step
+produced it may have been overwritten since.
+
+Custom headers are a different trust boundary: they are authored in the BPMN model, so they
+come from whoever can deploy a process rather than from whoever wrote a variable. That is
+a much smaller set of people, but it is still server-supplied data arriving over the network,
+so validate `job.custom_headers()` before acting on it too.
+
+What the SDK does:
+
+- **Deserialization is JSON-shaped.** Variables and custom headers arrive as
+  `HashMap<String, serde_json::Value>`. `variables_as::<T>()` deserializes only into the
+  type you name. There is no mechanism that instantiates an arbitrary type chosen by the
+  payload — Rust has no pickling analogue here — so a payload cannot select what it is
+  deserialized into.
+- **Nesting depth is bounded at 128 levels.** That bound is `serde_json`'s default recursion
+  limit, applied when the activation response is parsed, and it is what stops a deeply
+  nested payload from recursing without bound. The SDK inherits it rather than choosing it.
+- **Each job's variables are its own.** Every activated job is moved into its own handler
+  task, so no variable map is shared or mutated across concurrently running jobs.
+- **The SDK never logs the variable map.** Its log lines on the job path carry an error or a
+  job type, never the payload. Note the limit of that guarantee: it covers the SDK logging
+  variables *directly*, not every way variable-derived text can reach a diagnostic. A failed
+  follow-up command is logged as `CamundaError::Api`, whose `Display` includes the server's
+  response body; and a panicking handler is logged with its panic message, which is whatever
+  the handler put there — an `expect` on a failed typed deserialization can include the
+  rejected value. If your logs must not contain variable-derived text, keep it out of your
+  panic messages and consider what your cluster echoes in error bodies.
+
+What the SDK does **not** do:
+
+- It enforces **no size limit of its own** on an activation response. Bound the payload at
+  the source — fetch only the variables you need with
+  `JobWorkerConfig::fetch_variables(["orderId", "amount"])`, and keep large data out of
+  process variables.
+- It does **not validate** variable contents: no schema, no range, no string-length check.
+  A `String` variable may be empty, enormous, or hold markup, SQL or a path; a number may be
+  any `f64`. Validate in your handler before acting on it.
+
 Enable **job leasing** with `JobWorkerConfig::new("...").with_lease(true)`. Each activated
 job then carries a lease token that the worker sends back on complete, fail, and
 throw-error, so the engine fences the command against a superseded activation (for example

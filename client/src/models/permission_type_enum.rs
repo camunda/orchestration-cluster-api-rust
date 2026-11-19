@@ -17,6 +17,8 @@ use serde::{Deserialize, Serialize};
 pub enum PermissionTypeEnum {
     #[serde(rename = "ACCESS")]
     Access,
+    #[serde(rename = "ANSWER")]
+    Answer,
     #[serde(rename = "CANCEL_PROCESS_INSTANCE")]
     CancelProcessInstance,
     #[serde(rename = "CLAIM")]
@@ -99,6 +101,8 @@ pub enum PermissionTypeEnum {
     Restore,
     #[serde(rename = "REVEAL")]
     Reveal,
+    #[serde(rename = "SUSPEND_PROCESS_DEFINITION")]
+    SuspendProcessDefinition,
     #[serde(rename = "SUSPEND_PROCESS_INSTANCE")]
     SuspendProcessInstance,
     #[serde(rename = "UPDATE")]
@@ -115,6 +119,7 @@ impl std::fmt::Display for PermissionTypeEnum {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Access => write!(f, "ACCESS"),
+            Self::Answer => write!(f, "ANSWER"),
             Self::CancelProcessInstance => write!(f, "CANCEL_PROCESS_INSTANCE"),
             Self::Claim => write!(f, "CLAIM"),
             Self::ClaimUserTask => write!(f, "CLAIM_USER_TASK"),
@@ -174,6 +179,7 @@ impl std::fmt::Display for PermissionTypeEnum {
             Self::ReadTaskListener => write!(f, "READ_TASK_LISTENER"),
             Self::Restore => write!(f, "RESTORE"),
             Self::Reveal => write!(f, "REVEAL"),
+            Self::SuspendProcessDefinition => write!(f, "SUSPEND_PROCESS_DEFINITION"),
             Self::SuspendProcessInstance => write!(f, "SUSPEND_PROCESS_INSTANCE"),
             Self::Update => write!(f, "UPDATE"),
             Self::UpdateProcessInstance => write!(f, "UPDATE_PROCESS_INSTANCE"),

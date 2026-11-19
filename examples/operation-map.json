@@ -1112,6 +1112,13 @@
       "label": "Resume exporting"
     }
   ],
+  "resumeProcessDefinitions": [
+    {
+      "file": "process_definition.rs",
+      "region": "ResumeProcessDefinitions",
+      "label": "Resume process definitions"
+    }
+  ],
   "resumeProcessInstance": [
     {
       "file": "process_instance.rs",
@@ -1474,6 +1481,13 @@
       "file": "batch_operation.rs",
       "region": "SuspendBatchOperation",
       "label": "Suspend Batch operation"
+    }
+  ],
+  "suspendProcessDefinitions": [
+    {
+      "file": "process_definition.rs",
+      "region": "SuspendProcessDefinitions",
+      "label": "Suspend process definitions"
     }
   ],
   "suspendProcessInstance": [
