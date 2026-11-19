@@ -20,6 +20,9 @@ pub struct DeploymentConfigurationResponse {
     /// Whether the tenants management API and UI are enabled.
     #[serde(rename = "isTenantsApiEnabled")]
     pub is_tenants_api_enabled: bool,
+    /// Whether wait-state tracking is enabled.
+    #[serde(rename = "isWaitStatesEnabled")]
+    pub is_wait_states_enabled: bool,
     /// The maximum HTTP request size in bytes.
     #[serde(rename = "maxRequestSize")]
     pub max_request_size: i64,
@@ -30,11 +33,13 @@ impl DeploymentConfigurationResponse {
     pub fn new(
         is_multi_tenancy_enabled: bool,
         is_tenants_api_enabled: bool,
+        is_wait_states_enabled: bool,
         max_request_size: i64,
     ) -> DeploymentConfigurationResponse {
         DeploymentConfigurationResponse {
             is_multi_tenancy_enabled,
             is_tenants_api_enabled,
+            is_wait_states_enabled,
             max_request_size,
         }
     }

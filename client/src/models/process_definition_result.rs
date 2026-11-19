@@ -37,7 +37,7 @@ pub struct ProcessDefinitionResult {
     /// Indicates whether the start event of the process has an associated Form Key.
     #[serde(rename = "hasStartForm")]
     pub has_start_form: bool,
-    /// The state of this process definition. `DRAINING` indicates the definition is being deleted but still has active process instances draining before it is removed.
+    /// The state of this process definition. `DRAINING` indicates the definition is being deleted but still has active process instances draining before it is removed. `SUSPENDED` indicates no new process instances can be created from the definition.
     #[serde(rename = "state")]
     pub state: State,
 }
@@ -67,7 +67,7 @@ impl ProcessDefinitionResult {
         }
     }
 }
-/// The state of this process definition. `DRAINING` indicates the definition is being deleted but still has active process instances draining before it is removed.
+/// The state of this process definition. `DRAINING` indicates the definition is being deleted but still has active process instances draining before it is removed. `SUSPENDED` indicates no new process instances can be created from the definition.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum State {
     #[serde(rename = "ACTIVE")]
@@ -76,6 +76,8 @@ pub enum State {
     Draining,
     #[serde(rename = "DELETED")]
     Deleted,
+    #[serde(rename = "SUSPENDED")]
+    Suspended,
 }
 
 impl Default for State {
