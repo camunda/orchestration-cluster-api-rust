@@ -709,7 +709,7 @@ impl FalconProducer {
         }
 
         self.link
-            .send(Message::Text(frame.to_string()))
+            .send(Message::Text(frame.to_string().into()))
             .inspect_err(|_| {
                 // Reconnecting/closed: release the slots we reserved for this corr.
                 self.shared.pending.lock().unwrap().remove(&corr);
@@ -840,7 +840,7 @@ impl FalconStreamWorker {
         }
         let sub_text = sub.to_string();
         let on_connect = move |tx: &mpsc::UnboundedSender<Message>| {
-            let _ = tx.send(Message::Text(sub_text.clone()));
+            let _ = tx.send(Message::Text(sub_text.clone().into()));
         };
 
         let hooks = LinkHooks {
@@ -868,7 +868,7 @@ impl FalconStreamWorker {
     /// Grant the gateway `n` more delivery credits for this worker's job type.
     pub fn replenish(&self, n: i64) {
         let frame = json!({"type": "jobCredits", "jobType": self.job_type, "n": n});
-        let _ = self.link.send(Message::Text(frame.to_string()));
+        let _ = self.link.send(Message::Text(frame.to_string().into()));
     }
 
     /// Complete a job (fire-and-forget) and replenish one credit.
@@ -880,7 +880,7 @@ impl FalconStreamWorker {
                 .unwrap()
                 .insert("variables".into(), Value::Object(vars));
         }
-        let _ = self.link.send(Message::Text(frame.to_string()));
+        let _ = self.link.send(Message::Text(frame.to_string().into()));
         self.replenish(1);
     }
 
@@ -894,7 +894,7 @@ impl FalconStreamWorker {
         if let Some(m) = error_message {
             obj.insert("errorMessage".into(), json!(m));
         }
-        let _ = self.link.send(Message::Text(frame.to_string()));
+        let _ = self.link.send(Message::Text(frame.to_string().into()));
         self.replenish(1);
     }
 
@@ -912,7 +912,7 @@ impl FalconStreamWorker {
                 .unwrap()
                 .insert("errorMessage".into(), json!(m));
         }
-        let _ = self.link.send(Message::Text(frame.to_string()));
+        let _ = self.link.send(Message::Text(frame.to_string().into()));
         self.replenish(1);
     }
 }
