@@ -18,14 +18,12 @@ on:
     branches:
       - main
       - "stable/**"
+  # Re-runs a release, e.g. after labelling a breaking PR api-break-approved. There is
+  # deliberately no approval input: release.yml re-checks the API on the tag push, which
+  # carries no input, so an approval given only here would tag a release that then could
+  # not publish. Approve breaks with the api-break-approved label on the PR that made
+  # them; every change reaches a branch through a PR.
   workflow_dispatch:
-    inputs:
-      api_break_approved:
-        description: >-
-          Release even though the public API breaks compatibility with the last release on
-          this stable branch (for breaks with no PR to label, e.g. from upstream spec drift).
-        type: boolean
-        default: false
 
 concurrency:
   group: version-${{ github.ref_name }}
@@ -91,7 +89,6 @@ jobs:
         if: startsWith(github.ref_name, 'stable/')
         env:
           GH_TOKEN: ${{ github.token }}
-          DISPATCH_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.api_break_approved }}
         run: |
           set -uo pipefail
           major="${GITHUB_REF_NAME#stable/}"

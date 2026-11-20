@@ -29,6 +29,7 @@ module.exports = {
           'Cargo.toml',
           'Cargo.lock',
           'client/Cargo.toml',
+          'client/README.md',
           'openapi-generator-config.yaml',
         ],
         // No [skip ci]: GitHub would then skip the tag push too, and the tag is what

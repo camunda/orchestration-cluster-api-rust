@@ -5,6 +5,8 @@
 #   - Cargo.toml                    [package] version and the client path dependency
 #   - client/Cargo.toml             [package] version
 #   - openapi-generator-config.yaml packageVersion, so regeneration keeps the bump
+#   - client/README.md              the generator renders packageVersion into it, so
+#                                   leaving it stale fails the generation-drift check
 # and Cargo.lock is refreshed to match.
 #
 # Usage: scripts/set-release-version.sh <version>   (e.g. 10.0.1, 11.0.0-alpha.2)
@@ -48,6 +50,11 @@ sub_once("client/Cargo.toml", r'^version = "[^"]*"', f'version = "{version}"')
 sub_once(
     "openapi-generator-config.yaml",
     r"^(\s*packageVersion:\s*)\S+",
+    rf"\g<1>{version}",
+)
+sub_once(
+    "client/README.md",
+    r"^(- Package version: )\S+",
     rf"\g<1>{version}",
 )
 PY
