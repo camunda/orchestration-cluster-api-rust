@@ -513,11 +513,23 @@ class VersionSkewToleranceTest(unittest.TestCase):
     quietly when an entry no longer matches.
     """
 
-    def _run_hook(self, model_src: str) -> tuple[Path, Context]:
+    _PRIMARY = "activated_job_result.rs"
+
+    def _run_hook(self, model_src: str, omit: str | None = None) -> tuple[Path, Context]:
+        """Write `model_src` as the primary model and every other declared model
+        with its declared fields (except `omit`), then run the hook."""
         tmp = Path(tempfile.mkdtemp())
         models = tmp / "src" / "models"
         models.mkdir(parents=True)
-        (models / "activated_job_result.rs").write_bytes(model_src.encode("utf-8"))
+        (models / self._PRIMARY).write_bytes(model_src.encode("utf-8"))
+        others: dict[str, list[str]] = {}
+        for i, (name, wire) in enumerate(hook_08_version_skew_tolerance._DEFAULTABLE):
+            if name != self._PRIMARY:
+                others.setdefault(name, [])
+                if wire != omit:
+                    others[name].append(self._field(i, wire))
+        for name, fields in others.items():
+            (models / name).write_text(self._model(*fields))
         ctx = Context(client_dir=tmp, spec={}, schemas={})
         hook_08_version_skew_tolerance.run(ctx)
         return models, ctx
@@ -526,35 +538,48 @@ class VersionSkewToleranceTest(unittest.TestCase):
     def _model(*fields: str) -> str:
         return "pub struct ActivatedJobResult {\n" + "\n".join(fields) + "\n}\n"
 
-    # Every wire name the hook claims to defaultable, rendered the way the
-    # generator emits it, so the fixture moves whenever _DEFAULTABLE does.
+    @staticmethod
+    def _field(i: int, wire: str) -> str:
+        return (
+            '    #[serde(rename = "%s", deserialize_with = "Option::deserialize")]\n'
+            "    pub f_%d: Option<String>," % (wire, i)
+        )
+
+    # Every primary-model wire name the hook claims to defaultable, rendered the
+    # way the generator emits it, so the fixture moves whenever _DEFAULTABLE does.
     @classmethod
     def _all_fields(cls) -> list[str]:
         return [
-            '    #[serde(rename = "%s", deserialize_with = "Option::deserialize")]\n'
-            "    pub f_%d: Option<String>," % (wire, i)
-            for i, (_, wire) in enumerate(hook_08_version_skew_tolerance._DEFAULTABLE)
+            cls._field(i, wire)
+            for i, (name, wire) in enumerate(hook_08_version_skew_tolerance._DEFAULTABLE)
+            if name == cls._PRIMARY
         ]
 
     def test_adds_default_to_every_declared_field(self):
         models, _ = self._run_hook(self._model(*self._all_fields()))
-        out = (models / "activated_job_result.rs").read_text()
-        for _, wire in hook_08_version_skew_tolerance._DEFAULTABLE:
+        for name, wire in hook_08_version_skew_tolerance._DEFAULTABLE:
+            out = (models / name).read_text()
             self.assertIn(f'#[serde(default, rename = "{wire}"', out)
 
     def test_is_idempotent(self):
         models, ctx = self._run_hook(self._model(*self._all_fields()))
-        once = (models / "activated_job_result.rs").read_text()
+        names = sorted({n for n, _ in hook_08_version_skew_tolerance._DEFAULTABLE})
+        once = {n: (models / n).read_text() for n in names}
         hook_08_version_skew_tolerance.run(ctx)
-        self.assertEqual(once, (models / "activated_job_result.rs").read_text())
+        self.assertEqual(once, {n: (models / n).read_text() for n in names})
 
     def test_raises_when_a_declared_field_is_missing(self):
         """The defect class: an entry upstream renamed must not skip silently."""
-        for _, wire in hook_08_version_skew_tolerance._DEFAULTABLE:
-            surviving = [f for f in self._all_fields() if f'rename = "{wire}"' not in f]
+        for name, wire in hook_08_version_skew_tolerance._DEFAULTABLE:
             with self.subTest(renamed_away=wire):
                 with self.assertRaises(RuntimeError) as caught:
-                    self._run_hook(self._model(*surviving))
+                    if name == self._PRIMARY:
+                        surviving = [
+                            f for f in self._all_fields() if f'rename = "{wire}"' not in f
+                        ]
+                        self._run_hook(self._model(*surviving))
+                    else:
+                        self._run_hook(self._model(*self._all_fields()), omit=wire)
                 self.assertIn(wire, str(caught.exception))
 
     def test_raises_when_the_model_file_is_missing(self):

@@ -14,7 +14,7 @@ Method | HTTP request | Description
 > models::CamundaUserResult get_authentication()
 Get current user
 
-Retrieves the current authenticated user.
+Retrieves the current authenticated user. On an unprotected API (`camunda.security.authentication.unprotected-api=true`) a caller without an identity gets a result with `isAnonymous` set to `true` instead of a `401`, because no credentials can authenticate it there.
 
 ### Parameters
 

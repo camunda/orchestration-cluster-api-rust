@@ -37,6 +37,8 @@ _DEFAULTABLE = [
     ("activated_job_result.rs", "physicalTenantId"),
     ("activated_job_result.rs", "businessId"),
     ("activated_job_result.rs", "jobLeaseToken"),
+    # Added in 8.10.10; 8.10.0-8.10.9 omit it and never answer an anonymous caller.
+    ("camunda_user_result.rs", "isAnonymous"),
 ]
 
 
