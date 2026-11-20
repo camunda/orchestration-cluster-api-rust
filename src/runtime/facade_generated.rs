@@ -11,6 +11,8 @@
 #![allow(clippy::too_many_lines)]
 #![allow(deprecated)]
 
+use super::client::apply_default_tenant;
+use super::config::CamundaConfig;
 use crate::{CamundaClient, Result};
 use camunda_orchestration_api_client::models;
 
@@ -2274,6 +2276,7 @@ impl CamundaClient {
         &self,
         params: camunda_orchestration_api_client::apis::process_definition_api::ResumeProcessDefinitionsParams,
     ) -> Result<models::ProcessDefinitionResumptionResult> {
+        let params = inject_default_tenant_resume_process_definitions(params, self.config());
         self.guarded(|| {
             let params = params.clone();
             async move {
@@ -2319,6 +2322,7 @@ impl CamundaClient {
         &self,
         params: camunda_orchestration_api_client::apis::process_definition_api::SuspendProcessDefinitionsParams,
     ) -> Result<models::ProcessDefinitionSuspensionResult> {
+        let params = inject_default_tenant_suspend_process_definitions(params, self.config());
         self.guarded(|| {
             let params = params.clone();
             async move {
@@ -3900,4 +3904,28 @@ impl CamundaClient {
         })
         .await
     }
+}
+
+/// Apply the effective default tenant to `resume_process_definitions` when the body leaves `tenantId` unset.
+pub(crate) fn inject_default_tenant_resume_process_definitions(
+    mut params: camunda_orchestration_api_client::apis::process_definition_api::ResumeProcessDefinitionsParams,
+    config: &CamundaConfig,
+) -> camunda_orchestration_api_client::apis::process_definition_api::ResumeProcessDefinitionsParams
+{
+    if let models::ProcessDefinitionResumptionInstruction::ProcessDefinitionResumptionInstructionById(b) = &mut params.process_definition_resumption_instruction {
+        b.tenant_id = apply_default_tenant(b.tenant_id.take(), config);
+    }
+    params
+}
+
+/// Apply the effective default tenant to `suspend_process_definitions` when the body leaves `tenantId` unset.
+pub(crate) fn inject_default_tenant_suspend_process_definitions(
+    mut params: camunda_orchestration_api_client::apis::process_definition_api::SuspendProcessDefinitionsParams,
+    config: &CamundaConfig,
+) -> camunda_orchestration_api_client::apis::process_definition_api::SuspendProcessDefinitionsParams
+{
+    if let models::ProcessDefinitionSuspensionInstruction::ProcessDefinitionSuspensionInstructionById(b) = &mut params.process_definition_suspension_instruction {
+        b.tenant_id = apply_default_tenant(b.tenant_id.take(), config);
+    }
+    params
 }
