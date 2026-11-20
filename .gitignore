@@ -14,9 +14,8 @@ external-spec/missing-examples.json
 # Generated Docusaurus markdown (regenerate with `make docs-md`; consumed by camunda-docs)
 docs-md/
 
-# Node (used only for spec bundling / openapi-generator-cli)
+# Node (spec bundling, openapi-generator-cli, semantic-release)
 node_modules/
-package-lock.json
 
 # openapi-generator
 .openapi-generator/
