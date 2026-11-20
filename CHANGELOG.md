@@ -1,3 +1,17 @@
+# [11.0.0-alpha.2](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.1...v11.0.0-alpha.2) (2026-11-20)
+
+
+### Continuous Integration
+
+* count only spec-form BREAKING CHANGE notes as breaking in releases ([#186](https://github.com/camunda/orchestration-cluster-api-rust/issues/186)) ([3265c22](https://github.com/camunda/orchestration-cluster-api-rust/commit/3265c22453e811cb44ed64b7f654fc395a2b7295)), closes [#184](https://github.com/camunda/orchestration-cluster-api-rust/issues/184)
+
+
+### BREAKING CHANGES
+
+* , upper case, with the colon.
+
+A dry run on stable/10 now computes 10.0.1.
+
 # [11.0.0-alpha.1](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.0...v11.0.0-alpha.1) (2026-11-20)
 
 
