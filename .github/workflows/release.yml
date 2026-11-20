@@ -21,11 +21,15 @@ name: Release
 #   step fails to authenticate for the missing one.
 #
 # Release flow:
-#   1. Bump the version in Cargo.toml (and client/Cargo.toml) + Cargo.lock, commit.
-#   2. Tag the commit `vX.Y.Z` and push the tag.
+#   Releases are cut by semantic-release in version.yml from the Conventional Commits
+#   merged to `main` or `stable/**`. It bumps both crates, commits, and pushes the
+#   `vX.Y.Z` tag. Do not bump versions or push release tags by hand.
 #   The tag push triggers this workflow, which verifies the tag matches the crate
 #   version, runs the test gate, then publishes the whole workspace atomically
 #   (client first, then the SDK — cargo resolves the order).
+#
+#   `vN.0.0-alpha.0` tags are excluded: they only seed semantic-release's version
+#   history on `main` for a new line and are never published.
 #
 # A manual `workflow_dispatch` run supports `dry_run: true` to exercise everything
 # except the final upload.
@@ -42,6 +46,7 @@ on:
   push:
     tags:
       - 'v*'
+      - '!v*.0.0-alpha.0'
   workflow_dispatch:
     inputs:
       dry_run:

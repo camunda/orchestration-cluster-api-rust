@@ -131,8 +131,35 @@ This keeps cherry-picks clean and reviews readable, and preserves `git blame` on
 The SDK major tracks the Camunda server minor (server 8.10 → SDK 10.x): `stable/10` is
 10.x, `main` is the next line. Both crates share one version, set in `Cargo.toml`,
 `client/Cargo.toml` (from `packageVersion` in `openapi-generator-config.yaml`) and the
-SDK's path dependency on the client; refresh `Cargo.lock` with `cargo update -w`. A
-`vX.Y.Z` tag publishes to crates.io, and a published version can only be yanked.
+SDK's path dependency on the client. A published version can only be yanked.
+
+### Releases are automatic
+
+Releases are cut by semantic-release (`.github/workflows/version.yml`, `release.config.cjs`
+on top of the shared base config in `@camunda8/sdk-infra`) from the Conventional Commits
+merged to a release branch:
+
+- `stable/N` releases `N.x.y`: `fix`/`perf`/`revert` -> patch, `feat` -> minor.
+- `main` releases prereleases of the next line, `<N+1>.0.0-alpha.M`.
+
+`scripts/verify-release-major.sh` refuses any other version, so a `BREAKING CHANGE` on
+`stable/N` stops the release instead of bumping the major. A release runs
+`scripts/set-release-version.sh` (both crates, the client path dependency, `packageVersion`
+and `Cargo.lock`), commits `chore(release): X.Y.Z` with a `CHANGELOG.md` entry, pushes the
+`vX.Y.Z` tag and creates the GitHub Release. The tag triggers `release.yml`, which publishes
+to crates.io. **Never bump versions or push `v*` tags by hand.**
+
+The workflow runs as the `camunda-sdk-automation` app, which bypasses the branch rulesets,
+and reads the repo variable `CAMUNDA_SDK_CURRENT_STABLE_MAJOR` (the newest `stable/N`).
+When a new line is branched, update the variable and seed `main` with a
+`v<N+1>.0.0-alpha.0` tag on a commit made **after** the branch point, with the git note
+`refs/notes/semantic-release-v<N+1>.0.0-alpha.0` = `{"channels":["alpha"]}`. Without a
+main-only tag, the stable branch's version range is empty and its releases fail.
+`release.yml` ignores `*.0.0-alpha.0` tags, so the seed is never published.
+
+Preview the next release locally with
+`GITHUB_REF_NAME=<branch> CAMUNDA_SDK_CURRENT_STABLE_MAJOR=<N> npx semantic-release --dry-run --no-ci`
+(needs a token that can read the repo in `GITHUB_TOKEN`).
 
 ### API compatibility on stable branches
 

@@ -1,0 +1,167 @@
+name: Version
+
+# Cuts releases with semantic-release from the Conventional Commits merged to `main` or a
+# `stable/**` branch (release.config.cjs, on top of the shared base config in
+# @camunda8/sdk-infra): `fix`/`perf`/`revert` -> patch, `feat` -> minor. `main` cuts
+# `<next>.0.0-alpha.N` prereleases; `stable/N` cuts `N.x.y`.
+#
+# A release is: both crates' versions bumped (scripts/set-release-version.sh), a
+# CHANGELOG.md entry, a `chore(release): X.Y.Z` commit, the `vX.Y.Z` tag and a GitHub
+# Release. The tag push triggers release.yml, which publishes to crates.io.
+#
+# scripts/verify-release-major.sh runs as semantic-release's verifyRelease step, so a
+# version outside the branch's line (another major on stable/N, a non-prerelease on main)
+# stops the release before anything is pushed.
+
+on:
+  push:
+    branches:
+      - main
+      - "stable/**"
+  # Re-runs a release, e.g. after labelling a breaking PR api-break-approved. There is
+  # deliberately no approval input: release.yml re-checks the API on the tag push, which
+  # carries no input, so an approval given only here would tag a release that then could
+  # not publish. Approve breaks with the api-break-approved label on the PR that made
+  # them; every change reaches a branch through a PR.
+  workflow_dispatch:
+
+concurrency:
+  group: version-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Build & test gate
+    # The release commit this workflow pushes needs no release of its own.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-version-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      # rust-toolchain.toml pins the channel + components; `rustup show` installs it.
+      - name: Install pinned toolchain
+        run: rustup show
+
+      - name: Test
+        run: cargo test --workspace --locked
+
+  # Stable branches must not break customer code that compiled against the last release of
+  # the major. release.yml runs the same gate before publishing; running it here as well
+  # stops a blocked release before its tag and GitHub Release exist. A no-op on main,
+  # whose prereleases make no compatibility promise.
+  api-compat:
+    name: API compatibility gate
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read # find api-break-approved PRs merged since the baseline
+    steps:
+      - uses: actions/checkout@v6
+        if: startsWith(github.ref_name, 'stable/')
+        with:
+          fetch-depth: 0 # tags, to list the PRs merged since the baseline
+
+      - name: Install pinned toolchain
+        if: startsWith(github.ref_name, 'stable/')
+        run: rustup show
+
+      - name: Install API compatibility tools
+        if: startsWith(github.ref_name, 'stable/')
+        run: ./scripts/install-api-compat-tools.sh
+
+      - name: Check API compatibility
+        if: startsWith(github.ref_name, 'stable/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          major="${GITHUB_REF_NAME#stable/}"
+          # The newest published release of this major on crates.io, not the nearest tag.
+          baseline=$(python3 scripts/api_compat.py --print-baseline-major "$major") || exit 2
+          if [ -z "$baseline" ]; then
+            echo "::notice::No ${major}.x release published yet; nothing to compare against."
+            exit 0
+          fi
+          echo "Baseline: ${baseline}"
+          scripts/api-compat-release-gate.sh "$baseline" "$major"
+
+  release:
+    name: Version & release (${{ github.ref_name }})
+    needs: [gate, api-compat]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC token for Vault JWT auth
+    steps:
+      # semantic-release pushes the release commit to a ruleset-protected branch, and its
+      # tag must trigger release.yml. GITHUB_TOKEN can do neither (it cannot bypass a
+      # ruleset, and its pushes trigger no workflows), so this runs as
+      # camunda-sdk-automation, a bypass actor on the branch rulesets.
+      - name: Import secrets
+        id: secrets
+        uses: hashicorp/vault-action@v4.0.0
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: jwt
+          path: ${{ secrets.VAULT_JWT_PATH }}
+          role: ${{ secrets.VAULT_JWT_ROLE }}
+          jwtGithubAudience: ${{ secrets.VAULT_JWT_AUDIENCE }}
+          exportEnv: false
+          secrets: |
+            secret/data/products/agentic-experience/github.com/apps/camunda/camunda-sdk-automation GITHUB_APP_ID | APP_ID ;
+            secret/data/products/agentic-experience/github.com/apps/camunda/camunda-sdk-automation GITHUB_APP_PRIVATE_KEY | APP_PRIVATE_KEY ;
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ steps.secrets.outputs.APP_ID }}
+          private-key: ${{ steps.secrets.outputs.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Configure committer identity
+        env:
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+
+      # scripts/set-release-version.sh refreshes Cargo.lock with `cargo update --workspace`.
+      - name: Install pinned toolchain
+        run: rustup show
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Node dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Release (semantic-release)
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          CAMUNDA_SDK_CURRENT_STABLE_MAJOR: ${{ vars.CAMUNDA_SDK_CURRENT_STABLE_MAJOR }}
+        run: npx semantic-release
