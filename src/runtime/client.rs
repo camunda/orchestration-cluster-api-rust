@@ -1043,6 +1043,7 @@ mod tests {
     }
 
     use super::*;
+    use camunda_orchestration_api_client::apis::process_definition_api;
 
     /// Build a config carrying the given default tenant id (and nothing else).
     fn cfg_with_tenant(tenant: Option<&str>) -> CamundaConfig {
@@ -1079,6 +1080,77 @@ mod tests {
             apply_default_tenant_str(None, &cfg).as_deref(),
             Some("<default>")
         );
+    }
+
+    fn suspend_by_id(
+        tenant: Option<&str>,
+    ) -> process_definition_api::SuspendProcessDefinitionsParams {
+        let mut b = models::ProcessDefinitionSuspensionInstructionById::new(
+            models::ProcessDefinitionId::assume_exists("p"),
+        );
+        b.tenant_id = tenant.map(models::TenantId::assume_exists);
+        process_definition_api::SuspendProcessDefinitionsParams {
+            process_definition_suspension_instruction:
+                models::ProcessDefinitionSuspensionInstruction::ProcessDefinitionSuspensionInstructionById(
+                    Box::new(b),
+                ),
+        }
+    }
+
+    fn suspend_tenant(
+        p: &process_definition_api::SuspendProcessDefinitionsParams,
+    ) -> Option<String> {
+        match &p.process_definition_suspension_instruction {
+            models::ProcessDefinitionSuspensionInstruction::ProcessDefinitionSuspensionInstructionById(b) => {
+                b.tenant_id.as_ref().map(|t| t.value().to_string())
+            }
+            _ => panic!("by-id variant expected"),
+        }
+    }
+
+    #[test]
+    fn suspend_by_id_gets_default_tenant() {
+        use crate::runtime::facade_generated::inject_default_tenant_suspend_process_definitions as inject;
+        let p = inject(suspend_by_id(None), &cfg_with_tenant(Some("acme")));
+        assert_eq!(suspend_tenant(&p).as_deref(), Some("acme"));
+        let p = inject(suspend_by_id(None), &cfg_with_tenant(None));
+        assert_eq!(suspend_tenant(&p).as_deref(), Some("<default>"));
+        let p = inject(suspend_by_id(Some("other")), &cfg_with_tenant(Some("acme")));
+        assert_eq!(suspend_tenant(&p).as_deref(), Some("other"));
+    }
+
+    #[test]
+    fn suspend_by_key_gets_no_tenant() {
+        use crate::runtime::facade_generated::inject_default_tenant_suspend_process_definitions as inject;
+        let p = process_definition_api::SuspendProcessDefinitionsParams {
+            process_definition_suspension_instruction:
+                models::ProcessDefinitionSuspensionInstruction::ProcessDefinitionSuspensionInstructionByKey(
+                    Box::new(models::ProcessDefinitionSuspensionInstructionByKey::new(
+                        models::ProcessDefinitionKey::assume_exists("1"),
+                    )),
+                ),
+        };
+        let p = inject(p, &cfg_with_tenant(Some("acme")));
+        let json = serde_json::to_value(&p.process_definition_suspension_instruction).unwrap();
+        assert!(json.get("tenantId").is_none(), "{json}");
+    }
+
+    #[test]
+    fn resume_by_id_gets_default_tenant() {
+        use crate::runtime::facade_generated::inject_default_tenant_resume_process_definitions as inject;
+        let mut b = models::ProcessDefinitionResumptionInstructionById::new(
+            models::ProcessDefinitionId::assume_exists("p"),
+        );
+        b.tenant_id = None;
+        let p = process_definition_api::ResumeProcessDefinitionsParams {
+            process_definition_resumption_instruction:
+                models::ProcessDefinitionResumptionInstruction::ProcessDefinitionResumptionInstructionById(
+                    Box::new(b),
+                ),
+        };
+        let p = inject(p, &cfg_with_tenant(None));
+        let json = serde_json::to_value(&p.process_definition_resumption_instruction).unwrap();
+        assert_eq!(json["tenantId"], "<default>");
     }
 
     fn activation(
