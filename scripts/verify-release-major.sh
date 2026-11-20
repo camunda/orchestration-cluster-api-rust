@@ -38,6 +38,18 @@ elif [ "$branch" = "main" ]; then
     echo "::error::main releases prereleases of the next line only, not $version." >&2
     exit 1
   fi
+  # Without the v<N+1>.0.0-alpha.0 seed tag, semantic-release counts from an old tag
+  # on main and computes e.g. 0.4.0-alpha.1. Only the line after the current stable
+  # major is valid on main.
+  stable="${CAMUNDA_SDK_CURRENT_STABLE_MAJOR:-}"
+  if ! [[ "$stable" =~ ^[0-9]+$ ]]; then
+    echo "::error::CAMUNDA_SDK_CURRENT_STABLE_MAJOR is not set; cannot check main's line." >&2
+    exit 1
+  fi
+  if [ "$major" -ne $((stable + 1)) ]; then
+    echo "::error::main releases the $((stable + 1)).x line (stable is $stable), not $version. Is the v$((stable + 1)).0.0-alpha.0 seed tag missing?" >&2
+    exit 1
+  fi
 else
   echo "::error::Releases are cut only from main or stable/N, not '$branch'." >&2
   exit 1
