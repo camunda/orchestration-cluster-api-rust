@@ -1,3 +1,10 @@
+# [11.0.0-alpha.3](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.2...v11.0.0-alpha.3) (2026-11-21)
+
+
+### Bug Fixes
+
+* inject default tenant on suspend/resumeProcessDefinitions by id ([#189](https://github.com/camunda/orchestration-cluster-api-rust/issues/189)) ([ee6fb30](https://github.com/camunda/orchestration-cluster-api-rust/commit/ee6fb309fe6e170632274520a0dd0fa9ddcb2b37)), closes [#188](https://github.com/camunda/orchestration-cluster-api-rust/issues/188)
+
 # [11.0.0-alpha.2](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.1...v11.0.0-alpha.2) (2026-11-20)
 
 

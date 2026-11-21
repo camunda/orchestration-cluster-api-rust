@@ -14,7 +14,7 @@ inputSpec: external-spec/generator/rest-api.json
 outputDir: client
 additionalProperties:
   packageName: camunda-orchestration-api-client
-  packageVersion: 11.0.0-alpha.2
+  packageVersion: 11.0.0-alpha.3
   supportAsync: true
   library: reqwest
   useSingleRequestParameter: true
