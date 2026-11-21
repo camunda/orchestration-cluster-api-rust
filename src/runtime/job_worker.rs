@@ -518,7 +518,23 @@ impl JobWorker {
         // jobs over a WebSocket subscription instead of REST long-polling. When the
         // subscription cannot be established (e.g. a proxy blocks WebSockets), fall
         // back to the REST poll loop instead of failing the worker.
-        if let Some(caps) = self.client.falcon_caps().await {
+        // The stream subscription carries no tenant IDs (the server uses `<default>`), so
+        // any other tenant selection must use REST polling to reach the server.
+        let falcon_tenant_ok = super::client::falcon_supports_tenants(
+            &self
+                .build_activation_request(1)
+                .tenant_ids
+                .unwrap_or_default()
+                .iter()
+                .map(|t| t.value().to_string())
+                .collect::<Vec<_>>(),
+        );
+        if !falcon_tenant_ok {
+            tracing::debug!(
+                job_type = %self.config.job_type,
+                "non-default tenant selection; using REST job polling instead of falcon",
+            );
+        } else if let Some(caps) = self.client.falcon_caps().await {
             let caps = caps.clone();
             match self.try_run_falcon_stream(handler.clone(), caps).await {
                 Ok(()) => return Ok(()),
@@ -684,14 +700,17 @@ impl JobWorker {
     /// Build the activate-jobs request from the worker config. Split out so the request
     /// shape — notably the lease flag — is unit-testable without a live server.
     fn build_activation_request(&self, max_jobs_to_activate: i32) -> models::JobActivationRequest {
-        // Fall back to the SDK's configured default tenant when none is set on the worker.
-        let tenant_ids = self.config.tenant_ids.clone().or_else(|| {
-            self.client
-                .config()
-                .default_tenant_id
-                .clone()
-                .map(|id| vec![id])
-        });
+        // Fall back to the effective default tenant (configured, else `<default>`).
+        let tenant_ids = self
+            .config
+            .tenant_ids
+            .clone()
+            .filter(|ids| !ids.is_empty())
+            .or_else(|| {
+                Some(vec![super::client::effective_default_tenant(
+                    self.client.config(),
+                )])
+            });
         models::JobActivationRequest {
             r#type: self.config.job_type.clone(),
             worker: Some(self.config.worker_name.clone()),
@@ -1031,6 +1050,82 @@ mod tests {
         let worker = client.create_job_worker(JobWorkerConfig::new("t").max_jobs_to_activate(10));
         assert_eq!(worker.build_activation_request(3).max_jobs_to_activate, 3);
         assert_eq!(worker.build_activation_request(10).max_jobs_to_activate, 10);
+    }
+
+    /// A client whose configured default tenant is `tenant` (`None` = unconfigured).
+    fn test_client_with_tenant(tenant: Option<&str>) -> super::super::client::CamundaClient {
+        let options = super::super::client::CamundaOptions::new()
+            .with("CAMUNDA_REST_ADDRESS", "http://localhost:8080");
+        let options = match tenant {
+            Some(t) => options.with("CAMUNDA_DEFAULT_TENANT_ID", t),
+            // Pin both tenant keys to empty so the "unconfigured" case cannot inherit
+            // `CAMUNDA_DEFAULT_TENANT_ID` / `CAMUNDA_TENANT_ID` from the developer's
+            // environment (empty overrides are filtered out like unset variables).
+            None => options
+                .with("CAMUNDA_DEFAULT_TENANT_ID", "")
+                .with("CAMUNDA_TENANT_ID", ""),
+        };
+        super::super::client::CamundaClient::new(options)
+            .expect("client should build from an address alone")
+    }
+
+    fn request_tenants(request: &models::JobActivationRequest) -> Vec<String> {
+        request
+            .tenant_ids
+            .as_ref()
+            .map(|ids| ids.iter().map(|t| t.value().to_string()).collect())
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn activation_request_defaults_tenants_and_gates_falcon() {
+        use super::super::client::falcon_supports_tenants;
+
+        // Absent and empty tenant lists fall back to the effective default tenant:
+        // `<default>` when unconfigured, the configured tenant otherwise. Falcon
+        // eligibility follows from that selection: only exactly `[<default>]` qualifies.
+        for worker_tenants in [
+            JobWorkerConfig::new("t"),
+            JobWorkerConfig::new("t").tenant_ids(Vec::<String>::new()),
+        ] {
+            let unconfigured = test_client_with_tenant(None)
+                .create_job_worker(worker_tenants.clone())
+                .build_activation_request(1);
+            assert_eq!(request_tenants(&unconfigured), ["<default>"]);
+            assert!(falcon_supports_tenants(&request_tenants(&unconfigured)));
+
+            let configured = test_client_with_tenant(Some("acme"))
+                .create_job_worker(worker_tenants)
+                .build_activation_request(1);
+            assert_eq!(request_tenants(&configured), ["acme"]);
+            assert!(!falcon_supports_tenants(&request_tenants(&configured)));
+        }
+
+        // Explicit tenant selections are preserved as-is; a single explicit `<default>`
+        // stays Falcon-eligible, anything else routes to REST.
+        for (tenants, expected, falcon_ok) in [
+            (vec!["<default>"], vec!["<default>"], true),
+            (vec!["tenant-a"], vec!["tenant-a"], false),
+            (
+                vec!["tenant-a", "tenant-b"],
+                vec!["tenant-a", "tenant-b"],
+                false,
+            ),
+            (
+                vec!["<default>", "tenant-a"],
+                vec!["<default>", "tenant-a"],
+                false,
+            ),
+        ] {
+            let request = test_client_with_tenant(None)
+                .create_job_worker(JobWorkerConfig::new("t").tenant_ids(tenants))
+                .build_activation_request(1);
+            assert_eq!(request_tenants(&request), expected);
+            assert_eq!(
+                falcon_supports_tenants(&request_tenants(&request)),
+                falcon_ok
+            );
+        }
     }
 
     #[tokio::test]
