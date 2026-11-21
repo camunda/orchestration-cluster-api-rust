@@ -3,7 +3,7 @@
 //! default tenant.
 //!
 //! The set of operations is read from the bundler's `spec-metadata.json`
-//! (`optionalTenantIdInBodyVariants` / `optionalTenantIdsInBody`), not from a list, so a new
+//! (`optionalTenantIdInBody` / `optionalTenantIdInBodyVariants` / `optionalTenantIdsInBody`), not from a list, so a new
 //! tenant-scoped operation fails this test until hook 07 (or a curated wrapper) injects it.
 
 use std::collections::BTreeSet;
@@ -36,7 +36,10 @@ fn tenant_scoped_operations(metadata: &Value) -> BTreeSet<String> {
         let tenant_ids = op["optionalTenantIdsInBody"]
             .as_bool()
             .unwrap_or_else(|| panic!("{op_id}: no optionalTenantIdsInBody"));
-        if !variants.is_empty() || tenant_ids {
+        let tenant_id = op["optionalTenantIdInBody"]
+            .as_bool()
+            .unwrap_or_else(|| panic!("{op_id}: no optionalTenantIdInBody"));
+        if tenant_id || !variants.is_empty() || tenant_ids {
             out.insert(snake_case(op_id));
         }
     }
@@ -66,6 +69,7 @@ fn every_optional_body_tenant_operation_injects_the_default_tenant() {
         "suspend_process_definitions",
         "resume_process_definitions",
         "activate_jobs",
+        "create_deployment",
     ] {
         assert!(
             ops.contains(expected),
