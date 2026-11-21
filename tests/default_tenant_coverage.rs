@@ -1,48 +1,15 @@
 //! Spec-derived guard: every operation whose request body (or a union variant of it)
-//! carries an *optional* top-level `tenantId` must apply the effective default tenant.
+//! carries an *optional* top-level `tenantId` (or `tenantIds`) must apply the effective
+//! default tenant.
 //!
-//! The set of operations is computed from the bundled spec, not from a list, so a new
+//! The set of operations is read from the bundler's `spec-metadata.json`
+//! (`optionalTenantIdInBody` / `optionalTenantIdInBodyVariants` / `optionalTenantIdsInBody`), not from a list, so a new
 //! tenant-scoped operation fails this test until hook 07 (or a curated wrapper) injects it.
 
 use std::collections::BTreeSet;
 use std::path::Path;
 
 use serde_json::Value;
-
-fn resolve<'a>(mut schema: &'a Value, schemas: &'a Value) -> &'a Value {
-    let mut hops = 0;
-    while let Some(r) = schema.get("$ref").and_then(Value::as_str) {
-        schema = &schemas[r.rsplit('/').next().unwrap()];
-        hops += 1;
-        assert!(hops < 64, "ref cycle at {r}");
-    }
-    schema
-}
-
-fn has_optional_tenant(schema: &Value, schemas: &Value) -> bool {
-    fn collect(s: &Value, schemas: &Value, props: &mut bool, req: &mut bool) {
-        let s = resolve(s, schemas);
-        if s.pointer("/properties/tenantId").is_some() {
-            *props = true;
-        }
-        if let Some(r) = s.get("required").and_then(Value::as_array) {
-            if r.iter().any(|v| v == "tenantId") {
-                *req = true;
-            }
-        }
-        for p in s
-            .get("allOf")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-        {
-            collect(p, schemas, props, req);
-        }
-    }
-    let (mut props, mut req) = (false, false);
-    collect(schema, schemas, &mut props, &mut req);
-    props && !req
-}
 
 fn snake_case(s: &str) -> String {
     let mut out = String::new();
@@ -59,35 +26,21 @@ fn snake_case(s: &str) -> String {
     out
 }
 
-fn tenant_scoped_operations(spec: &Value) -> BTreeSet<String> {
-    let schemas = &spec["components"]["schemas"];
+fn tenant_scoped_operations(metadata: &Value) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
-    for item in spec["paths"].as_object().unwrap().values() {
-        for op in item.as_object().unwrap().values() {
-            let Some(op_id) = op.get("operationId").and_then(Value::as_str) else {
-                continue;
-            };
-            let Some(content) = op
-                .pointer("/requestBody/content")
-                .and_then(Value::as_object)
-            else {
-                continue;
-            };
-            for media in content.values() {
-                let body = &media["schema"];
-                let resolved = resolve(body, schemas);
-                let union = resolved
-                    .get("oneOf")
-                    .or_else(|| resolved.get("anyOf"))
-                    .and_then(Value::as_array);
-                let scoped = match union {
-                    Some(vs) => vs.iter().any(|v| has_optional_tenant(v, schemas)),
-                    None => has_optional_tenant(body, schemas),
-                };
-                if scoped {
-                    out.insert(snake_case(op_id));
-                }
-            }
+    for op in metadata["operations"].as_array().unwrap() {
+        let op_id = op["operationId"].as_str().unwrap();
+        let variants = op["optionalTenantIdInBodyVariants"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{op_id}: no optionalTenantIdInBodyVariants"));
+        let tenant_ids = op["optionalTenantIdsInBody"]
+            .as_bool()
+            .unwrap_or_else(|| panic!("{op_id}: no optionalTenantIdsInBody"));
+        let tenant_id = op["optionalTenantIdInBody"]
+            .as_bool()
+            .unwrap_or_else(|| panic!("{op_id}: no optionalTenantIdInBody"));
+        if tenant_id || !variants.is_empty() || tenant_ids {
+            out.insert(snake_case(op_id));
         }
     }
     out
@@ -104,15 +57,20 @@ fn method_body<'a>(src: &'a str, name: &str) -> Option<&'a str> {
 #[test]
 fn every_optional_body_tenant_operation_injects_the_default_tenant() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let spec: Value = serde_json::from_str(
-        &std::fs::read_to_string(root.join("external-spec/bundled/rest-api.bundle.json")).unwrap(),
+    let metadata: Value = serde_json::from_str(
+        &std::fs::read_to_string(root.join("external-spec/bundled/spec-metadata.json")).unwrap(),
     )
     .unwrap();
     let facade = std::fs::read_to_string(root.join("src/runtime/facade_generated.rs")).unwrap();
     let curated = std::fs::read_to_string(root.join("src/runtime/client.rs")).unwrap();
 
-    let ops = tenant_scoped_operations(&spec);
-    for expected in ["suspend_process_definitions", "resume_process_definitions"] {
+    let ops = tenant_scoped_operations(&metadata);
+    for expected in [
+        "suspend_process_definitions",
+        "resume_process_definitions",
+        "activate_jobs",
+        "create_deployment",
+    ] {
         assert!(
             ops.contains(expected),
             "{expected} not detected as tenant-scoped"
@@ -128,7 +86,10 @@ fn every_optional_body_tenant_operation_injects_the_default_tenant() {
         let body = method_body(&facade, op)
             .or_else(|| method_body(&curated, op))
             .unwrap_or_else(|| panic!("no client method for {op}"));
-        if !(body.contains("default_tenant") || body.contains("_tenant(")) {
+        if !(body.contains("default_tenant")
+            || body.contains("_tenant(")
+            || body.contains("_tenants("))
+        {
             missing.push(op.clone());
         }
     }
