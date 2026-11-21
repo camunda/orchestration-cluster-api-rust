@@ -1058,7 +1058,12 @@ mod tests {
             .with("CAMUNDA_REST_ADDRESS", "http://localhost:8080");
         let options = match tenant {
             Some(t) => options.with("CAMUNDA_DEFAULT_TENANT_ID", t),
-            None => options,
+            // Pin both tenant keys to empty so the "unconfigured" case cannot inherit
+            // `CAMUNDA_DEFAULT_TENANT_ID` / `CAMUNDA_TENANT_ID` from the developer's
+            // environment (empty overrides are filtered out like unset variables).
+            None => options
+                .with("CAMUNDA_DEFAULT_TENANT_ID", "")
+                .with("CAMUNDA_TENANT_ID", ""),
         };
         super::super::client::CamundaClient::new(options)
             .expect("client should build from an address alone")
