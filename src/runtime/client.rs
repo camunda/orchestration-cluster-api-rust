@@ -927,7 +927,6 @@ pub(crate) fn effective_default_tenant(config: &CamundaConfig) -> String {
         .unwrap_or_else(|| DEFAULT_TENANT_IDENTIFIER.to_string())
 }
 
-/// The server's built-in default tenant identifier.
 /// Whether a falcon stream request can serve `tenant_ids`. The stream protocol carries no
 /// tenant selection (the server uses `<default>`), so only exactly `[<default>]` qualifies;
 /// anything else must use REST so the tenant actually reaches the server.
@@ -935,6 +934,7 @@ pub(crate) fn falcon_supports_tenants(tenant_ids: &[String]) -> bool {
     matches!(tenant_ids, [only] if only == DEFAULT_TENANT_IDENTIFIER)
 }
 
+/// The server's built-in default tenant identifier.
 pub const DEFAULT_TENANT_IDENTIFIER: &str = "<default>";
 
 /// Apply the effective default tenant to a job activation request: when `tenant_filter` is
