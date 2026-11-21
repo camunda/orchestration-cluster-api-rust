@@ -1052,6 +1052,77 @@ mod tests {
         assert_eq!(worker.build_activation_request(10).max_jobs_to_activate, 10);
     }
 
+    /// A client whose configured default tenant is `tenant` (`None` = unconfigured).
+    fn test_client_with_tenant(tenant: Option<&str>) -> super::super::client::CamundaClient {
+        let options = super::super::client::CamundaOptions::new()
+            .with("CAMUNDA_REST_ADDRESS", "http://localhost:8080");
+        let options = match tenant {
+            Some(t) => options.with("CAMUNDA_DEFAULT_TENANT_ID", t),
+            None => options,
+        };
+        super::super::client::CamundaClient::new(options)
+            .expect("client should build from an address alone")
+    }
+
+    fn request_tenants(request: &models::JobActivationRequest) -> Vec<String> {
+        request
+            .tenant_ids
+            .as_ref()
+            .map(|ids| ids.iter().map(|t| t.value().to_string()).collect())
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn activation_request_defaults_tenants_and_gates_falcon() {
+        use super::super::client::falcon_supports_tenants;
+
+        // Absent and empty tenant lists fall back to the effective default tenant:
+        // `<default>` when unconfigured, the configured tenant otherwise. Falcon
+        // eligibility follows from that selection: only exactly `[<default>]` qualifies.
+        for worker_tenants in [
+            JobWorkerConfig::new("t"),
+            JobWorkerConfig::new("t").tenant_ids(Vec::<String>::new()),
+        ] {
+            let unconfigured = test_client_with_tenant(None)
+                .create_job_worker(worker_tenants.clone())
+                .build_activation_request(1);
+            assert_eq!(request_tenants(&unconfigured), ["<default>"]);
+            assert!(falcon_supports_tenants(&request_tenants(&unconfigured)));
+
+            let configured = test_client_with_tenant(Some("acme"))
+                .create_job_worker(worker_tenants)
+                .build_activation_request(1);
+            assert_eq!(request_tenants(&configured), ["acme"]);
+            assert!(!falcon_supports_tenants(&request_tenants(&configured)));
+        }
+
+        // Explicit tenant selections are preserved as-is; a single explicit `<default>`
+        // stays Falcon-eligible, anything else routes to REST.
+        for (tenants, expected, falcon_ok) in [
+            (vec!["<default>"], vec!["<default>"], true),
+            (vec!["tenant-a"], vec!["tenant-a"], false),
+            (
+                vec!["tenant-a", "tenant-b"],
+                vec!["tenant-a", "tenant-b"],
+                false,
+            ),
+            (
+                vec!["<default>", "tenant-a"],
+                vec!["<default>", "tenant-a"],
+                false,
+            ),
+        ] {
+            let request = test_client_with_tenant(None)
+                .create_job_worker(JobWorkerConfig::new("t").tenant_ids(tenants))
+                .build_activation_request(1);
+            assert_eq!(request_tenants(&request), expected);
+            assert_eq!(
+                falcon_supports_tenants(&request_tenants(&request)),
+                falcon_ok
+            );
+        }
+    }
+
     #[tokio::test]
     async fn run_rejects_non_positive_max_jobs_to_activate() {
         // A zero or negative in-flight cap is a misconfiguration: rather than silently
