@@ -169,7 +169,7 @@ impl CamundaClient {
         self.bp.state()
     }
 
-    /// Apply the configured default tenant id to an optional tenant value, leaving an
+    /// Apply the effective default tenant (configured, else `<default>`) to an optional tenant value, leaving an
     /// explicitly-provided value untouched.
     pub(crate) fn with_default_tenant(
         &self,
@@ -280,7 +280,7 @@ impl CamundaClient {
             .await
     }
 
-    /// Create (start) a process instance. The configured default tenant id is applied when
+    /// Create (start) a process instance. The effective default tenant (the configured one, else `<default>`) is applied when
     /// the instruction does not already specify one.
     pub async fn create_process_instance(
         &self,
@@ -457,7 +457,7 @@ impl CamundaClient {
     }
 
     /// Deploy one or more resources (BPMN, DMN, forms) from local file paths. The
-    /// configured default tenant id is applied when `tenant_id` is `None`.
+    /// effective default tenant (the configured one, else `<default>`) is applied when `tenant_id` is `None`.
     pub async fn deploy_resources(
         &self,
         resources: Vec<std::path::PathBuf>,
@@ -479,7 +479,7 @@ impl CamundaClient {
         .await
     }
 
-    /// Deploy resources (`POST /deployments`). The configured default tenant id is applied
+    /// Deploy resources (`POST /deployments`). The effective default tenant (the configured one, else `<default>`) is applied
     /// when the params carry no `tenant_id`.
     ///
     /// This is the params-struct twin of [`CamundaClient::deploy_resources`], kept so the
@@ -507,7 +507,7 @@ impl CamundaClient {
     // --- Messaging, signals, decisions --------------------------------------
 
     /// Publish a message (no correlation key matching against active subscriptions only —
-    /// buffered). The configured default tenant id is applied when unset.
+    /// buffered). The effective default tenant (the configured one, else `<default>`) is applied when unset.
     pub async fn publish_message(
         &self,
         mut request: models::MessagePublicationRequest,
@@ -526,7 +526,7 @@ impl CamundaClient {
         .await
     }
 
-    /// Correlate a message to a waiting process instance. The configured default tenant id
+    /// Correlate a message to a waiting process instance. The effective default tenant
     /// is applied when unset.
     pub async fn correlate_message(
         &self,
@@ -546,7 +546,7 @@ impl CamundaClient {
         .await
     }
 
-    /// Broadcast a signal. The configured default tenant id is applied when unset.
+    /// Broadcast a signal. The effective default tenant (the configured one, else `<default>`) is applied when unset.
     pub async fn broadcast_signal(
         &self,
         mut request: models::SignalBroadcastRequest,
@@ -565,7 +565,7 @@ impl CamundaClient {
         .await
     }
 
-    /// Evaluate a decision (DMN). The configured default tenant id is applied when unset.
+    /// Evaluate a decision (DMN). The effective default tenant (the configured one, else `<default>`) is applied when unset.
     pub async fn evaluate_decision(
         &self,
         instruction: models::DecisionEvaluationInstruction,
@@ -585,7 +585,7 @@ impl CamundaClient {
     }
 
     /// Evaluate root level conditional start events (`POST /conditionals/evaluation`). The
-    /// configured default tenant id is applied when the instruction carries no `tenant_id`.
+    /// effective default tenant (the configured one, else `<default>`) is applied when the instruction carries no `tenant_id`.
     pub async fn evaluate_conditionals(
         &self,
         params: conditional_api::EvaluateConditionalsParams,
@@ -605,8 +605,8 @@ impl CamundaClient {
         .await
     }
 
-    /// Evaluate an expression (`POST /expression/evaluation`). The configured default
-    /// tenant id is applied when the request carries no `tenant_id`.
+    /// Evaluate an expression (`POST /expression/evaluation`). The effective default
+    /// tenant (the configured one, else `<default>`) is applied when the request carries no `tenant_id`.
     pub async fn evaluate_expression(
         &self,
         params: expression_api::EvaluateExpressionParams,
@@ -729,7 +729,7 @@ impl CamundaClient {
         .await
     }
 
-    /// Inject the configured default tenant id into a process-instance creation instruction
+    /// Inject the effective default tenant into a process-instance creation instruction
     /// when none is set.
     fn inject_instance_tenant(
         &self,
@@ -752,7 +752,7 @@ impl CamundaClient {
         }
     }
 
-    /// Inject the configured default tenant id into a decision-evaluation instruction when
+    /// Inject the effective default tenant into a decision-evaluation instruction when
     /// none is set.
     fn inject_decision_tenant(
         &self,
@@ -904,7 +904,7 @@ impl CamundaClient {
     }
 }
 
-/// Apply the configured default tenant id to an optional [`models::TenantId`], leaving an
+/// Apply the effective default tenant (configured, else `<default>`) to an optional [`models::TenantId`], leaving an
 /// explicitly-provided value untouched. Free function (rather than a method) so the
 /// injection is unit-testable without standing up a full client.
 pub(crate) fn apply_default_tenant(
@@ -957,7 +957,7 @@ pub(crate) fn apply_default_job_tenants(
     }
 }
 
-/// Apply the configured default tenant id to an optional `String` tenant value, leaving an
+/// Apply the effective default tenant (configured, else `<default>`) to an optional `String` tenant value, leaving an
 /// explicitly-provided value untouched. Used by operations whose generated request model
 /// carries the tenant as a plain `String` rather than a [`models::TenantId`] newtype.
 pub(crate) fn apply_default_tenant_str(
