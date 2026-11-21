@@ -47,7 +47,7 @@ pub struct ProcessDefinitionFilter {
     /// Indicates whether the start event of the process has an associated Form Key.
     #[serde(rename = "hasStartForm", skip_serializing_if = "Option::is_none")]
     pub has_start_form: Option<bool>,
-    /// Filter by the process definition's state. When not set, process definitions in any state are returned. Set to `ACTIVE` to exclude draining and deleted definitions (recommended for most use cases). Set to `SUSPENDED` to return only definitions that are suspended, so that no new process instances can be created from them. Set to `DRAINING` to return only definitions that are being deleted but still have active process instances draining. Set to `DELETED` to return only definitions that have been deleted but are still retained in secondary storage.
+    /// Filter by the process definition's state. When not set, process definitions in any state are returned. Set to `ACTIVE` to exclude draining, deleted, and suspended definitions (recommended for most use cases). Set to `DRAINING` to return only definitions that are being deleted but still have active process instances draining. Set to `DELETED` to return only definitions that have been deleted but are still retained in secondary storage. Set to `SUSPENDED` to return only definitions that are suspended: no new process instances can be created from them.
     #[serde(rename = "state", skip_serializing_if = "Option::is_none")]
     pub state: Option<State>,
 }
@@ -69,7 +69,7 @@ impl ProcessDefinitionFilter {
         }
     }
 }
-/// Filter by the process definition's state. When not set, process definitions in any state are returned. Set to `ACTIVE` to exclude draining and deleted definitions (recommended for most use cases). Set to `SUSPENDED` to return only definitions that are suspended, so that no new process instances can be created from them. Set to `DRAINING` to return only definitions that are being deleted but still have active process instances draining. Set to `DELETED` to return only definitions that have been deleted but are still retained in secondary storage.
+/// Filter by the process definition's state. When not set, process definitions in any state are returned. Set to `ACTIVE` to exclude draining, deleted, and suspended definitions (recommended for most use cases). Set to `DRAINING` to return only definitions that are being deleted but still have active process instances draining. Set to `DELETED` to return only definitions that have been deleted but are still retained in secondary storage. Set to `SUSPENDED` to return only definitions that are suspended: no new process instances can be created from them.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum State {
     #[serde(rename = "ACTIVE")]
