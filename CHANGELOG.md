@@ -1,3 +1,10 @@
+## [10.0.2](https://github.com/camunda/orchestration-cluster-api-rust/compare/v10.0.1...v10.0.2) (2026-11-21)
+
+
+### Bug Fixes
+
+* send the default tenant on tenant-scoped commands ([#193](https://github.com/camunda/orchestration-cluster-api-rust/issues/193)) ([182592d](https://github.com/camunda/orchestration-cluster-api-rust/commit/182592d4f8de905ad818d5fc390d30be49d7db72)), closes [#160](https://github.com/camunda/orchestration-cluster-api-rust/issues/160) [#192](https://github.com/camunda/orchestration-cluster-api-rust/issues/192)
+
 ## [10.0.1](https://github.com/camunda/orchestration-cluster-api-rust/compare/v10.0.0...v10.0.1) (2026-11-20)
 
 
