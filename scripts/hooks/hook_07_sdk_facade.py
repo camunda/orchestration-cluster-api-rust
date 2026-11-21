@@ -18,9 +18,9 @@ Operations already covered by a hand-written, more-ergonomic curated method (sem
 keys, typed variables, default-tenant injection, deploy-from-file) are skipped so the
 nicer versions win — see ``CURATED_SKIP``.
 
-Default-tenant injection is derived from the spec, not a list: every generated operation
-whose JSON request body (or a ``oneOf``/``anyOf`` variant of it) is a schema with an
-*optional* top-level ``tenantId`` gets an ``inject_default_tenant_<op>`` helper that
+Default-tenant injection is derived from the bundler's ``spec-metadata.json``, not a
+list: every generated operation whose JSON request body (or a ``oneOf``/``anyOf`` variant
+of it) is listed in ``optionalTenantIdInBodyVariants`` gets an ``inject_default_tenant_<op>`` helper that
 fills the effective default tenant (configured ``CAMUNDA_TENANT_ID`` or ``<default>``)
 when the caller left it unset, on that variant only — mirroring the Camunda Java client.
 """
@@ -94,8 +94,6 @@ use crate::{CamundaClient, Result};
 use camunda_orchestration_api_client::models;
 """
 
-_HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
-
 
 def _resolve(schema: dict, schemas: dict) -> tuple[str | None, dict]:
     name = None
@@ -109,54 +107,40 @@ def _resolve(schema: dict, schemas: dict) -> tuple[str | None, dict]:
     return name, schema or {}
 
 
-def _top_level(schema: dict, schemas: dict) -> tuple[dict, set[str]]:
-    """Top-level properties + required set of a schema, merging ``allOf`` members."""
-    _, schema = _resolve(schema, schemas)
-    props = dict(schema.get("properties") or {})
-    required = set(schema.get("required") or [])
-    for part in schema.get("allOf") or []:
-        p, r = _top_level(part, schemas)
-        props.update(p)
-        required |= r
-    return props, required
-
-
-def _has_optional_tenant(schema: dict, schemas: dict) -> bool:
-    props, required = _top_level(schema, schemas)
-    return "tenantId" in props and "tenantId" not in required
-
-
-def build_tenant_injection_map(spec: dict) -> dict[str, dict]:
+def build_tenant_injection_map(spec: dict, metadata: dict | None) -> dict[str, dict]:
     """snake_case(operationId) -> {"schema": body schema name, "variants": [names] | None}.
 
+    The selection comes from ``camunda-schema-bundler``'s ``spec-metadata.json``
+    (``optionalTenantIdInBodyVariants``), so the SDK does not re-walk the spec for it.
     ``variants`` is None for a plain body schema with an optional top-level ``tenantId``;
     otherwise it lists the union variants that carry one (others get nothing).
     """
+    if not metadata or "operations" not in metadata:
+        raise SystemExit("hook 07: spec-metadata.json with `operations` is required")
     schemas = (spec.get("components") or {}).get("schemas") or {}
     out: dict[str, dict] = {}
-    for item in (spec.get("paths") or {}).values():
-        if not isinstance(item, dict):
+    for op in metadata["operations"]:
+        if "optionalTenantIdInBodyVariants" not in op:
+            raise SystemExit(
+                f"hook 07: {op.get('operationId')} lacks optionalTenantIdInBodyVariants; "
+                "re-bundle with camunda-schema-bundler >= 2.5.1"
+            )
+        variants = op["optionalTenantIdInBodyVariants"]
+        if not variants:
             continue
-        for method, op in item.items():
-            if method.lower() not in _HTTP_METHODS or not isinstance(op, dict):
-                continue
-            op_id = op.get("operationId")
-            content = ((op.get("requestBody") or {}).get("content")) or {}
-            body = (content.get("application/json") or {}).get("schema")
-            if not op_id or not body:
-                continue
-            name, resolved = _resolve(body, schemas)
-            union = resolved.get("oneOf") or resolved.get("anyOf")
-            if union:
-                variants = []
-                for v in union:
-                    vname, _ = _resolve(v, schemas)
-                    if vname and _has_optional_tenant(v, schemas):
-                        variants.append(vname)
-                if variants:
-                    out[snake_case(op_id)] = {"schema": name, "variants": variants}
-            elif _has_optional_tenant(body, schemas):
-                out[snake_case(op_id)] = {"schema": name, "variants": None}
+        op_id = op["operationId"]
+        item = (spec.get("paths") or {}).get(op["path"]) or {}
+        body = (((item.get(op["method"]) or {}).get("requestBody") or {}).get("content") or {})
+        body = (body.get("application/json") or {}).get("schema")
+        if not body:
+            raise SystemExit(f"hook 07: {op_id} has tenant variants but no JSON body")
+        name, resolved = _resolve(body, schemas)
+        if resolved.get("oneOf") or resolved.get("anyOf"):
+            out[snake_case(op_id)] = {"schema": name, "variants": list(variants)}
+        else:
+            if variants != [name]:
+                raise SystemExit(f"hook 07: {op_id} variants {variants} != body schema {name}")
+            out[snake_case(op_id)] = {"schema": name, "variants": None}
     return out
 
 
@@ -317,7 +301,7 @@ def run(ctx: Context) -> None:
     doc_map = _build_doc_map(ctx)
     ops = _parse_operations(apis_dir)
 
-    tenant_map = build_tenant_injection_map(ctx.spec)
+    tenant_map = build_tenant_injection_map(ctx.spec, ctx.metadata)
 
     generated, injectors, skipped = [], [], 0
     for op in sorted(ops, key=lambda o: (o["module"], o["fn"])):
