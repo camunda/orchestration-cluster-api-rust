@@ -1,3 +1,10 @@
+## [10.0.3](https://github.com/camunda/orchestration-cluster-api-rust/compare/v10.0.2...v10.0.3) (2026-11-22)
+
+
+### Bug Fixes
+
+* **worker:** keep polling with back-off after a failed job activation (backport [#201](https://github.com/camunda/orchestration-cluster-api-rust/issues/201) to stable/10) ([#202](https://github.com/camunda/orchestration-cluster-api-rust/issues/202)) ([bd5ba09](https://github.com/camunda/orchestration-cluster-api-rust/commit/bd5ba09aaf426868df5fbf0220b46ada9e4de5dc)), closes [#145](https://github.com/camunda/orchestration-cluster-api-rust/issues/145)
+
 ## [10.0.2](https://github.com/camunda/orchestration-cluster-api-rust/compare/v10.0.1...v10.0.2) (2026-11-21)
 
 
