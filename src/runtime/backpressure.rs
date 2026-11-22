@@ -44,6 +44,16 @@ const RECOVERY_STEP: u32 = 1;
 const SEVERE_THRESHOLD: u32 = 3;
 /// Quiet period after which severity decays one step.
 const DECAY_QUIET: Duration = Duration::from_secs(2);
+/// Minimum interval between two `soft` multiplicative shrinks. Like classic AIMD (one
+/// decrease per window), a sparse trickle of signals interleaved with successes shrinks
+/// the cap at most once per interval instead of once per signal. `severe` signals
+/// (consecutive, with no success in between) are not rate-limited.
+const SOFT_DECREASE_INTERVAL: Duration = Duration::from_secs(1);
+/// Backpressure ratio (signals / outcomes over the last recovery window) below which the
+/// cluster counts as recovering even if the window was not completely quiet.
+const LOW_BACKPRESSURE_RATIO: f64 = 0.10;
+/// Minimum outcomes in a recovery window before its backpressure ratio is trusted.
+const MIN_RATIO_SAMPLES: u32 = 10;
 /// Maximum number of queued waiters before [`acquire`](BackpressureManager::acquire) fails fast.
 const MAX_WAITERS: u32 = 1000;
 /// Multiplicative growth factor applied during phase-2 (healthy) recovery.
@@ -99,7 +109,7 @@ impl FromStr for BackpressureProfile {
 pub struct BackpressureState {
     /// Current severity level.
     pub severity: BackpressureSeverity,
-    /// Consecutive backpressure signals since the last healthy decay.
+    /// Consecutive backpressure signals since the last successful response.
     pub consecutive: u32,
     /// Current permit cap, or `None` when unlimited.
     pub permits_max: Option<u32>,
@@ -151,6 +161,12 @@ struct Inner {
     healthy_since: Option<Instant>,
     waiters: u32,
     backoff: Duration,
+    /// When the last `soft` multiplicative shrink was applied.
+    last_soft_decrease_at: Option<Instant>,
+    /// Backpressure signals observed in the current recovery window.
+    window_backpressure: u32,
+    /// Successful outcomes observed in the current recovery window.
+    window_healthy: u32,
 }
 
 /// Adaptive backpressure manager shared (via `Arc`) by an SDK client and all its clones.
@@ -184,6 +200,9 @@ impl BackpressureManager {
                 healthy_since: None,
                 waiters: 0,
                 backoff: Duration::ZERO,
+                last_soft_decrease_at: None,
+                window_backpressure: 0,
+                window_healthy: 0,
             }),
             notify: Notify::new(),
             clock,
@@ -362,6 +381,7 @@ impl BackpressureManager {
         let mut st = self.inner.lock().unwrap();
         st.last_event_at = Some(now);
         st.consecutive += 1;
+        st.window_backpressure = st.window_backpressure.saturating_add(1);
         st.healthy_since = None;
 
         if !self.observe_only && st.permits_max.is_none() {
@@ -378,14 +398,19 @@ impl BackpressureManager {
             if !self.observe_only {
                 scale_permits(&mut st, SEVERE_FACTOR);
             }
-        } else if st.severity == BackpressureSeverity::Healthy {
-            st.severity = BackpressureSeverity::Soft;
-            if !self.observe_only {
-                scale_permits(&mut st, SOFT_FACTOR);
+        } else {
+            if st.severity == BackpressureSeverity::Healthy {
+                st.severity = BackpressureSeverity::Soft;
             }
-        } else if !self.observe_only {
-            // Already soft — keep scaling with the soft factor.
-            scale_permits(&mut st, SOFT_FACTOR);
+            // Soft: shrink at most once per SOFT_DECREASE_INTERVAL, so a sparse trickle of
+            // signals between successes cannot ratchet the cap down to the floor.
+            let may_shrink = st
+                .last_soft_decrease_at
+                .is_none_or(|t| now.duration_since(t) >= SOFT_DECREASE_INTERVAL);
+            if !self.observe_only && may_shrink {
+                scale_permits(&mut st, SOFT_FACTOR);
+                st.last_soft_decrease_at = Some(now);
+            }
         }
 
         // Escalate the backoff when stuck at the floor while severe.
@@ -407,6 +432,9 @@ impl BackpressureManager {
         let mut st = self.inner.lock().unwrap();
         // Reset backoff immediately on success — the server clearly has capacity.
         st.backoff = Duration::ZERO;
+        // A success breaks the run: `consecutive` counts consecutive signals only.
+        st.consecutive = 0;
+        st.window_healthy = st.window_healthy.saturating_add(1);
         self.maybe_recover(&mut st, now);
     }
 
@@ -422,11 +450,21 @@ impl BackpressureManager {
         }
         st.last_recover_check = Some(now);
 
-        // Decay severity if the cluster has been quiet (severe -> soft -> healthy).
+        // Backpressure ratio over the window since the previous recovery check.
+        let bp = st.window_backpressure;
+        let total = bp.saturating_add(st.window_healthy);
+        st.window_backpressure = 0;
+        st.window_healthy = 0;
+        let low_ratio =
+            total >= MIN_RATIO_SAMPLES && (bp as f64) < (total as f64) * LOW_BACKPRESSURE_RATIO;
+
+        // Decay severity (severe -> soft -> healthy) if the cluster has been quiet, or if
+        // only a small fraction of recent requests hit backpressure — a steady trickle of
+        // signals must not pin the gate in `severe` forever.
         let quiet = st
             .last_event_at
             .is_none_or(|t| now.duration_since(t) > DECAY_QUIET);
-        if quiet {
+        if quiet || low_ratio {
             match st.severity {
                 BackpressureSeverity::Severe => st.severity = BackpressureSeverity::Soft,
                 BackpressureSeverity::Soft => {
@@ -443,6 +481,13 @@ impl BackpressureManager {
         let permits_max = st.permits_max.unwrap_or(FLOOR);
 
         if st.severity != BackpressureSeverity::Healthy {
+            if low_ratio {
+                // Mostly-successful window: grow multiplicatively, past the bootstrap cap.
+                let next_max = (permits_max as f64 * HEALTHY_RECOVERY_MULTIPLIER).ceil() as u32;
+                st.permits_max = Some(next_max.max(permits_max + RECOVERY_STEP));
+                self.notify.notify_one();
+                return;
+            }
             // Phase 1: additive recovery while not yet healthy (bounded by the bootstrap cap).
             if permits_max < INITIAL_MAX {
                 st.permits_max = Some((permits_max + RECOVERY_STEP).min(INITIAL_MAX));
@@ -806,6 +851,48 @@ mod tests {
         assert!(
             clock.now_calls() > 0,
             "the recovery window was measured against ambient time"
+        );
+    }
+
+    #[test]
+    fn success_resets_consecutive_so_sparse_signals_stay_soft() {
+        let bp = BackpressureManager::new(
+            BackpressureProfile::Balanced,
+            super::super::clock::live_clock(),
+        );
+        for _ in 0..10 {
+            bp.record_backpressure();
+            bp.record_healthy_hint();
+        }
+        assert_eq!(bp.state().consecutive, 0);
+        assert_ne!(bp.severity(), BackpressureSeverity::Severe);
+    }
+
+    /// Regression for #203: a steady sender where 1 in 20 requests hits backpressure
+    /// must recover to (and beyond) the bootstrap cap, not stay pinned near the floor.
+    #[test]
+    fn steady_trickle_of_backpressure_recovers() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        // Drive it into severe first, as a burst would.
+        for _ in 0..8 {
+            bp.record_backpressure();
+        }
+        assert_eq!(bp.severity(), BackpressureSeverity::Severe);
+        // 50 req/s for 60 s; every 20th is a 503.
+        for i in 1..=3000u32 {
+            clock.advance(Duration::from_millis(20));
+            if i % 20 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+        }
+        let s = bp.state();
+        assert_ne!(s.severity, BackpressureSeverity::Severe, "{s:?}");
+        assert!(
+            s.permits_max.is_none_or(|m| m >= INITIAL_MAX),
+            "cap stayed throttled: {s:?}"
         );
     }
 }
