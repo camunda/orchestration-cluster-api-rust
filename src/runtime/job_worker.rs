@@ -2445,6 +2445,17 @@ mod tests {
             /// With `activations_before_error`, serve jobs again from this activation
             /// number on. `None` keeps failing.
             recover_at: Option<usize>,
+            /// Activation numbers that answer 500 regardless of the
+            /// `activations_before_error`/`recover_at` window, and — when `Some` — the
+            /// *only* failures served: the window fields are ignored. Lets a test script
+            /// several failing stretches separated by successes, which the single window
+            /// above cannot express.
+            fail_activations: Option<&'static [usize]>,
+            /// Activation numbers that answer `200 OK` with an empty job list — an idle
+            /// gateway with nothing to activate. Distinct from a successful activation
+            /// that returns a job: the worker takes the reset-and-release path without
+            /// dispatching a handler.
+            empty_activations: &'static [usize],
         }
 
         /// An in-process stand-in for the job endpoints, routing on the request path.
@@ -2516,23 +2527,35 @@ mod tests {
                             }
                             let (status, body) = if path.contains("/jobs/activation") {
                                 let n = acts.fetch_add(1, Ordering::SeqCst) + 1;
-                                match behaviour.activations_before_error {
-                                    Some(limit)
-                                        if n > limit
-                                            && behaviour.recover_at.is_none_or(|r| n < r) =>
-                                    {
-                                        (
-                                            "500 Internal Server Error",
-                                            r#"{"title":"boom"}"#.to_string(),
-                                        )
-                                    }
-                                    _ => (
+                                let scripted_failure = behaviour
+                                    .fail_activations
+                                    .is_some_and(|fails| fails.contains(&n));
+                                let window_failure = behaviour.fail_activations.is_none()
+                                    && matches!(behaviour.activations_before_error,
+                                        Some(limit)
+                                            if n > limit
+                                                && behaviour.recover_at.is_none_or(|r| n < r));
+                                if scripted_failure || window_failure {
+                                    (
+                                        "500 Internal Server Error",
+                                        r#"{"title":"boom"}"#.to_string(),
+                                    )
+                                } else if behaviour.empty_activations.contains(&n) {
+                                    (
+                                        "200 OK",
+                                        serde_json::to_string(&models::JobActivationResult::new(
+                                            vec![],
+                                        ))
+                                        .unwrap(),
+                                    )
+                                } else {
+                                    (
                                         "200 OK",
                                         serde_json::to_string(&models::JobActivationResult::new(
                                             vec![job_with_key(&n.to_string())],
                                         ))
                                         .unwrap(),
-                                    ),
+                                    )
                                 }
                             } else if path.contains("/completion") {
                                 comps.fetch_add(1, Ordering::SeqCst);
@@ -2667,6 +2690,8 @@ mod tests {
                 completion_status: "204 No Content",
                 activations_before_error: None,
                 recover_at: None,
+                fail_activations: None,
+                empty_activations: &[],
             })
             .await;
             let client = stub.client();
@@ -2785,6 +2810,8 @@ mod tests {
                 completion_status: "409 Conflict",
                 activations_before_error: None,
                 recover_at: None,
+                fail_activations: None,
+                empty_activations: &[],
             })
             .await;
             let client = stub.client();
@@ -2831,6 +2858,8 @@ mod tests {
                 // Activation 1 succeeds, 2..=4 fail, 5+ succeed again.
                 activations_before_error: Some(1),
                 recover_at: Some(5),
+                fail_activations: None,
+                empty_activations: &[],
             })
             .await;
             let client = stub.client();
@@ -2933,6 +2962,8 @@ mod tests {
                 // still in flight.
                 activations_before_error: Some(1),
                 recover_at: None,
+                fail_activations: None,
+                empty_activations: &[],
             })
             .await;
             let client = stub.client();
@@ -3011,6 +3042,119 @@ mod tests {
             );
         }
 
+        /// A successful poll must reset the consecutive-failure budget, or a worker under a
+        /// flaky gateway dies on accumulated failures the successes should have forgiven.
+        /// Neither neighbouring test pins the reset: `a_failing_poll_backs_off_and_recovers`
+        /// sets no failure limit, and `a_poll_failure_drains_in_flight_handlers_before_propagating`
+        /// uses a limit of 1, so both would still pass if the reset were deleted.
+        ///
+        /// With `max_consecutive_poll_failures(2)` the stub serves job 1, fails activation
+        /// 2, serves job 3 (its completion proves the worker kept polling), then fails 4
+        /// and 5. The worker must survive 4 and stop at 5: without the reset, the budget
+        /// still holds the failure at 2, so 4 would already be the second consecutive
+        /// failure and the worker would stop one poll early.
+        #[tokio::test]
+        async fn a_successful_poll_resets_the_consecutive_failure_budget() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                activations_before_error: None,
+                recover_at: None,
+                fail_activations: Some(&[2, 4, 5]),
+                empty_activations: &[],
+            })
+            .await;
+            let client = stub.client();
+            let worker = client.create_job_worker(
+                JobWorkerConfig::new("test-type")
+                    .max_jobs_to_activate(1)
+                    .max_poll_backoff_ms(50)
+                    .max_consecutive_poll_failures(2),
+            );
+            let handle = worker.spawn(|_job| async { JobAction::complete() });
+
+            // Two completions prove the worker dispatched job 3 after the failure at 2:
+            // it kept polling rather than stopping at the first sign of trouble.
+            wait_for(client.clock(), "the job between the two failures", || {
+                stub.completions() >= 2
+            })
+            .await;
+
+            // Failures 4 and 5 are again consecutive, so the worker stops at 5 — unless
+            // the activation-3 success never reset the counter, in which case it would
+            // already have stopped at 4 and the error would surface one failure early.
+            // Wait for the worker to stop on its own: `shutdown()` would flip the stop
+            // flag first and mask the error with a clean exit.
+            wait_for(
+                client.clock(),
+                "the worker to stop at the failure limit",
+                || handle.is_finished(),
+            )
+            .await;
+            let result = handle.shutdown().await;
+            let err = result.expect_err("the second outage must hit the failure limit");
+            assert_eq!(
+                err.status(),
+                Some(500),
+                "the poll failure should surface as the server's status: {err}"
+            );
+            assert_eq!(
+                stub.activations(),
+                5,
+                "the worker must stop on the second failure *after* the success, not on the \
+                 first — a missing reset would have counted the pre-success failure along"
+            );
+        }
+
+        /// The idle variant of the reset above: an *empty* successful poll — the gateway
+        /// answers 200 with no jobs — must forgive the failure budget exactly as a busy
+        /// one does. The reset lives in the shared `Ok(jobs)` arm before the empty check,
+        /// so this pins it against being moved below the `jobs.is_empty()` early
+        /// `continue`, where an idle stretch would stop forgiving failures.
+        ///
+        /// Same script as the busy variant with activation 3 answering an empty list:
+        /// fail 2, idle success 3, fail 4, fail 5 — the worker must stop at 5, not 4.
+        #[tokio::test]
+        async fn an_empty_successful_poll_resets_the_consecutive_failure_budget() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                activations_before_error: None,
+                recover_at: None,
+                fail_activations: Some(&[2, 4, 5]),
+                empty_activations: &[3],
+            })
+            .await;
+            let client = stub.client();
+            let worker = client.create_job_worker(
+                JobWorkerConfig::new("test-type")
+                    .max_jobs_to_activate(1)
+                    .max_poll_backoff_ms(50)
+                    .max_consecutive_poll_failures(2),
+            );
+            let handle = worker.spawn(|_job| async { JobAction::complete() });
+
+            // Wait for the worker to stop on its own at the failure limit: `shutdown()`
+            // would flip the stop flag first and mask the error with a clean exit.
+            wait_for(
+                client.clock(),
+                "the worker to stop at the failure limit",
+                || handle.is_finished(),
+            )
+            .await;
+            let result = handle.shutdown().await;
+            let err = result.expect_err("the failures after the idle poll must hit the limit");
+            assert_eq!(
+                err.status(),
+                Some(500),
+                "the poll failure should surface as the server's status: {err}"
+            );
+            assert_eq!(
+                stub.activations(),
+                5,
+                "an idle success must reset the budget: the worker stops at the second \
+                 failure after it, not the first"
+            );
+        }
+
         /// A back-off longer than one second is slept in one-second slices so `stop()`
         /// lands mid-back-off, not after it. The recovery test above caps its back-off at
         /// 400 ms, so it never enters the slicing loop: replacing it with one long sleep
@@ -3029,6 +3173,8 @@ mod tests {
                 // so the back-off grows to the 30 s ceiling and is slept in slices.
                 activations_before_error: Some(1),
                 recover_at: None,
+                fail_activations: None,
+                empty_activations: &[],
             })
             .await;
             let clock = Arc::new(crate::runtime::clock::RecordingClock::default());
