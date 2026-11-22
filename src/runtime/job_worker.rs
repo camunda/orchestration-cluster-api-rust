@@ -3010,5 +3010,109 @@ mod tests {
                 "the in-flight handler must be awaited, not aborted, before run returns"
             );
         }
+
+        /// A back-off longer than one second is slept in one-second slices so `stop()`
+        /// lands mid-back-off, not after it. The recovery test above caps its back-off at
+        /// 400 ms, so it never enters the slicing loop: replacing it with one long sleep
+        /// would still pass every other test while delaying shutdown by up to 30 s.
+        ///
+        /// Here the outage never ends, so the back-off grows to its 30 s ceiling; the test
+        /// waits for the first one-second slice to be recorded, stops the worker during
+        /// it, and asserts through the injected clock that no further slice is slept and
+        /// no further activation is attempted. A handler is left in flight across the
+        /// stop so the graceful drain is exercised on the same path.
+        #[tokio::test]
+        async fn stop_during_a_sliced_recovery_backoff_ends_the_wait_and_drains() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                // Activation 1 succeeds (its job stays in flight); every later one fails,
+                // so the back-off grows to the 30 s ceiling and is slept in slices.
+                activations_before_error: Some(1),
+                recover_at: None,
+            })
+            .await;
+            let clock = Arc::new(crate::runtime::clock::RecordingClock::default());
+            let client = CamundaClient::new(
+                crate::CamundaOptions::new()
+                    .with("CAMUNDA_REST_ADDRESS", stub.address.clone())
+                    .with("CAMUNDA_AUTH_STRATEGY", "NONE")
+                    .with("CAMUNDA_FALCON", "false")
+                    .with_clock(clock.clone()),
+            )
+            .expect("client should build from an address alone");
+
+            let (release_tx, release_rx) = tokio::sync::watch::channel(false);
+            let started = Arc::new(AtomicUsize::new(0));
+            let finished = Arc::new(AtomicUsize::new(0));
+
+            // Two credits, so the poller issues its second (failing) activation while the
+            // first job's handler is still blocked.
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
+            let handle = {
+                let (started, finished) = (started.clone(), finished.clone());
+                worker.spawn(move |_job| {
+                    let (started, finished) = (started.clone(), finished.clone());
+                    let mut rx = release_rx.clone();
+                    async move {
+                        started.fetch_add(1, Ordering::SeqCst);
+                        while !*rx.borrow_and_update() {
+                            if rx.changed().await.is_err() {
+                                break;
+                            }
+                        }
+                        finished.fetch_add(1, Ordering::SeqCst);
+                        JobAction::complete()
+                    }
+                })
+            };
+
+            // The worker is backing off once the second activation has failed. The
+            // back-off doubles per failure (100 ms base, 30 s ceiling), so by the sixth
+            // activation it exceeds one second and is slept in one-second slices.
+            wait_for(client.clock(), "the sixth, failing activation", || {
+                stub.activations() >= 6
+            })
+            .await;
+            wait_for(client.clock(), "a one-second back-off slice", || {
+                clock.sleeps().last() == Some(&Duration::from_secs(1))
+            })
+            .await;
+
+            let activations_at_stop = stub.activations();
+            let sleeps_at_stop = clock.sleeps().len();
+            handle.stop();
+            // The in-flight handler still holds its credit, so shutdown must be parked in
+            // the drain — not waiting on the back-off, and not having aborted the handler.
+            assert!(
+                !handle.is_finished(),
+                "shutdown must wait for the in-flight handler, not abort it"
+            );
+
+            release_tx.send(true).unwrap();
+            shutdown_within(handle, "the worker to shut down promptly from mid-back-off").await;
+
+            assert_eq!(
+                finished.load(Ordering::SeqCst),
+                1,
+                "the in-flight handler must drain to completion"
+            );
+            let sleeps = clock.sleeps();
+            assert_eq!(
+                sleeps.len(),
+                sleeps_at_stop,
+                "no further slice may be slept after stop: {sleeps:?}"
+            );
+            assert_eq!(
+                sleeps.last(),
+                Some(&Duration::from_secs(1)),
+                "a back-off over one second must be slept in one-second slices: {sleeps:?}"
+            );
+            assert_eq!(
+                stub.activations(),
+                activations_at_stop,
+                "no further activation may be attempted after stop"
+            );
+        }
     }
 }
