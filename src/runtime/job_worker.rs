@@ -79,7 +79,9 @@ fn poll_failure_backoff(
     let step = base_ms.saturating_mul(1u64 << exp).min(max_ms.max(1));
     let half = step / 2;
     let jitter = ((step - half) as f64 * random.next_f64()) as u64;
-    (Duration::from_millis(half + jitter), step)
+    // Never zero: a zero delay skips the clock entirely and would hot-loop on fast
+    // failures (e.g. with a 0/1 ms cap, where `half` and the truncated jitter are both 0).
+    (Duration::from_millis((half + jitter).max(1)), step)
 }
 
 /// Boxed, shareable job handler. You normally pass a closure to [`JobWorker::run`]
@@ -2868,6 +2870,21 @@ mod tests {
             assert!(!is_fatal_poll_error(&CamundaError::Backpressure(
                 "x".into()
             )));
+        }
+
+        /// A 0/1/2 ms cap must still yield a non-zero delay, or fast failures hot-loop.
+        #[test]
+        fn poll_failure_backoff_is_never_zero_for_tiny_caps() {
+            let random = super::super::super::random::SeededRandom::new(7);
+            for cap in [0u64, 1, 2] {
+                for n in 1..=5 {
+                    let (delay, _) = poll_failure_backoff(Duration::ZERO, cap, n, &random);
+                    assert!(
+                        delay >= Duration::from_millis(1),
+                        "cap {cap} n {n}: {delay:?}"
+                    );
+                }
+            }
         }
 
         /// The back-off doubles from the poll interval, is capped, and is jittered within
