@@ -44,6 +44,44 @@ use super::job_result::CompletionResult;
 /// polls instead of in one giant grab.
 const MAX_ACTIVATE_BATCH: usize = 1024;
 
+/// Default ceiling for the poll-failure back-off.
+const DEFAULT_MAX_POLL_BACKOFF_MS: u64 = 30_000;
+
+/// Floor for the poll-failure back-off base, so a zero `poll_interval_ms` still backs off.
+const MIN_POLL_BACKOFF_BASE_MS: u64 = 100;
+
+/// Whether a poll error is a configuration error that no amount of retrying fixes. Every
+/// other error (network, 5xx, backpressure, auth refresh races, ...) is ridden out with a
+/// back-off, matching the other Camunda clients' workers.
+fn is_fatal_poll_error(e: &CamundaError) -> bool {
+    match e {
+        CamundaError::Config(_)
+        | CamundaError::Validation(_)
+        | CamundaError::LeaseNotHonored { .. } => true,
+        // The gateway rejected the activation request itself (e.g. an invalid job type).
+        CamundaError::Api { status, .. } => *status == 400,
+        _ => false,
+    }
+}
+
+/// The back-off before the next poll after `failures` (>= 1) consecutive poll failures:
+/// `base × 2^(failures-1)` capped at `max_ms`, with equal jitter (half fixed, half
+/// random) so it keeps growing while workers still spread out. Returns the delay and the
+/// un-jittered ceiling for that step.
+fn poll_failure_backoff(
+    base: Duration,
+    max_ms: u64,
+    failures: u32,
+    random: &dyn super::random::Random,
+) -> (Duration, u64) {
+    let base_ms = (base.as_millis() as u64).max(MIN_POLL_BACKOFF_BASE_MS);
+    let exp = failures.saturating_sub(1).min(32);
+    let step = base_ms.saturating_mul(1u64 << exp).min(max_ms.max(1));
+    let half = step / 2;
+    let jitter = ((step - half) as f64 * random.next_f64()) as u64;
+    (Duration::from_millis(half + jitter), step)
+}
+
 /// Boxed, shareable job handler. You normally pass a closure to [`JobWorker::run`]
 /// rather than constructing this directly.
 pub type JobHandler =
@@ -96,6 +134,16 @@ pub struct JobWorkerConfig {
     /// (Falcon subscription established, or REST poll loop entered). Set via
     /// [`JobWorkerConfig::on_ready`]. Excluded from [`Debug`] output.
     pub on_ready: Option<ReadyCallback>,
+    /// Ceiling for the back-off between polls after consecutive poll failures, in
+    /// milliseconds (default 30 000). A failed `activate_jobs` call (gateway restart,
+    /// network blip, sustained `503`) does not stop the worker: it waits
+    /// `poll_interval_ms × 2^n` (jittered, capped here) and polls again, and resets the
+    /// delay on the next successful poll.
+    pub max_poll_backoff_ms: u64,
+    /// Stop the worker with the last poll error after this many consecutive poll
+    /// failures. `None` (the default) retries until the worker is stopped. Set it to
+    /// fail fast instead of riding out an outage.
+    pub max_consecutive_poll_failures: Option<u32>,
 }
 
 impl std::fmt::Debug for JobWorkerConfig {
@@ -114,6 +162,11 @@ impl std::fmt::Debug for JobWorkerConfig {
                 &self.startup_jitter_max_seconds,
             )
             .field("with_lease", &self.with_lease)
+            .field("max_poll_backoff_ms", &self.max_poll_backoff_ms)
+            .field(
+                "max_consecutive_poll_failures",
+                &self.max_consecutive_poll_failures,
+            )
             .field("on_ready", &self.on_ready.as_ref().map(|_| "<callback>"))
             .finish()
     }
@@ -134,6 +187,8 @@ impl JobWorkerConfig {
             startup_jitter_max_seconds: 0,
             with_lease: false,
             on_ready: None,
+            max_poll_backoff_ms: DEFAULT_MAX_POLL_BACKOFF_MS,
+            max_consecutive_poll_failures: None,
         }
     }
 
@@ -152,6 +207,8 @@ impl JobWorkerConfig {
             startup_jitter_max_seconds: defaults.startup_jitter_max_seconds,
             with_lease: false,
             on_ready: None,
+            max_poll_backoff_ms: DEFAULT_MAX_POLL_BACKOFF_MS,
+            max_consecutive_poll_failures: None,
         }
     }
 
@@ -206,6 +263,20 @@ impl JobWorkerConfig {
     /// against one that does not.
     pub fn with_lease(mut self, enabled: bool) -> Self {
         self.with_lease = enabled;
+        self
+    }
+
+    /// Set the ceiling (milliseconds) for the back-off between polls after consecutive
+    /// poll failures. See [`JobWorkerConfig::max_poll_backoff_ms`](Self::max_poll_backoff_ms).
+    pub fn max_poll_backoff_ms(mut self, ms: u64) -> Self {
+        self.max_poll_backoff_ms = ms;
+        self
+    }
+
+    /// Stop the worker after `n` consecutive poll failures instead of retrying until it
+    /// is stopped (the default). `n` is clamped to at least 1.
+    pub fn max_consecutive_poll_failures(mut self, n: u32) -> Self {
+        self.max_consecutive_poll_failures = Some(n.max(1));
         self
     }
 
@@ -506,7 +577,9 @@ impl JobWorkerHandle {
         self.stop.store(true, Ordering::SeqCst);
     }
 
-    /// Whether the worker task has finished.
+    /// Whether the worker task has finished. A worker keeps polling through transient
+    /// poll failures (with back-off), so it finishes only when stopped, on a configuration
+    /// error, or after [`JobWorkerConfig::max_consecutive_poll_failures`].
     pub fn is_finished(&self) -> bool {
         self.join.is_finished()
     }
@@ -678,6 +751,10 @@ impl JobWorker {
         // preserves the panic reporting a plain `tokio::spawn` would swallow.
         let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
 
+        // Poll-failure back-off state: reset on the next successful poll.
+        let mut consecutive_failures: u32 = 0;
+        let mut last_backoff_step: u64 = 0;
+
         loop {
             if self.stop.load(Ordering::SeqCst) {
                 break;
@@ -712,16 +789,70 @@ impl JobWorker {
             let want = permits.len() as i32;
 
             let jobs = match self.poll(want).await {
-                Ok(jobs) => jobs,
+                Ok(jobs) => {
+                    if consecutive_failures > 0 {
+                        tracing::info!(
+                            job_type = %self.config.job_type,
+                            failures = consecutive_failures,
+                            "job polling recovered",
+                        );
+                        consecutive_failures = 0;
+                        last_backoff_step = 0;
+                    }
+                    jobs
+                }
                 Err(e) => {
-                    // A poll failure must not abort jobs we already dispatched. Release
-                    // the credits we speculatively held and drain the in-flight handlers
-                    // (letting them finish and report their actions) before propagating,
-                    // exactly as the stop path does — otherwise dropping `tasks` here
-                    // would cancel running handlers and leave activated jobs uncompleted.
                     drop(permits);
-                    Self::drain_all(&mut tasks).await;
-                    return Err(e);
+                    consecutive_failures = consecutive_failures.saturating_add(1);
+                    let give_up = is_fatal_poll_error(&e)
+                        || self
+                            .config
+                            .max_consecutive_poll_failures
+                            .is_some_and(|max| consecutive_failures >= max);
+                    if give_up {
+                        // A poll failure must not abort jobs we already dispatched. Drain
+                        // the in-flight handlers (letting them finish and report their
+                        // actions) before propagating, exactly as the stop path does —
+                        // otherwise dropping `tasks` here would cancel running handlers
+                        // and leave activated jobs uncompleted.
+                        tracing::error!(
+                            job_type = %self.config.job_type,
+                            failures = consecutive_failures,
+                            error = %e,
+                            "job polling failed; stopping worker",
+                        );
+                        Self::drain_all(&mut tasks).await;
+                        return Err(e);
+                    }
+                    let (delay, step) = poll_failure_backoff(
+                        poll_interval,
+                        self.config.max_poll_backoff_ms,
+                        consecutive_failures,
+                        self.client.random().as_ref(),
+                    );
+                    // Warn once per escalation of the back-off; once it has hit the
+                    // ceiling, further failures are only logged at debug.
+                    if step > last_backoff_step {
+                        tracing::warn!(
+                            job_type = %self.config.job_type,
+                            failures = consecutive_failures,
+                            retry_in_ms = delay.as_millis() as u64,
+                            error = %e,
+                            "job polling failed; backing off",
+                        );
+                    } else {
+                        tracing::debug!(
+                            job_type = %self.config.job_type,
+                            failures = consecutive_failures,
+                            retry_in_ms = delay.as_millis() as u64,
+                            error = %e,
+                            "job polling still failing",
+                        );
+                    }
+                    last_backoff_step = step;
+                    Self::reap_finished(&mut tasks);
+                    self.sleep_unless_stopped(delay).await;
+                    continue;
                 }
             };
             if jobs.is_empty() {
@@ -768,6 +899,18 @@ impl JobWorker {
         // follow-up command) to finish before the worker task returns.
         Self::drain_all(&mut tasks).await;
         Ok(())
+    }
+
+    /// Sleep for `delay` through the client's clock, in slices of at most one second, so a
+    /// long poll-failure back-off does not hold up `stop()` / `shutdown()`.
+    async fn sleep_unless_stopped(&self, delay: Duration) {
+        const SLICE: Duration = Duration::from_secs(1);
+        let mut remaining = delay;
+        while !remaining.is_zero() && !self.stop.load(Ordering::SeqCst) {
+            let step = remaining.min(SLICE);
+            self.client.clock().sleep(step).await;
+            remaining -= step;
+        }
     }
 
     /// Await every in-flight handler task in `tasks` to completion, logging any that
@@ -2297,6 +2440,9 @@ mod tests {
             /// a 500 reaches the worker's poll error path on the first attempt instead of
             /// being retried underneath the test.
             activations_before_error: Option<usize>,
+            /// With `activations_before_error`, serve jobs again from this activation
+            /// number on. `None` keeps failing.
+            recover_at: Option<usize>,
         }
 
         /// An in-process stand-in for the job endpoints, routing on the request path.
@@ -2369,10 +2515,15 @@ mod tests {
                             let (status, body) = if path.contains("/jobs/activation") {
                                 let n = acts.fetch_add(1, Ordering::SeqCst) + 1;
                                 match behaviour.activations_before_error {
-                                    Some(limit) if n > limit => (
-                                        "500 Internal Server Error",
-                                        r#"{"title":"boom"}"#.to_string(),
-                                    ),
+                                    Some(limit)
+                                        if n > limit
+                                            && behaviour.recover_at.is_none_or(|r| n < r) =>
+                                    {
+                                        (
+                                            "500 Internal Server Error",
+                                            r#"{"title":"boom"}"#.to_string(),
+                                        )
+                                    }
                                     _ => (
                                         "200 OK",
                                         serde_json::to_string(&models::JobActivationResult::new(
@@ -2513,6 +2664,7 @@ mod tests {
             let stub = JobStub::start(StubBehaviour {
                 completion_status: "204 No Content",
                 activations_before_error: None,
+                recover_at: None,
             })
             .await;
             let client = stub.client();
@@ -2630,6 +2782,7 @@ mod tests {
             let stub = JobStub::start(StubBehaviour {
                 completion_status: "409 Conflict",
                 activations_before_error: None,
+                recover_at: None,
             })
             .await;
             let client = stub.client();
@@ -2667,6 +2820,85 @@ mod tests {
             .await;
         }
 
+        /// Issue #200: a poll failure must not end the worker. It backs off and keeps
+        /// polling, and dispatches jobs again once the gateway recovers.
+        #[tokio::test]
+        async fn a_failing_poll_backs_off_and_recovers() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                // Activation 1 succeeds, 2..=4 fail, 5+ succeed again.
+                activations_before_error: Some(1),
+                recover_at: Some(5),
+            })
+            .await;
+            let client = stub.client();
+            let worker = client.create_job_worker(
+                JobWorkerConfig::new("test-type")
+                    .max_jobs_to_activate(1)
+                    .max_poll_backoff_ms(400),
+            );
+            let handle = worker.spawn(|_job| async { JobAction::complete() });
+
+            wait_for(client.clock(), "jobs after the outage", || {
+                stub.completions() >= 2
+            })
+            .await;
+            assert!(stub.activations() >= 5);
+            assert!(
+                !handle.is_finished(),
+                "the worker must survive poll failures"
+            );
+            shutdown_within(handle, "the worker to shut down after recovering").await;
+        }
+
+        /// Configuration errors (here: a rejected request) still end the worker.
+        #[test]
+        fn only_configuration_errors_are_fatal_to_the_poll_loop() {
+            assert!(is_fatal_poll_error(&CamundaError::Config("x".into())));
+            assert!(is_fatal_poll_error(&CamundaError::Api {
+                status: 400,
+                body: None,
+            }));
+            for status in [401, 429, 500, 503] {
+                assert!(!is_fatal_poll_error(&CamundaError::Api {
+                    status,
+                    body: None,
+                }));
+            }
+            assert!(!is_fatal_poll_error(&CamundaError::Backpressure(
+                "x".into()
+            )));
+        }
+
+        /// The back-off doubles from the poll interval, is capped, and is jittered within
+        /// the upper half of each step.
+        #[test]
+        fn poll_failure_backoff_grows_and_caps() {
+            let random = super::super::super::random::SeededRandom::new(42);
+            let base = Duration::from_millis(100);
+            let steps: Vec<u64> = (1..=10)
+                .map(|n| poll_failure_backoff(base, 30_000, n, &random).1)
+                .collect();
+            assert_eq!(
+                steps,
+                [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 30000]
+            );
+            for n in 1..=40 {
+                let (delay, step) = poll_failure_backoff(base, 30_000, n, &random);
+                let ms = delay.as_millis() as u64;
+                assert!(
+                    ms >= step / 2 && ms <= step,
+                    "{ms} outside [{}, {step}]",
+                    step / 2
+                );
+            }
+            // A zero poll interval still backs off.
+            assert_eq!(
+                poll_failure_backoff(Duration::ZERO, 30_000, 1, &random).1,
+                100
+            );
+        }
+
         /// A poll failure must not abort jobs already dispatched. `run_rest_poll` drains the
         /// in-flight handlers before propagating the error — "exactly as the stop path
         /// does", per the comment — rather than dropping the `JoinSet` and cancelling them,
@@ -2683,6 +2915,7 @@ mod tests {
                 // One activation succeeds, the next fails — while the first job's handler is
                 // still in flight.
                 activations_before_error: Some(1),
+                recover_at: None,
             })
             .await;
             let client = stub.client();
@@ -2692,9 +2925,13 @@ mod tests {
             let finished = Arc::new(AtomicUsize::new(0));
 
             // A two-credit window, so the poller can issue its second (failing) activation
-            // while the first handler still holds a credit.
-            let worker =
-                client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
+            // while the first handler still holds a credit. Fail fast on the first poll
+            // failure: by default the worker backs off and keeps polling instead.
+            let worker = client.create_job_worker(
+                JobWorkerConfig::new("test-type")
+                    .max_jobs_to_activate(2)
+                    .max_consecutive_poll_failures(1),
+            );
             let mut run = {
                 let (started, finished) = (started.clone(), finished.clone());
                 tokio::spawn(worker.run(move |_job| {
