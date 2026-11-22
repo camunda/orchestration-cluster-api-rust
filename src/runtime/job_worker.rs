@@ -43,6 +43,46 @@ use super::errors::{CamundaError, Result};
 /// polls instead of in one giant grab.
 const MAX_ACTIVATE_BATCH: usize = 1024;
 
+/// Default ceiling for the poll-failure back-off.
+const DEFAULT_MAX_POLL_BACKOFF_MS: u64 = 30_000;
+
+/// Floor for the poll-failure back-off base, so a zero `poll_interval_ms` still backs off.
+const MIN_POLL_BACKOFF_BASE_MS: u64 = 100;
+
+/// Whether a poll error is a configuration error that no amount of retrying fixes. Every
+/// other error (network, 5xx, backpressure, auth refresh races, ...) is ridden out with a
+/// back-off, matching the other Camunda clients' workers.
+fn is_fatal_poll_error(e: &CamundaError) -> bool {
+    match e {
+        CamundaError::Config(_)
+        | CamundaError::Validation(_)
+        | CamundaError::LeaseNotHonored { .. } => true,
+        // The gateway rejected the activation request itself (e.g. an invalid job type).
+        CamundaError::Api { status, .. } => *status == 400,
+        _ => false,
+    }
+}
+
+/// The back-off before the next poll after `failures` (>= 1) consecutive poll failures:
+/// `base × 2^(failures-1)` capped at `max_ms`, with equal jitter (half fixed, half
+/// random) so it keeps growing while workers still spread out. Returns the delay and the
+/// un-jittered ceiling for that step.
+fn poll_failure_backoff(
+    base: Duration,
+    max_ms: u64,
+    failures: u32,
+    random: &dyn super::random::Random,
+) -> (Duration, u64) {
+    let base_ms = (base.as_millis() as u64).max(MIN_POLL_BACKOFF_BASE_MS);
+    let exp = failures.saturating_sub(1).min(32);
+    let step = base_ms.saturating_mul(1u64 << exp).min(max_ms.max(1));
+    let half = step / 2;
+    let jitter = ((step - half) as f64 * random.next_f64()) as u64;
+    // Never zero: a zero delay skips the clock entirely and would hot-loop on fast
+    // failures (e.g. with a 0/1 ms cap, where `half` and the truncated jitter are both 0).
+    (Duration::from_millis((half + jitter).max(1)), step)
+}
+
 /// Boxed, shareable job handler. You normally pass a closure to [`JobWorker::run`]
 /// rather than constructing this directly.
 pub type JobHandler =
@@ -95,6 +135,16 @@ pub struct JobWorkerConfig {
     /// (Falcon subscription established, or REST poll loop entered). Set via
     /// [`JobWorkerConfig::on_ready`]. Excluded from [`Debug`] output.
     pub on_ready: Option<ReadyCallback>,
+    /// Ceiling for the back-off between polls after consecutive poll failures, in
+    /// milliseconds (default 30 000). A failed `activate_jobs` call (gateway restart,
+    /// network blip, sustained `503`) does not stop the worker: it waits
+    /// `poll_interval_ms × 2^n` (jittered, capped here) and polls again, and resets the
+    /// delay on the next successful poll.
+    pub max_poll_backoff_ms: u64,
+    /// Stop the worker with the last poll error after this many consecutive poll
+    /// failures. `None` (the default) retries until the worker is stopped. Set it to
+    /// fail fast instead of riding out an outage.
+    pub max_consecutive_poll_failures: Option<u32>,
 }
 
 impl std::fmt::Debug for JobWorkerConfig {
@@ -113,6 +163,11 @@ impl std::fmt::Debug for JobWorkerConfig {
                 &self.startup_jitter_max_seconds,
             )
             .field("with_lease", &self.with_lease)
+            .field("max_poll_backoff_ms", &self.max_poll_backoff_ms)
+            .field(
+                "max_consecutive_poll_failures",
+                &self.max_consecutive_poll_failures,
+            )
             .field("on_ready", &self.on_ready.as_ref().map(|_| "<callback>"))
             .finish()
     }
@@ -133,6 +188,8 @@ impl JobWorkerConfig {
             startup_jitter_max_seconds: 0,
             with_lease: false,
             on_ready: None,
+            max_poll_backoff_ms: DEFAULT_MAX_POLL_BACKOFF_MS,
+            max_consecutive_poll_failures: None,
         }
     }
 
@@ -151,6 +208,8 @@ impl JobWorkerConfig {
             startup_jitter_max_seconds: defaults.startup_jitter_max_seconds,
             with_lease: false,
             on_ready: None,
+            max_poll_backoff_ms: DEFAULT_MAX_POLL_BACKOFF_MS,
+            max_consecutive_poll_failures: None,
         }
     }
 
@@ -205,6 +264,20 @@ impl JobWorkerConfig {
     /// against one that does not.
     pub fn with_lease(mut self, enabled: bool) -> Self {
         self.with_lease = enabled;
+        self
+    }
+
+    /// Set the ceiling (milliseconds) for the back-off between polls after consecutive
+    /// poll failures. See [`JobWorkerConfig::max_poll_backoff_ms`](Self::max_poll_backoff_ms).
+    pub fn max_poll_backoff_ms(mut self, ms: u64) -> Self {
+        self.max_poll_backoff_ms = ms;
+        self
+    }
+
+    /// Stop the worker after `n` consecutive poll failures instead of retrying until it
+    /// is stopped (the default). `n` is clamped to at least 1.
+    pub fn max_consecutive_poll_failures(mut self, n: u32) -> Self {
+        self.max_consecutive_poll_failures = Some(n.max(1));
         self
     }
 
@@ -405,7 +478,9 @@ impl JobWorkerHandle {
         self.stop.store(true, Ordering::SeqCst);
     }
 
-    /// Whether the worker task has finished.
+    /// Whether the worker task has finished. A worker keeps polling through transient
+    /// poll failures (with back-off), so it finishes only when stopped, on a configuration
+    /// error, or after [`JobWorkerConfig::max_consecutive_poll_failures`].
     pub fn is_finished(&self) -> bool {
         self.join.is_finished()
     }
@@ -577,6 +652,10 @@ impl JobWorker {
         // preserves the panic reporting a plain `tokio::spawn` would swallow.
         let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
 
+        // Poll-failure back-off state: reset on the next successful poll.
+        let mut consecutive_failures: u32 = 0;
+        let mut last_backoff_step: u64 = 0;
+
         loop {
             if self.stop.load(Ordering::SeqCst) {
                 break;
@@ -611,16 +690,70 @@ impl JobWorker {
             let want = permits.len() as i32;
 
             let jobs = match self.poll(want).await {
-                Ok(jobs) => jobs,
+                Ok(jobs) => {
+                    if consecutive_failures > 0 {
+                        tracing::info!(
+                            job_type = %self.config.job_type,
+                            failures = consecutive_failures,
+                            "job polling recovered",
+                        );
+                        consecutive_failures = 0;
+                        last_backoff_step = 0;
+                    }
+                    jobs
+                }
                 Err(e) => {
-                    // A poll failure must not abort jobs we already dispatched. Release
-                    // the credits we speculatively held and drain the in-flight handlers
-                    // (letting them finish and report their actions) before propagating,
-                    // exactly as the stop path does — otherwise dropping `tasks` here
-                    // would cancel running handlers and leave activated jobs uncompleted.
                     drop(permits);
-                    Self::drain_all(&mut tasks).await;
-                    return Err(e);
+                    consecutive_failures = consecutive_failures.saturating_add(1);
+                    let give_up = is_fatal_poll_error(&e)
+                        || self
+                            .config
+                            .max_consecutive_poll_failures
+                            .is_some_and(|max| consecutive_failures >= max);
+                    if give_up {
+                        // A poll failure must not abort jobs we already dispatched. Drain
+                        // the in-flight handlers (letting them finish and report their
+                        // actions) before propagating, exactly as the stop path does —
+                        // otherwise dropping `tasks` here would cancel running handlers
+                        // and leave activated jobs uncompleted.
+                        tracing::error!(
+                            job_type = %self.config.job_type,
+                            failures = consecutive_failures,
+                            error = %e,
+                            "job polling failed; stopping worker",
+                        );
+                        Self::drain_all(&mut tasks).await;
+                        return Err(e);
+                    }
+                    let (delay, step) = poll_failure_backoff(
+                        poll_interval,
+                        self.config.max_poll_backoff_ms,
+                        consecutive_failures,
+                        self.client.random().as_ref(),
+                    );
+                    // Warn once per escalation of the back-off; once it has hit the
+                    // ceiling, further failures are only logged at debug.
+                    if step > last_backoff_step {
+                        tracing::warn!(
+                            job_type = %self.config.job_type,
+                            failures = consecutive_failures,
+                            retry_in_ms = delay.as_millis() as u64,
+                            error = %e,
+                            "job polling failed; backing off",
+                        );
+                    } else {
+                        tracing::debug!(
+                            job_type = %self.config.job_type,
+                            failures = consecutive_failures,
+                            retry_in_ms = delay.as_millis() as u64,
+                            error = %e,
+                            "job polling still failing",
+                        );
+                    }
+                    last_backoff_step = step;
+                    Self::reap_finished(&mut tasks);
+                    self.sleep_unless_stopped(delay).await;
+                    continue;
                 }
             };
             if jobs.is_empty() {
@@ -667,6 +800,18 @@ impl JobWorker {
         // follow-up command) to finish before the worker task returns.
         Self::drain_all(&mut tasks).await;
         Ok(())
+    }
+
+    /// Sleep for `delay` through the client's clock, in slices of at most one second, so a
+    /// long poll-failure back-off does not hold up `stop()` / `shutdown()`.
+    async fn sleep_unless_stopped(&self, delay: Duration) {
+        const SLICE: Duration = Duration::from_secs(1);
+        let mut remaining = delay;
+        while !remaining.is_zero() && !self.stop.load(Ordering::SeqCst) {
+            let step = remaining.min(SLICE);
+            self.client.clock().sleep(step).await;
+            remaining -= step;
+        }
     }
 
     /// Await every in-flight handler task in `tasks` to completion, logging any that
@@ -1573,5 +1718,849 @@ mod tests {
                     .starts_with("inner:")
             })
             .count()
+    }
+
+    /// The policy's "handler exceptions" baseline case.
+    ///
+    /// `poller_overlaps_slow_handlers_and_shutdown_drains_them` already covers shutdown
+    /// during in-flight jobs. The handler-failure half had nothing: no test anywhere ran a
+    /// handler that panicked, or one whose follow-up command the server rejected, or a poll
+    /// that failed while a handler was still running. All three paths exist in the worker
+    /// with comments explaining deliberate design choices, and none of those choices was
+    /// asserted — so each of these tests pins current behaviour rather than changing it.
+    mod handler_failures {
+        use super::*;
+        use std::sync::atomic::AtomicUsize;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        /// How the stub should answer.
+        #[derive(Clone, Copy)]
+        struct StubBehaviour {
+            /// Status for `POST /jobs/{key}/completion`. `"204 No Content"` accepts.
+            completion_status: &'static str,
+            /// Serve this many activations successfully, then answer 500. `None` never
+            /// errors. 500 is deliberate: `retry::is_retryable` covers 429/502/503/504, so
+            /// a 500 reaches the worker's poll error path on the first attempt instead of
+            /// being retried underneath the test.
+            activations_before_error: Option<usize>,
+            /// With `activations_before_error`, serve jobs again from this activation
+            /// number on. `None` keeps failing.
+            recover_at: Option<usize>,
+            /// Activation numbers that answer 500 regardless of the
+            /// `activations_before_error`/`recover_at` window, and — when `Some` — the
+            /// *only* failures served: the window fields are ignored. Lets a test script
+            /// several failing stretches separated by successes, which the single window
+            /// above cannot express.
+            fail_activations: Option<&'static [usize]>,
+            /// Activation numbers that answer `200 OK` with an empty job list — an idle
+            /// gateway with nothing to activate. Distinct from a successful activation
+            /// that returns a job: the worker takes the reset-and-release path without
+            /// dispatching a handler.
+            empty_activations: &'static [usize],
+        }
+
+        /// An in-process stand-in for the job endpoints, routing on the request path.
+        /// Extends the activation stub `poller_overlaps_slow_handlers_and_shutdown_drains_them`
+        /// uses rather than introducing new machinery, as the issue suggested. Each
+        /// activation serves exactly one job whose key is the activation number, so a test
+        /// can tell which job a handler received and which job a completion is for.
+        struct JobStub {
+            address: String,
+            activations: Arc<AtomicUsize>,
+            completions: Arc<AtomicUsize>,
+            /// The request line of every per-job follow-up the server received (completion,
+            /// failure, error, ...), so a test can say which jobs were *not* touched.
+            follow_ups: Arc<std::sync::Mutex<Vec<String>>>,
+        }
+
+        impl JobStub {
+            async fn start(behaviour: StubBehaviour) -> Self {
+                let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let addr = listener.local_addr().unwrap();
+                let activations = Arc::new(AtomicUsize::new(0));
+                let completions = Arc::new(AtomicUsize::new(0));
+                let follow_ups = Arc::new(std::sync::Mutex::new(Vec::new()));
+                let (acts, comps, ups) =
+                    (activations.clone(), completions.clone(), follow_ups.clone());
+
+                tokio::spawn(async move {
+                    loop {
+                        let Ok((mut sock, _)) = listener.accept().await else {
+                            break;
+                        };
+                        let (acts, comps, ups) = (acts.clone(), comps.clone(), ups.clone());
+                        tokio::spawn(async move {
+                            let mut buf = Vec::new();
+                            let mut tmp = [0u8; 1024];
+                            let header_end = loop {
+                                match sock.read(&mut tmp).await {
+                                    Ok(0) | Err(_) => return,
+                                    Ok(n) => {
+                                        buf.extend_from_slice(&tmp[..n]);
+                                        if let Some(pos) =
+                                            buf.windows(4).position(|w| w == b"\r\n\r\n")
+                                        {
+                                            break pos + 4;
+                                        }
+                                    }
+                                }
+                            };
+                            let head = String::from_utf8_lossy(&buf[..header_end]).into_owned();
+                            // Drain the request body so reqwest sees a clean exchange.
+                            let content_len = head
+                                .lines()
+                                .find_map(|l| {
+                                    l.to_ascii_lowercase()
+                                        .strip_prefix("content-length:")
+                                        .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                                })
+                                .unwrap_or(0);
+                            while buf.len() < header_end + content_len {
+                                match sock.read(&mut tmp).await {
+                                    Ok(0) | Err(_) => break,
+                                    Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                                }
+                            }
+
+                            let path = head.lines().next().unwrap_or_default().to_string();
+                            if !path.contains("/jobs/activation") && path.contains("/jobs/") {
+                                ups.lock().unwrap().push(path.clone());
+                            }
+                            let (status, body) = if path.contains("/jobs/activation") {
+                                let n = acts.fetch_add(1, Ordering::SeqCst) + 1;
+                                let scripted_failure = behaviour
+                                    .fail_activations
+                                    .is_some_and(|fails| fails.contains(&n));
+                                let window_failure = behaviour.fail_activations.is_none()
+                                    && matches!(behaviour.activations_before_error,
+                                        Some(limit)
+                                            if n > limit
+                                                && behaviour.recover_at.is_none_or(|r| n < r));
+                                if scripted_failure || window_failure {
+                                    (
+                                        "500 Internal Server Error",
+                                        r#"{"title":"boom"}"#.to_string(),
+                                    )
+                                } else if behaviour.empty_activations.contains(&n) {
+                                    (
+                                        "200 OK",
+                                        serde_json::to_string(&models::JobActivationResult::new(
+                                            vec![],
+                                        ))
+                                        .unwrap(),
+                                    )
+                                } else {
+                                    (
+                                        "200 OK",
+                                        serde_json::to_string(&models::JobActivationResult::new(
+                                            vec![job_with_key(&n.to_string())],
+                                        ))
+                                        .unwrap(),
+                                    )
+                                }
+                            } else if path.contains("/completion") {
+                                comps.fetch_add(1, Ordering::SeqCst);
+                                (behaviour.completion_status, String::new())
+                            } else {
+                                ("204 No Content", String::new())
+                            };
+
+                            let resp = format!(
+                                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                                body.len(),
+                                body
+                            );
+                            let _ = sock.write_all(resp.as_bytes()).await;
+                            let _ = sock.flush().await;
+                        });
+                    }
+                });
+
+                JobStub {
+                    address: format!("http://{addr}"),
+                    activations,
+                    completions,
+                    follow_ups,
+                }
+            }
+
+            fn client(&self) -> CamundaClient {
+                CamundaClient::new(
+                    crate::CamundaOptions::new()
+                        .with("CAMUNDA_REST_ADDRESS", self.address.clone())
+                        // Pinned, as `recording_rest_server` does: configuration merges
+                        // these overrides with the process environment, so exported
+                        // `CAMUNDA_*` OAuth settings would otherwise send these tests to a
+                        // real token endpoint before they ever reach the stub.
+                        .with("CAMUNDA_AUTH_STRATEGY", "NONE")
+                        .with("CAMUNDA_FALCON", "false"),
+                )
+                .expect("client should build from an address alone")
+            }
+
+            fn activations(&self) -> usize {
+                self.activations.load(Ordering::SeqCst)
+            }
+
+            fn completions(&self) -> usize {
+                self.completions.load(Ordering::SeqCst)
+            }
+
+            /// Whether the server received any follow-up command (completion, failure,
+            /// error) addressed to the job with this key.
+            fn saw_follow_up_for(&self, job_key: usize) -> bool {
+                let needle = format!("/jobs/{job_key}/");
+                self.follow_ups
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .any(|line| line.contains(&needle))
+            }
+        }
+
+        /// `fake_activated` always uses job key "1"; these tests need jobs they can tell
+        /// apart.
+        fn job_with_key(key: &str) -> models::ActivatedJobResult {
+            let mut job = fake_activated();
+            job.job_key = Box::new(models::JobKey::assume_exists(key.to_string()));
+            job
+        }
+
+        /// Wait until `condition` holds, failing with `what` rather than hanging the suite if
+        /// it never does. Every wait in this module goes through here, and every assertion
+        /// waits on something the *stub* observed rather than on a counter the handler bumped
+        /// before its follow-up command was sent — a handler finishing and the server seeing
+        /// the completion are two different events, and conflating them is a race.
+        ///
+        /// The poll interval resolves through the injected `Clock` rather than
+        /// `tokio::time::sleep`, which `clippy.toml` bans, so no narrow `allow` is needed and
+        /// the runtime parks between polls instead of spinning.
+        async fn wait_for(clock: &Arc<dyn Clock>, what: &str, condition: impl Fn() -> bool) {
+            let result = tokio::time::timeout(Duration::from_secs(10), async {
+                while !condition() {
+                    clock.sleep(Duration::from_millis(5)).await;
+                }
+            })
+            .await;
+            assert!(result.is_ok(), "timed out waiting for {what}");
+        }
+
+        /// A `tracing` writer that appends to a shared buffer.
+        struct LogSink(Arc<std::sync::Mutex<Vec<u8>>>);
+
+        impl std::io::Write for LogSink {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        /// Await a worker's graceful shutdown under the same bound as [`wait_for`], so a
+        /// shutdown that stalls fails the test with a named reason instead of hanging the
+        /// suite. `tokio::time::timeout` is an I/O bound, not cadence, so it is not banned.
+        async fn shutdown_within(handle: JobWorkerHandle, what: &str) {
+            let result = tokio::time::timeout(Duration::from_secs(10), handle.shutdown())
+                .await
+                .unwrap_or_else(|_| panic!("timed out waiting for {what}"));
+            result.unwrap_or_else(|e| panic!("{what} failed: {e}"));
+        }
+
+        /// A panicking handler must not take the worker down with it, and — the part worth
+        /// pinning hardest — must not leak its credit. The permit is released by `_permit`
+        /// dropping with the panicking task, so a run of panicking handlers has to leave the
+        /// poller's window intact.
+        ///
+        /// Four consecutive handlers panic against a two-credit window, and then the next
+        /// two handlers each wait until *both* are running before either returns. That
+        /// barrier is what makes the test prove the whole window survived rather than merely
+        /// some of it: reaching a completion requires two handlers in flight at once, which
+        /// requires two credits. Asserting only that a later job completed would also pass
+        /// with one credit permanently leaked, since a single credit can serve every
+        /// subsequent job sequentially — a silent halving of the worker's capacity.
+        ///
+        /// The panic is reported rather than swallowed (what the `JoinSet` is for, per the
+        /// comment at the top of `run_rest_poll`), and the panicked job is left neither
+        /// completed nor failed, so it waits for the server-side activation timeout.
+        #[tokio::test]
+        async fn a_panicking_handler_neither_stops_the_worker_nor_leaks_its_credit() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                activations_before_error: None,
+                recover_at: None,
+                fail_activations: None,
+                empty_activations: &[],
+            })
+            .await;
+            let client = stub.client();
+
+            // Capture warnings so the panic *reporting* is asserted as well as the survival.
+            // The default subscriber is per-thread and `#[tokio::test]` runs the worker and
+            // its handler tasks on this thread, so the guard sees them all.
+            let logs = Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+            let _log_guard = tracing::subscriber::set_default(
+                tracing_subscriber::fmt()
+                    .with_ansi(false)
+                    .with_max_level(tracing::Level::WARN)
+                    .with_writer({
+                        let logs = logs.clone();
+                        move || LogSink(logs.clone())
+                    })
+                    .finish(),
+            );
+
+            let panicked = Arc::new(AtomicUsize::new(0));
+            let completed = Arc::new(AtomicUsize::new(0));
+            // Counts handlers that have reached the barrier. It only ever rises, so once two
+            // have met, later handlers pass straight through and shutdown cannot deadlock on
+            // a straggler waiting for a partner that will never come.
+            let (arrived_tx, arrived_rx) = tokio::sync::watch::channel(0usize);
+            let arrived_tx = Arc::new(arrived_tx);
+
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
+            let handle = {
+                let (panicked, completed) = (panicked.clone(), completed.clone());
+                let arrived_tx = arrived_tx.clone();
+                worker.spawn(move |job| {
+                    let (panicked, completed) = (panicked.clone(), completed.clone());
+                    let arrived_tx = arrived_tx.clone();
+                    let mut arrived_rx = arrived_rx.clone();
+                    let key: usize = job.key().parse().expect("the stub numbers its jobs");
+                    async move {
+                        if key <= 4 {
+                            panicked.fetch_add(1, Ordering::SeqCst);
+                            panic!("handler panics on job {key}");
+                        }
+                        // Hold the credit until a second handler is running too. With only
+                        // one credit left this never releases, and the wait below fails.
+                        arrived_tx.send_modify(|n| *n += 1);
+                        while *arrived_rx.borrow_and_update() < 2 {
+                            if arrived_rx.changed().await.is_err() {
+                                break;
+                            }
+                        }
+                        completed.fetch_add(1, Ordering::SeqCst);
+                        JobAction::complete()
+                    }
+                })
+            };
+
+            // Only reachable if the window is still two wide: two handlers had to be in
+            // flight simultaneously for either to get past the barrier and complete.
+            wait_for(
+                client.clock(),
+                "four panicking handlers, then two concurrent handlers completing \
+                 (a leaked credit would stall here)",
+                || panicked.load(Ordering::SeqCst) == 4 && stub.completions() >= 2,
+            )
+            .await;
+
+            assert!(
+                completed.load(Ordering::SeqCst) >= 2,
+                "the worker must keep dispatching and completing after a handler panics"
+            );
+
+            // And a worker that survived panics still shuts down gracefully.
+            handle.stop();
+            shutdown_within(
+                handle,
+                "the worker to shut down cleanly after handler panics",
+            )
+            .await;
+
+            // Documented behaviour: a panicked job is left neither completed nor failed, so
+            // it waits for the server-side activation timeout. Asserted after shutdown so a
+            // follow-up still in flight has landed. Without this, a worker that completed or
+            // failed the panicked jobs would pass everything above.
+            for key in 1..=4 {
+                assert!(
+                    !stub.saw_follow_up_for(key),
+                    "job {key} panicked in its handler, so no completion or failure may be sent for it"
+                );
+            }
+
+            // The panics are reported, not swallowed: one warning per panicked handler, and
+            // each carries the handler's own panic message. (Panic messages here are test
+            // strings, so printing the captured log on failure is safe.)
+            let captured = String::from_utf8_lossy(&logs.lock().unwrap()).into_owned();
+            assert_eq!(
+                captured.matches("job handler task panicked").count(),
+                4,
+                "each panicked handler must be reported exactly once; captured log:\n{captured}"
+            );
+            for key in 1..=4 {
+                assert!(
+                    captured.contains(&format!("handler panics on job {key}")),
+                    "the report for job {key} must carry its panic message; captured log:\n{captured}"
+                );
+            }
+        }
+
+        /// When the follow-up command is rejected — the completion call refused by the
+        /// server, as happens when the job already timed out and was reactivated elsewhere —
+        /// `apply_action` errors, the worker logs a warning and moves on. Nothing asserted
+        /// that it survives and keeps polling. A 409 is used because it is not retryable, so
+        /// the rejection reaches the worker rather than being retried underneath the test.
+        #[tokio::test]
+        async fn a_rejected_follow_up_command_does_not_stop_the_worker() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "409 Conflict",
+                activations_before_error: None,
+                recover_at: None,
+                fail_activations: None,
+                empty_activations: &[],
+            })
+            .await;
+            let client = stub.client();
+            let handled = Arc::new(AtomicUsize::new(0));
+
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
+            let handle = {
+                let handled = handled.clone();
+                worker.spawn(move |_job| {
+                    let handled = handled.clone();
+                    async move {
+                        handled.fetch_add(1, Ordering::SeqCst);
+                        JobAction::complete()
+                    }
+                })
+            };
+
+            // Three rejected completions in a row: the worker keeps going rather than
+            // stopping at the first refusal.
+            wait_for(client.clock(), "three rejected completion calls", || {
+                stub.completions() >= 3
+            })
+            .await;
+            assert!(
+                handled.load(Ordering::SeqCst) >= 3,
+                "handlers must keep being dispatched after a rejected completion"
+            );
+
+            handle.stop();
+            shutdown_within(
+                handle,
+                "the worker to shut down cleanly after rejected completions",
+            )
+            .await;
+        }
+
+        /// Issue #200: a poll failure must not end the worker. It backs off and keeps
+        /// polling, and dispatches jobs again once the gateway recovers.
+        #[tokio::test]
+        async fn a_failing_poll_backs_off_and_recovers() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                // Activation 1 succeeds, 2..=4 fail, 5+ succeed again.
+                activations_before_error: Some(1),
+                recover_at: Some(5),
+                fail_activations: None,
+                empty_activations: &[],
+            })
+            .await;
+            let client = stub.client();
+            let worker = client.create_job_worker(
+                JobWorkerConfig::new("test-type")
+                    .max_jobs_to_activate(1)
+                    .max_poll_backoff_ms(400),
+            );
+            let handle = worker.spawn(|_job| async { JobAction::complete() });
+
+            wait_for(client.clock(), "jobs after the outage", || {
+                stub.completions() >= 2
+            })
+            .await;
+            assert!(stub.activations() >= 5);
+            assert!(
+                !handle.is_finished(),
+                "the worker must survive poll failures"
+            );
+            shutdown_within(handle, "the worker to shut down after recovering").await;
+        }
+
+        /// Configuration errors (here: a rejected request) still end the worker.
+        #[test]
+        fn only_configuration_errors_are_fatal_to_the_poll_loop() {
+            assert!(is_fatal_poll_error(&CamundaError::Config("x".into())));
+            assert!(is_fatal_poll_error(&CamundaError::Api {
+                status: 400,
+                body: None,
+            }));
+            for status in [401, 429, 500, 503] {
+                assert!(!is_fatal_poll_error(&CamundaError::Api {
+                    status,
+                    body: None,
+                }));
+            }
+            assert!(!is_fatal_poll_error(&CamundaError::Backpressure(
+                "x".into()
+            )));
+        }
+
+        /// A 0/1/2 ms cap must still yield a non-zero delay, or fast failures hot-loop.
+        #[test]
+        fn poll_failure_backoff_is_never_zero_for_tiny_caps() {
+            let random = super::super::super::random::SeededRandom::new(7);
+            for cap in [0u64, 1, 2] {
+                for n in 1..=5 {
+                    let (delay, _) = poll_failure_backoff(Duration::ZERO, cap, n, &random);
+                    assert!(
+                        delay >= Duration::from_millis(1),
+                        "cap {cap} n {n}: {delay:?}"
+                    );
+                }
+            }
+        }
+
+        /// The back-off doubles from the poll interval, is capped, and is jittered within
+        /// the upper half of each step.
+        #[test]
+        fn poll_failure_backoff_grows_and_caps() {
+            let random = super::super::super::random::SeededRandom::new(42);
+            let base = Duration::from_millis(100);
+            let steps: Vec<u64> = (1..=10)
+                .map(|n| poll_failure_backoff(base, 30_000, n, &random).1)
+                .collect();
+            assert_eq!(
+                steps,
+                [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 30000]
+            );
+            for n in 1..=40 {
+                let (delay, step) = poll_failure_backoff(base, 30_000, n, &random);
+                let ms = delay.as_millis() as u64;
+                assert!(
+                    ms >= step / 2 && ms <= step,
+                    "{ms} outside [{}, {step}]",
+                    step / 2
+                );
+            }
+            // A zero poll interval still backs off.
+            assert_eq!(
+                poll_failure_backoff(Duration::ZERO, 30_000, 1, &random).1,
+                100
+            );
+        }
+
+        /// A poll failure must not abort jobs already dispatched. `run_rest_poll` drains the
+        /// in-flight handlers before propagating the error — "exactly as the stop path
+        /// does", per the comment — rather than dropping the `JoinSet` and cancelling them,
+        /// which would leave activated jobs with a handler killed mid-flight and nothing
+        /// completing or failing them.
+        ///
+        /// The existing drain test only covers the stop path. This one covers the error
+        /// path, and asserts the ordering that makes the guarantee real: `run` cannot return
+        /// while the handler is still running.
+        #[tokio::test]
+        async fn a_poll_failure_drains_in_flight_handlers_before_propagating() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                // One activation succeeds, the next fails — while the first job's handler is
+                // still in flight.
+                activations_before_error: Some(1),
+                recover_at: None,
+                fail_activations: None,
+                empty_activations: &[],
+            })
+            .await;
+            let client = stub.client();
+
+            let (release_tx, release_rx) = tokio::sync::watch::channel(false);
+            let started = Arc::new(AtomicUsize::new(0));
+            let finished = Arc::new(AtomicUsize::new(0));
+
+            // A two-credit window, so the poller can issue its second (failing) activation
+            // while the first handler still holds a credit. Fail fast on the first poll
+            // failure: by default the worker backs off and keeps polling instead.
+            let worker = client.create_job_worker(
+                JobWorkerConfig::new("test-type")
+                    .max_jobs_to_activate(2)
+                    .max_consecutive_poll_failures(1),
+            );
+            let mut run = {
+                let (started, finished) = (started.clone(), finished.clone());
+                tokio::spawn(worker.run(move |_job| {
+                    let (started, finished) = (started.clone(), finished.clone());
+                    let mut rx = release_rx.clone();
+                    async move {
+                        started.fetch_add(1, Ordering::SeqCst);
+                        while !*rx.borrow_and_update() {
+                            if rx.changed().await.is_err() {
+                                break;
+                            }
+                        }
+                        finished.fetch_add(1, Ordering::SeqCst);
+                        JobAction::Leave
+                    }
+                }))
+            };
+
+            wait_for(client.clock(), "the first handler to start", || {
+                started.load(Ordering::SeqCst) == 1
+            })
+            .await;
+            wait_for(client.clock(), "the second, failing activation", || {
+                stub.activations() >= 2
+            })
+            .await;
+
+            // The poll has failed and the handler is still blocked: `run` must be waiting on
+            // it, not returning. This is the ordering guarantee — asserted by `run` refusing
+            // to finish rather than by inspecting the drain.
+            assert!(
+                tokio::time::timeout(Duration::from_millis(250), &mut run)
+                    .await
+                    .is_err(),
+                "run returned while an in-flight handler was still running"
+            );
+            assert_eq!(
+                finished.load(Ordering::SeqCst),
+                0,
+                "the handler should still be blocked at this point"
+            );
+
+            release_tx.send(true).unwrap();
+
+            let result = tokio::time::timeout(Duration::from_secs(10), run)
+                .await
+                .expect("run finishes once the drained handler completes")
+                .expect("the worker task itself must not panic");
+
+            let err = result.expect_err("a failing poll must propagate");
+            assert_eq!(
+                err.status(),
+                Some(500),
+                "the poll failure should surface as the server's status: {err}"
+            );
+            assert_eq!(
+                finished.load(Ordering::SeqCst),
+                1,
+                "the in-flight handler must be awaited, not aborted, before run returns"
+            );
+        }
+
+        /// A successful poll must reset the consecutive-failure budget, or a worker under a
+        /// flaky gateway dies on accumulated failures the successes should have forgiven.
+        /// Neither neighbouring test pins the reset: `a_failing_poll_backs_off_and_recovers`
+        /// sets no failure limit, and `a_poll_failure_drains_in_flight_handlers_before_propagating`
+        /// uses a limit of 1, so both would still pass if the reset were deleted.
+        ///
+        /// With `max_consecutive_poll_failures(2)` the stub serves job 1, fails activation
+        /// 2, serves job 3 (its completion proves the worker kept polling), then fails 4
+        /// and 5. The worker must survive 4 and stop at 5: without the reset, the budget
+        /// still holds the failure at 2, so 4 would already be the second consecutive
+        /// failure and the worker would stop one poll early.
+        #[tokio::test]
+        async fn a_successful_poll_resets_the_consecutive_failure_budget() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                activations_before_error: None,
+                recover_at: None,
+                fail_activations: Some(&[2, 4, 5]),
+                empty_activations: &[],
+            })
+            .await;
+            let client = stub.client();
+            let worker = client.create_job_worker(
+                JobWorkerConfig::new("test-type")
+                    .max_jobs_to_activate(1)
+                    .max_poll_backoff_ms(50)
+                    .max_consecutive_poll_failures(2),
+            );
+            let handle = worker.spawn(|_job| async { JobAction::complete() });
+
+            // Two completions prove the worker dispatched job 3 after the failure at 2:
+            // it kept polling rather than stopping at the first sign of trouble.
+            wait_for(client.clock(), "the job between the two failures", || {
+                stub.completions() >= 2
+            })
+            .await;
+
+            // Failures 4 and 5 are again consecutive, so the worker stops at 5 — unless
+            // the activation-3 success never reset the counter, in which case it would
+            // already have stopped at 4 and the error would surface one failure early.
+            // Wait for the worker to stop on its own: `shutdown()` would flip the stop
+            // flag first and mask the error with a clean exit.
+            wait_for(
+                client.clock(),
+                "the worker to stop at the failure limit",
+                || handle.is_finished(),
+            )
+            .await;
+            let result = handle.shutdown().await;
+            let err = result.expect_err("the second outage must hit the failure limit");
+            assert_eq!(
+                err.status(),
+                Some(500),
+                "the poll failure should surface as the server's status: {err}"
+            );
+            assert_eq!(
+                stub.activations(),
+                5,
+                "the worker must stop on the second failure *after* the success, not on the \
+                 first — a missing reset would have counted the pre-success failure along"
+            );
+        }
+
+        /// The idle variant of the reset above: an *empty* successful poll — the gateway
+        /// answers 200 with no jobs — must forgive the failure budget exactly as a busy
+        /// one does. The reset lives in the shared `Ok(jobs)` arm before the empty check,
+        /// so this pins it against being moved below the `jobs.is_empty()` early
+        /// `continue`, where an idle stretch would stop forgiving failures.
+        ///
+        /// Same script as the busy variant with activation 3 answering an empty list:
+        /// fail 2, idle success 3, fail 4, fail 5 — the worker must stop at 5, not 4.
+        #[tokio::test]
+        async fn an_empty_successful_poll_resets_the_consecutive_failure_budget() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                activations_before_error: None,
+                recover_at: None,
+                fail_activations: Some(&[2, 4, 5]),
+                empty_activations: &[3],
+            })
+            .await;
+            let client = stub.client();
+            let worker = client.create_job_worker(
+                JobWorkerConfig::new("test-type")
+                    .max_jobs_to_activate(1)
+                    .max_poll_backoff_ms(50)
+                    .max_consecutive_poll_failures(2),
+            );
+            let handle = worker.spawn(|_job| async { JobAction::complete() });
+
+            // Wait for the worker to stop on its own at the failure limit: `shutdown()`
+            // would flip the stop flag first and mask the error with a clean exit.
+            wait_for(
+                client.clock(),
+                "the worker to stop at the failure limit",
+                || handle.is_finished(),
+            )
+            .await;
+            let result = handle.shutdown().await;
+            let err = result.expect_err("the failures after the idle poll must hit the limit");
+            assert_eq!(
+                err.status(),
+                Some(500),
+                "the poll failure should surface as the server's status: {err}"
+            );
+            assert_eq!(
+                stub.activations(),
+                5,
+                "an idle success must reset the budget: the worker stops at the second \
+                 failure after it, not the first"
+            );
+        }
+
+        /// A back-off longer than one second is slept in one-second slices so `stop()`
+        /// lands mid-back-off, not after it. The recovery test above caps its back-off at
+        /// 400 ms, so it never enters the slicing loop: replacing it with one long sleep
+        /// would still pass every other test while delaying shutdown by up to 30 s.
+        ///
+        /// Here the outage never ends, so the back-off grows to its 30 s ceiling; the test
+        /// waits for the first one-second slice to be recorded, stops the worker during
+        /// it, and asserts through the injected clock that no further slice is slept and
+        /// no further activation is attempted. A handler is left in flight across the
+        /// stop so the graceful drain is exercised on the same path.
+        #[tokio::test]
+        async fn stop_during_a_sliced_recovery_backoff_ends_the_wait_and_drains() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "204 No Content",
+                // Activation 1 succeeds (its job stays in flight); every later one fails,
+                // so the back-off grows to the 30 s ceiling and is slept in slices.
+                activations_before_error: Some(1),
+                recover_at: None,
+                fail_activations: None,
+                empty_activations: &[],
+            })
+            .await;
+            let clock = Arc::new(crate::runtime::clock::RecordingClock::default());
+            let client = CamundaClient::new(
+                crate::CamundaOptions::new()
+                    .with("CAMUNDA_REST_ADDRESS", stub.address.clone())
+                    .with("CAMUNDA_AUTH_STRATEGY", "NONE")
+                    .with("CAMUNDA_FALCON", "false")
+                    .with_clock(clock.clone()),
+            )
+            .expect("client should build from an address alone");
+
+            let (release_tx, release_rx) = tokio::sync::watch::channel(false);
+            let started = Arc::new(AtomicUsize::new(0));
+            let finished = Arc::new(AtomicUsize::new(0));
+
+            // Two credits, so the poller issues its second (failing) activation while the
+            // first job's handler is still blocked.
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(2));
+            let handle = {
+                let (started, finished) = (started.clone(), finished.clone());
+                worker.spawn(move |_job| {
+                    let (started, finished) = (started.clone(), finished.clone());
+                    let mut rx = release_rx.clone();
+                    async move {
+                        started.fetch_add(1, Ordering::SeqCst);
+                        while !*rx.borrow_and_update() {
+                            if rx.changed().await.is_err() {
+                                break;
+                            }
+                        }
+                        finished.fetch_add(1, Ordering::SeqCst);
+                        JobAction::complete()
+                    }
+                })
+            };
+
+            // The worker is backing off once the second activation has failed. The
+            // back-off doubles per failure (100 ms base, 30 s ceiling), so by the sixth
+            // activation it exceeds one second and is slept in one-second slices.
+            wait_for(client.clock(), "the sixth, failing activation", || {
+                stub.activations() >= 6
+            })
+            .await;
+            wait_for(client.clock(), "a one-second back-off slice", || {
+                clock.sleeps().last() == Some(&Duration::from_secs(1))
+            })
+            .await;
+
+            let activations_at_stop = stub.activations();
+            let sleeps_at_stop = clock.sleeps().len();
+            handle.stop();
+            // The in-flight handler still holds its credit, so shutdown must be parked in
+            // the drain — not waiting on the back-off, and not having aborted the handler.
+            assert!(
+                !handle.is_finished(),
+                "shutdown must wait for the in-flight handler, not abort it"
+            );
+
+            release_tx.send(true).unwrap();
+            shutdown_within(handle, "the worker to shut down promptly from mid-back-off").await;
+
+            assert_eq!(
+                finished.load(Ordering::SeqCst),
+                1,
+                "the in-flight handler must drain to completion"
+            );
+            let sleeps = clock.sleeps();
+            assert_eq!(
+                sleeps.len(),
+                sleeps_at_stop,
+                "no further slice may be slept after stop: {sleeps:?}"
+            );
+            assert_eq!(
+                sleeps.last(),
+                Some(&Duration::from_secs(1)),
+                "a back-off over one second must be slept in one-second slices: {sleeps:?}"
+            );
+            assert_eq!(
+                stub.activations(),
+                activations_at_stop,
+                "no further activation may be attempted after stop"
+            );
+        }
     }
 }
