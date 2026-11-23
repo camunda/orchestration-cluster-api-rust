@@ -60,6 +60,11 @@ const MAX_WAITERS: u32 = 1000;
 const HEALTHY_RECOVERY_MULTIPLIER: f64 = 1.5;
 /// Sustained-healthy duration after which the manager returns to unlimited.
 const UNLIMITED_AFTER_HEALTHY: Duration = Duration::from_secs(30);
+/// Idle gap (no outcome of any kind) after which a carried-over, undersampled recovery
+/// window is discarded. Longer than any plausible low-rate request cadence, so sparse
+/// interleaved pressure keeps accumulating, while a burst followed by real idleness does
+/// not taint the next episode's ratio.
+const WINDOW_IDLE_RESET: Duration = Duration::from_secs(10);
 
 // Backoff-at-floor: rate-limit when concurrency cannot drop any further.
 /// Initial backoff applied when stuck at the floor while severe.
@@ -171,6 +176,9 @@ struct Inner {
     /// while capped and reset on every cap-era transition, so the ratio reflects the
     /// current capped period only.
     window_healthy: u32,
+    /// When the last outcome (signal or success) was recorded; drives the idle reset of
+    /// a carried-over recovery window.
+    last_outcome_at: Option<Instant>,
 }
 
 /// Adaptive backpressure manager shared (via `Arc`) by an SDK client and all its clones.
@@ -207,6 +215,7 @@ impl BackpressureManager {
                 last_soft_decrease_at: None,
                 window_backpressure: 0,
                 window_healthy: 0,
+                last_outcome_at: None,
             }),
             notify: Notify::new(),
             clock,
@@ -397,6 +406,7 @@ impl BackpressureManager {
         {
             st.healthy_since = None;
         }
+        begin_outcome(&mut st, now);
         st.last_event_at = Some(now);
         st.consecutive += 1;
         st.window_backpressure = st.window_backpressure.saturating_add(1);
@@ -487,6 +497,7 @@ impl BackpressureManager {
     pub fn record_healthy_hint(&self) {
         let now = self.clock.now();
         let mut st = self.inner.lock().unwrap();
+        begin_outcome(&mut st, now);
         // Reset backoff immediately on success — the server clearly has capacity.
         st.backoff = Duration::ZERO;
         // A success breaks the run: `consecutive` counts consecutive signals only.
@@ -525,8 +536,10 @@ impl BackpressureManager {
         // An undersampled window is carried over, not discarded: at a low request rate
         // (e.g. eight alternating outcomes per second) every single interval falls
         // short of MIN_RATIO_SAMPLES, and discarding them would hide sustained 50%
-        // pressure forever. Only a quiet stretch drops an undersampled window.
-        if sampled || is_quiet(st, now) {
+        // pressure forever. A quiet check (no signal for DECAY_QUIET) does not drop it
+        // either — at one outcome every few seconds every check is quiet — only a real
+        // idle gap does (see begin_outcome).
+        if sampled {
             st.window_backpressure = 0;
             st.window_healthy = 0;
         }
@@ -551,12 +564,12 @@ impl BackpressureManager {
         // Backpressure ratio over the window since the previous recovery check.
         // An undersampled window is carried over into the next check (see
         // judge_unlimited_window) so a low-rate high-ratio stream still accumulates
-        // enough samples to be judged; a quiet stretch drops it, preserving quiet
-        // recovery.
+        // enough samples to be judged; only an idle gap with no outcomes at all drops
+        // it (see begin_outcome).
         let bp = st.window_backpressure;
         let total = bp.saturating_add(st.window_healthy);
         let sampled = total >= MIN_RATIO_SAMPLES;
-        if sampled || is_quiet(st, now) {
+        if sampled {
             st.window_backpressure = 0;
             st.window_healthy = 0;
         }
@@ -583,7 +596,11 @@ impl BackpressureManager {
         // decays, even when it also happens to be quiet: the sampled high ratio is the
         // fresher evidence, and decaying on the quiet clause would undo the escalation
         // above in the same check.
-        let quiet = is_quiet(st, now);
+        // The quiet clause only applies while no unjudged signal is carried over: a
+        // low-rate stream (one outcome every few seconds) is "quiet" at every check,
+        // and decaying on it would walk a half-failing stream back to unlimited before
+        // its window ever gathered enough samples to be judged.
+        let quiet = is_quiet(st, now) && st.window_backpressure == 0;
         if (quiet || low_ratio) && !worsening {
             match st.severity {
                 BackpressureSeverity::Severe => st.severity = BackpressureSeverity::Soft,
@@ -696,6 +713,19 @@ impl Drop for PermitGuard {
 }
 
 /// Reduce the permit cap by `factor` (never below the floor). Caller must hold the lock.
+/// Start recording an outcome: drop a carried-over recovery window if no outcome at all
+/// was seen for [`WINDOW_IDLE_RESET`], then stamp the outcome time. Caller holds the lock.
+fn begin_outcome(st: &mut Inner, now: Instant) {
+    if st
+        .last_outcome_at
+        .is_some_and(|t| now.duration_since(t) > WINDOW_IDLE_RESET)
+    {
+        st.window_backpressure = 0;
+        st.window_healthy = 0;
+    }
+    st.last_outcome_at = Some(now);
+}
+
 /// No backpressure signal for longer than [`DECAY_QUIET`].
 fn is_quiet(st: &Inner, now: Instant) -> bool {
     st.last_event_at
@@ -1316,25 +1346,19 @@ mod tests {
         );
     }
 
-    /// A *sparse* quiet trickle — one 503 and one success per second — has too few
-    /// samples per recovery window to trust its ratio, so `low_ratio` stays false and
-    /// severity decays by quietude alone. Reaching Healthy that way must still start
-    /// the sustained-health clock, or phase 3 never returns to unlimited and the cap
-    /// keeps growing forever.
+    /// Sparse traffic after a burst — one success every 3s — never fills a recovery
+    /// window quickly, so severity decays by quietude alone once the burst's window has
+    /// been judged. Reaching Healthy that way must still start the sustained-health
+    /// clock, or phase 3 never returns to unlimited and the cap keeps growing forever.
     #[test]
     fn quiet_recovery_to_healthy_starts_the_clock_and_returns_to_unlimited() {
         let clock = Arc::new(super::super::clock::ManualClock::new());
         let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
-        // Drive severe, then alternate one 503 and one success with 3s between them:
-        // every window is quiet (> DECAY_QUIET since the last signal) but has too few
-        // samples to trust its ratio.
         for _ in 0..8 {
             bp.record_backpressure();
         }
         assert_eq!(bp.severity(), BackpressureSeverity::Severe);
-        for _ in 0..25u32 {
-            clock.advance(Duration::from_secs(3));
-            bp.record_backpressure();
+        for _ in 0..30u32 {
             clock.advance(Duration::from_secs(3));
             bp.record_healthy_hint();
         }
@@ -1342,7 +1366,58 @@ mod tests {
         assert_eq!(s.severity, BackpressureSeverity::Healthy, "{s:?}");
         assert_eq!(
             s.permits_max, None,
-            "a quiet trickle that reaches Healthy must return to unlimited: {s:?}"
+            "sparse healthy traffic that reaches Healthy must return to unlimited: {s:?}"
+        );
+    }
+
+    /// A half-failing stream at one outcome every 3s makes every recovery check
+    /// "quiet" (> DECAY_QUIET since the last signal). While capped, the quiet clause
+    /// must not decay severity on the strength of an undersampled window that still
+    /// carries unjudged signals, or the gate walks back to unlimited under 50% failure.
+    #[test]
+    fn low_rate_half_failing_stream_while_capped_never_goes_unlimited() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        for _ in 0..8 {
+            bp.record_backpressure();
+        }
+        for i in 0..400u32 {
+            clock.advance(Duration::from_secs(3));
+            if i % 2 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+            assert!(bp.state().permits_max.is_some(), "went unlimited at {i}");
+        }
+        assert_ne!(bp.severity(), BackpressureSeverity::Healthy);
+    }
+
+    /// Same stream after phase 3 has returned to unlimited: the carried-over window
+    /// must survive quiet checks until it is sampled, so the half-failing stream
+    /// clears the sustained-health clock and re-caps the gate.
+    #[test]
+    fn low_rate_half_failing_stream_while_unlimited_recaps() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        bp.record_backpressure();
+        for _ in 0..40u32 {
+            clock.advance(Duration::from_secs(1));
+            bp.record_healthy_hint();
+        }
+        assert_eq!(bp.state().permits_max, None, "precondition: unlimited");
+        for i in 0..200u32 {
+            clock.advance(Duration::from_secs(3));
+            if i % 2 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+        }
+        assert!(
+            bp.state().permits_max.is_some(),
+            "a 50% stream must re-cap: {:?}",
+            bp.state()
         );
     }
 
