@@ -627,6 +627,13 @@ impl BackpressureManager {
         }
         let permits_max = st.permits_max.unwrap_or(FLOOR);
 
+        // While the carried window still holds an unjudged backpressure signal, a
+        // Healthy gate must not grow or go unlimited: the pending signals may be the
+        // start of sustained interleaved pressure that the window has not yet gathered
+        // enough samples to judge. Growth resumes once the window is judged.
+        if st.severity == BackpressureSeverity::Healthy && st.window_backpressure > 0 {
+            return;
+        }
         if st.severity == BackpressureSeverity::Healthy {
             // Phase 3: sustained healthy -> return to unlimited. This runs before the
             // growth below so a window that crosses the 30s mark ends the cap era
@@ -720,6 +727,13 @@ fn begin_outcome(st: &mut Inner, now: Instant) {
         .last_outcome_at
         .is_some_and(|t| now.duration_since(t) > WINDOW_IDLE_RESET)
     {
+        // Discarding unjudged backpressure must not leave a sustained-health stretch
+        // standing on evidence that was never judged: otherwise a stream slower than
+        // the idle reset (e.g. alternating 503/success every 12s) would keep the
+        // unlimited gate's tolerance alive forever.
+        if st.window_backpressure > 0 {
+            st.healthy_since = None;
+        }
         st.window_backpressure = 0;
         st.window_healthy = 0;
     }
@@ -1417,6 +1431,56 @@ mod tests {
         assert!(
             bp.state().permits_max.is_some(),
             "a 50% stream must re-cap: {:?}",
+            bp.state()
+        );
+    }
+
+    /// An already-Healthy capped gate whose carried window holds unjudged
+    /// backpressure must not grow to unlimited before that window is judged.
+    #[test]
+    fn healthy_capped_gate_does_not_go_unlimited_with_unjudged_pressure() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        bp.record_backpressure();
+        for _ in 0..10u32 {
+            clock.advance(Duration::from_secs(1));
+            bp.record_healthy_hint();
+        }
+        assert!(bp.state().permits_max.is_some(), "precondition: capped");
+        for i in 0..200u32 {
+            clock.advance(Duration::from_secs(3));
+            if i % 2 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+            assert!(bp.state().permits_max.is_some(), "went unlimited at {i}");
+        }
+    }
+
+    /// After recovery to unlimited, a 50% stream slower than WINDOW_IDLE_RESET must
+    /// not keep the sustained-health tolerance alive via idle resets.
+    #[test]
+    fn slow_half_failing_stream_after_idle_resets_recaps() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        bp.record_backpressure();
+        for _ in 0..40u32 {
+            clock.advance(Duration::from_secs(1));
+            bp.record_healthy_hint();
+        }
+        assert_eq!(bp.state().permits_max, None, "precondition: unlimited");
+        for i in 0..20u32 {
+            clock.advance(Duration::from_secs(12));
+            if i % 2 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+        }
+        assert!(
+            bp.state().permits_max.is_some(),
+            "a slow 50% stream must re-cap: {:?}",
             bp.state()
         );
     }
