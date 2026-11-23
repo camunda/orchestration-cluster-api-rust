@@ -392,14 +392,17 @@ impl BackpressureManager {
         st.window_backpressure = st.window_backpressure.saturating_add(1);
 
         // A signal interrupts the sustained-health stretch only when it is real
-        // pressure — two or more signals back to back while capped. A lone trickle
-        // signal keeps the clock: clearing it would let a 5% trickle starve the phase-3
-        // transition forever, as every signal would reset the stretch 200ms after it
-        // restarted. While unlimited the clock also keeps running: a signal there is
-        // not part of any cap era (and the boot below does not cap while the clock
-        // runs). `maybe_recover` still judges the window by its ratio and restarts the
-        // clock on the next quiet or low-ratio window.
-        if st.consecutive > 1 && st.permits_max.is_some() {
+        // pressure — two or more signals back to back. A lone trickle signal keeps the
+        // clock: clearing it would let a 5% trickle starve the phase-3 transition
+        // forever, as every signal would reset the stretch 200ms after it restarted.
+        // The exemption applies to the *lone* signal only, and it applies while
+        // unlimited too: after phase 3 returns to unlimited the clock is left set, so
+        // without this a fresh burst of consecutive 503s there would keep severity
+        // Severe while the boot below is suppressed by the still-running clock —
+        // leaving the gate unlimited under sustained pressure. `maybe_recover` still
+        // judges the window by its ratio and restarts the clock on the next quiet or
+        // low-ratio window.
+        if st.consecutive > 1 {
             st.healthy_since = None;
         }
 
@@ -439,9 +442,14 @@ impl BackpressureManager {
         // signal while the sustained-health clock is running does not shrink at all:
         // the window ratio already judged the cluster to be coping, and a per-signal
         // shrink would undo the phase-2 growth between windows, pinning the gate near
-        // the floor while the phase-3 transition to unlimited fires.
+        // the floor while the phase-3 transition to unlimited fires. A severe signal
+        // (consecutive >= SEVERE_THRESHOLD) is also excluded: it already applied
+        // SEVERE_FACTOR above, and severe signals shrink on every signal — applying the
+        // soft factor too would shrink the same signal twice whenever the soft-decrease
+        // interval happened to elapse.
         if !self.observe_only
             && st.severity != BackpressureSeverity::Healthy
+            && st.consecutive < SEVERE_THRESHOLD
             && st.healthy_since.is_none()
             && st
                 .last_soft_decrease_at
@@ -498,16 +506,34 @@ impl BackpressureManager {
         let total = bp.saturating_add(st.window_healthy);
         st.window_backpressure = 0;
         st.window_healthy = 0;
-        let low_ratio =
-            total >= MIN_RATIO_SAMPLES && (bp as f64) < (total as f64) * LOW_BACKPRESSURE_RATIO;
+        let sampled = total >= MIN_RATIO_SAMPLES;
+        let low_ratio = sampled && (bp as f64) < (total as f64) * LOW_BACKPRESSURE_RATIO;
+
+        // A well-sampled window whose ratio is NOT low is real, sustained pressure —
+        // e.g. alternating 503s and successes, where no two signals are consecutive so
+        // record_backpressure never clears the clock and severity never escalates.
+        // Invalidate the sustained-health stretch so phase 2 stops growing the cap
+        // toward unlimited while the cluster is still failing half its requests, and
+        // re-raise severity so throttling resumes. A quiet window (too few samples to
+        // trust the ratio) is not pressure and never lands here.
+        let worsening = sampled && !low_ratio;
+        if worsening {
+            st.healthy_since = None;
+            if st.severity == BackpressureSeverity::Healthy {
+                st.severity = BackpressureSeverity::Soft;
+            }
+        }
 
         // Decay severity (severe -> soft -> healthy) if the cluster has been quiet, or if
         // only a small fraction of recent requests hit backpressure — a steady trickle of
-        // signals must not pin the gate in `severe` forever.
+        // signals must not pin the gate in `severe` forever. A worsening window never
+        // decays, even when it also happens to be quiet: the sampled high ratio is the
+        // fresher evidence, and decaying on the quiet clause would undo the escalation
+        // above in the same check.
         let quiet = st
             .last_event_at
             .is_none_or(|t| now.duration_since(t) > DECAY_QUIET);
-        if quiet || low_ratio {
+        if (quiet || low_ratio) && !worsening {
             match st.severity {
                 BackpressureSeverity::Severe => st.severity = BackpressureSeverity::Soft,
                 BackpressureSeverity::Soft => st.severity = BackpressureSeverity::Healthy,
@@ -515,14 +541,18 @@ impl BackpressureManager {
             }
             if st.severity == BackpressureSeverity::Healthy {
                 st.consecutive = 0;
-                // A low-ratio window that decays severity to healthy also starts the
+                // A window that decays severity to healthy also starts the
                 // sustained-health clock: the window just proved the cluster is coping,
                 // and the trickle signal that follows would otherwise leave the clock
-                // unset until the next window — resetting the stretch every second. A
-                // quiet decay keeps any clock that is already running: a lone signal
-                // does not interrupt the stretch (see record_backpressure), so
-                // re-seeding here would wrongly extend it by the quiet period.
-                if low_ratio && st.healthy_since.is_none() {
+                // unset until the next window — resetting the stretch every second.
+                // This holds for a quiet decay too: with too few samples to trust the
+                // ratio (e.g. one 503 + one success per second), `low_ratio` stays
+                // false, and without seeding here the clock would never start — phase 3
+                // could never return to unlimited even though severity reached Healthy.
+                // An already-running clock keeps its timestamp: a lone signal does not
+                // interrupt the stretch (see record_backpressure), so re-seeding would
+                // wrongly extend it.
+                if st.healthy_since.is_none() {
                     st.healthy_since = Some(now);
                 }
             }
@@ -1006,6 +1036,185 @@ mod tests {
         assert_eq!(
             s.permits_max, None,
             "a low-ratio trickle must not pin the gate at an ever-growing cap: {s:?}"
+        );
+    }
+
+    /// After phase 3 returns to unlimited the sustained-health clock is left set. A
+    /// fresh burst of *consecutive* 503s there is real pressure, not a lone trickle
+    /// signal: it must clear the clock so the boot caps the gate again — otherwise
+    /// severity goes Severe while the gate stays unlimited (the boot is suppressed by
+    /// the still-running clock and scaling an unlimited cap does nothing).
+    #[test]
+    fn consecutive_signals_while_unlimited_clear_the_healthy_clock_and_recap() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        // Cap, then recover all the way to unlimited via a low-ratio trickle.
+        bp.record_backpressure();
+        for i in 1..=3000u32 {
+            clock.advance(Duration::from_millis(20));
+            if i % 20 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+        }
+        assert_eq!(bp.state().permits_max, None, "must be unlimited first");
+        // A fresh burst of consecutive 503s while unlimited must re-cap the gate: the
+        // first signal keeps the stale clock (lone-signal exemption), the second clears
+        // it, and the third boots the cap.
+        bp.record_backpressure();
+        bp.record_backpressure();
+        bp.record_backpressure();
+        let s = bp.state();
+        assert!(
+            s.permits_max.is_some(),
+            "consecutive 503s while unlimited must boot a fresh cap: {s:?}"
+        );
+        assert_eq!(s.severity, BackpressureSeverity::Severe, "{s:?}");
+    }
+
+    /// A severe signal already shrinks by SEVERE_FACTOR; the rate-limited soft shrink
+    /// must not also fire on the same signal just because SOFT_DECREASE_INTERVAL
+    /// elapsed. Three consecutive signals one second apart must produce
+    /// 12 -> 9 -> 5, not 12 -> 9 -> 4 (both factors on the third signal).
+    #[test]
+    fn severe_signals_shrink_once_per_signal_not_twice() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        bp.record_backpressure();
+        assert_eq!(
+            bp.state().permits_max,
+            Some((INITIAL_MAX as f64 * SOFT_FACTOR).ceil() as u32) // 16 * 0.7 = 12
+        );
+        clock.advance(SOFT_DECREASE_INTERVAL + Duration::from_millis(1));
+        bp.record_backpressure();
+        assert_eq!(
+            bp.state().permits_max,
+            Some(((INITIAL_MAX as f64 * SOFT_FACTOR).ceil() * SOFT_FACTOR).ceil() as u32) // 9
+        );
+        clock.advance(SOFT_DECREASE_INTERVAL + Duration::from_millis(1));
+        bp.record_backpressure(); // third consecutive: severe
+        assert_eq!(bp.severity(), BackpressureSeverity::Severe);
+        assert_eq!(
+            bp.state().permits_max,
+            Some(
+                (((INITIAL_MAX as f64 * SOFT_FACTOR).ceil() * SOFT_FACTOR).ceil() * SEVERE_FACTOR)
+                    .ceil() as u32,
+            ), // 9 * 0.5 = 5
+            "a severe signal must apply SEVERE_FACTOR only, not SEVERE_FACTOR * SOFT_FACTOR"
+        );
+    }
+
+    /// A well-sampled window whose backpressure ratio is NOT low (e.g. alternating
+    /// 503s and successes, where no two signals are consecutive so the clock is never
+    /// cleared per-signal) must invalidate the sustained-health stretch and resume
+    /// throttling — not keep growing the cap toward unlimited while the cluster fails
+    /// half its requests.
+    #[test]
+    fn worsening_interleaved_pressure_invalidates_the_healthy_stretch() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        // Establish a low-ratio trickle long enough to start the healthy clock.
+        bp.record_backpressure();
+        for i in 1..=400u32 {
+            clock.advance(Duration::from_millis(20));
+            if i % 20 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+        }
+        let cap_after_trickle = bp.state().permits_max.unwrap();
+        // Switch to alternating 503 / success (50% backpressure): never consecutive,
+        // well sampled, high ratio. The healthy stretch must be dropped and the cap
+        // must stop growing toward unlimited.
+        for _ in 0..40u32 {
+            clock.advance(Duration::from_millis(50));
+            bp.record_backpressure();
+            clock.advance(Duration::from_millis(50));
+            bp.record_healthy_hint();
+        }
+        let s = bp.state();
+        assert!(
+            s.permits_max.is_some(),
+            "50% backpressure must not return the gate to unlimited: {s:?}"
+        );
+        assert!(
+            s.permits_max.unwrap() <= cap_after_trickle,
+            "the cap must not keep growing under 50% backpressure: {} -> {}",
+            cap_after_trickle,
+            s.permits_max.unwrap()
+        );
+    }
+
+    /// A *sparse* quiet trickle — one 503 and one success per second — has too few
+    /// samples per recovery window to trust its ratio, so `low_ratio` stays false and
+    /// severity decays by quietude alone. Reaching Healthy that way must still start
+    /// the sustained-health clock, or phase 3 never returns to unlimited and the cap
+    /// keeps growing forever.
+    #[test]
+    fn quiet_recovery_to_healthy_starts_the_clock_and_returns_to_unlimited() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        // Drive severe, then alternate one 503 and one success with 3s between them:
+        // every window is quiet (> DECAY_QUIET since the last signal) but has too few
+        // samples to trust its ratio.
+        for _ in 0..8 {
+            bp.record_backpressure();
+        }
+        assert_eq!(bp.severity(), BackpressureSeverity::Severe);
+        for _ in 0..25u32 {
+            clock.advance(Duration::from_secs(3));
+            bp.record_backpressure();
+            clock.advance(Duration::from_secs(3));
+            bp.record_healthy_hint();
+        }
+        let s = bp.state();
+        assert_eq!(s.severity, BackpressureSeverity::Healthy, "{s:?}");
+        assert_eq!(
+            s.permits_max, None,
+            "a quiet trickle that reaches Healthy must return to unlimited: {s:?}"
+        );
+    }
+
+    /// A window can be quiet AND well-sampled at once (a burst of outcomes, then >
+    /// DECAY_QUIET of silence before the next success). When its backpressure ratio is
+    /// high, the sampled ratio is the fresher evidence: the check must invalidate the
+    /// healthy stretch and must NOT decay severity on the quiet clause in the same
+    /// breath.
+    #[test]
+    fn a_quiet_but_high_ratio_window_does_not_decay() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        // Cap the gate and get the healthy clock running via a low-ratio trickle.
+        bp.record_backpressure();
+        for i in 1..=400u32 {
+            clock.advance(Duration::from_millis(20));
+            if i % 20 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+        }
+        assert_eq!(bp.severity(), BackpressureSeverity::Healthy);
+        // A burst of 20 alternating 503s / successes inside one window (50% ratio,
+        // well sampled, never consecutive), then 3s of quiet so the next recovery
+        // check sees a window that is both quiet and high-ratio.
+        for _ in 0..10u32 {
+            bp.record_backpressure();
+            bp.record_healthy_hint();
+        }
+        clock.advance(DECAY_QUIET + Duration::from_secs(1));
+        bp.record_healthy_hint();
+        let s = bp.state();
+        assert_ne!(
+            s.severity,
+            BackpressureSeverity::Healthy,
+            "a quiet but high-ratio window must drop severity out of Healthy, not keep it: {s:?}"
+        );
+        assert!(
+            s.permits_max.is_some(),
+            "the gate must stay capped under sampled high-ratio pressure: {s:?}"
         );
     }
 }
