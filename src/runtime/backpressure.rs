@@ -163,9 +163,13 @@ struct Inner {
     backoff: Duration,
     /// When the last `soft` multiplicative shrink was applied.
     last_soft_decrease_at: Option<Instant>,
-    /// Backpressure signals observed in the current recovery window.
+    /// Backpressure signals observed in the current recovery window. Only counted
+    /// while capped and reset on every cap-era transition, so the ratio reflects the
+    /// current capped period only.
     window_backpressure: u32,
-    /// Successful outcomes observed in the current recovery window.
+    /// Successful outcomes observed in the current recovery window. Only counted
+    /// while capped and reset on every cap-era transition, so the ratio reflects the
+    /// current capped period only.
     window_healthy: u32,
 }
 
@@ -361,6 +365,8 @@ impl BackpressureManager {
         st.permits_max = None;
         st.permits_current = 0;
         st.backoff = Duration::ZERO;
+        st.window_backpressure = 0;
+        st.window_healthy = 0;
     }
 
     /// Test-only: pin the gate to a fixed, deterministic capacity (`max` concurrent
@@ -373,6 +379,8 @@ impl BackpressureManager {
         st.permits_max = Some(max);
         st.permits_current = 0;
         st.backoff = Duration::ZERO;
+        st.window_backpressure = 0;
+        st.window_healthy = 0;
     }
 
     /// Record a backpressure signal from the server.
@@ -382,15 +390,33 @@ impl BackpressureManager {
         st.last_event_at = Some(now);
         st.consecutive += 1;
         st.window_backpressure = st.window_backpressure.saturating_add(1);
-        st.healthy_since = None;
 
-        if !self.observe_only && st.permits_max.is_none() {
+        // A signal interrupts the sustained-health stretch only when it is real
+        // pressure — two or more signals back to back while capped. A lone trickle
+        // signal keeps the clock: clearing it would let a 5% trickle starve the phase-3
+        // transition forever, as every signal would reset the stretch 200ms after it
+        // restarted. While unlimited the clock also keeps running: a signal there is
+        // not part of any cap era (and the boot below does not cap while the clock
+        // runs). `maybe_recover` still judges the window by its ratio and restarts the
+        // clock on the next quiet or low-ratio window.
+        if st.consecutive > 1 && st.permits_max.is_some() {
+            st.healthy_since = None;
+        }
+
+        if !self.observe_only && st.permits_max.is_none() && st.healthy_since.is_none() {
             // Boot to the initial cap on the first signal (was unlimited). This starts a
             // new cap era: bump the generation so permits acquired while unlimited are not
-            // released against this era's count.
+            // released against this era's count, and start a fresh recovery window so the
+            // ratio reflects only outcomes observed under this cap. A signal that arrives
+            // while the sustained-health clock is running does not boot a cap at all: the
+            // cluster has been coping for 30s+, so a lone trickle signal is noise, and
+            // capping here would oscillate unlimited -> boot -> 30s wait -> unlimited
+            // forever instead of settling on the stable fixed point.
             st.generation = st.generation.wrapping_add(1);
             st.permits_max = Some(INITIAL_MAX);
             st.permits_current = st.permits_current.min(INITIAL_MAX);
+            st.window_backpressure = 0;
+            st.window_healthy = 0;
         }
 
         if st.consecutive >= SEVERE_THRESHOLD {
@@ -398,19 +424,31 @@ impl BackpressureManager {
             if !self.observe_only {
                 scale_permits(&mut st, SEVERE_FACTOR);
             }
-        } else {
-            if st.severity == BackpressureSeverity::Healthy {
+        } else if st.severity == BackpressureSeverity::Healthy {
+            // A signal that arrives while the sustained-health clock is running is part
+            // of a trickle, not a fresh episode: `maybe_recover` judges it by the window
+            // ratio, so it must not knock severity back to soft — otherwise the healthy
+            // clock could never accumulate the 30s needed to return to unlimited.
+            if st.healthy_since.is_none() {
                 st.severity = BackpressureSeverity::Soft;
             }
-            // Soft: shrink at most once per SOFT_DECREASE_INTERVAL, so a sparse trickle of
-            // signals between successes cannot ratchet the cap down to the floor.
-            let may_shrink = st
+        }
+
+        // Soft shrink: at most once per SOFT_DECREASE_INTERVAL, so a sparse trickle of
+        // signals between successes cannot ratchet the cap down to the floor. A trickle
+        // signal while the sustained-health clock is running does not shrink at all:
+        // the window ratio already judged the cluster to be coping, and a per-signal
+        // shrink would undo the phase-2 growth between windows, pinning the gate near
+        // the floor while the phase-3 transition to unlimited fires.
+        if !self.observe_only
+            && st.severity != BackpressureSeverity::Healthy
+            && st.healthy_since.is_none()
+            && st
                 .last_soft_decrease_at
-                .is_none_or(|t| now.duration_since(t) >= SOFT_DECREASE_INTERVAL);
-            if !self.observe_only && may_shrink {
-                scale_permits(&mut st, SOFT_FACTOR);
-                st.last_soft_decrease_at = Some(now);
-            }
+                .is_none_or(|t| now.duration_since(t) >= SOFT_DECREASE_INTERVAL)
+        {
+            scale_permits(&mut st, SOFT_FACTOR);
+            st.last_soft_decrease_at = Some(now);
         }
 
         // Escalate the backoff when stuck at the floor while severe.
@@ -434,7 +472,12 @@ impl BackpressureManager {
         st.backoff = Duration::ZERO;
         // A success breaks the run: `consecutive` counts consecutive signals only.
         st.consecutive = 0;
-        st.window_healthy = st.window_healthy.saturating_add(1);
+        // The recovery window measures the current capped period only, so a success
+        // recorded while unlimited is not counted — otherwise a long healthy run
+        // before the first signal would dilute the first capped window's ratio.
+        if st.permits_max.is_some() {
+            st.window_healthy = st.window_healthy.saturating_add(1);
+        }
         self.maybe_recover(&mut st, now);
     }
 
@@ -467,53 +510,63 @@ impl BackpressureManager {
         if quiet || low_ratio {
             match st.severity {
                 BackpressureSeverity::Severe => st.severity = BackpressureSeverity::Soft,
-                BackpressureSeverity::Soft => {
-                    st.severity = BackpressureSeverity::Healthy;
-                    st.healthy_since = Some(now);
-                }
+                BackpressureSeverity::Soft => st.severity = BackpressureSeverity::Healthy,
                 BackpressureSeverity::Healthy => {}
             }
             if st.severity == BackpressureSeverity::Healthy {
                 st.consecutive = 0;
+                // A low-ratio window that decays severity to healthy also starts the
+                // sustained-health clock: the window just proved the cluster is coping,
+                // and the trickle signal that follows would otherwise leave the clock
+                // unset until the next window — resetting the stretch every second. A
+                // quiet decay keeps any clock that is already running: a lone signal
+                // does not interrupt the stretch (see record_backpressure), so
+                // re-seeding here would wrongly extend it by the quiet period.
+                if low_ratio && st.healthy_since.is_none() {
+                    st.healthy_since = Some(now);
+                }
             }
         }
-
         let permits_max = st.permits_max.unwrap_or(FLOOR);
 
-        if st.severity != BackpressureSeverity::Healthy {
-            if low_ratio {
-                // Mostly-successful window: grow multiplicatively, past the bootstrap cap.
-                let next_max = (permits_max as f64 * HEALTHY_RECOVERY_MULTIPLIER).ceil() as u32;
-                st.permits_max = Some(next_max.max(permits_max + RECOVERY_STEP));
-                self.notify.notify_one();
+        if st.severity == BackpressureSeverity::Healthy {
+            // Phase 3: sustained healthy -> return to unlimited. This runs before the
+            // growth below so a window that crosses the 30s mark ends the cap era
+            // instead of growing the cap once more.
+            if now.duration_since(st.healthy_since.unwrap_or(now)) >= UNLIMITED_AFTER_HEALTHY {
+                // Ending the cap era: bump the generation so any still-counted permit
+                // from this era is not released against a future era's count, and reset
+                // the recovery window so the next capped period starts from a clean
+                // slate.
+                st.generation = st.generation.wrapping_add(1);
+                st.permits_max = None;
+                st.permits_current = 0;
+                st.backoff = Duration::ZERO;
+                st.window_backpressure = 0;
+                st.window_healthy = 0;
+                self.notify.notify_waiters();
                 return;
             }
-            // Phase 1: additive recovery while not yet healthy (bounded by the bootstrap cap).
-            if permits_max < INITIAL_MAX {
-                st.permits_max = Some((permits_max + RECOVERY_STEP).min(INITIAL_MAX));
+            // Phase 2: multiplicative growth while healthy (no ceiling).
+            let next_max = (permits_max as f64 * HEALTHY_RECOVERY_MULTIPLIER).ceil() as u32;
+            if next_max > permits_max {
+                st.permits_max = Some(next_max);
                 self.notify.notify_one();
             }
             return;
         }
 
-        // Phase 3: sustained healthy -> return to unlimited.
-        if let Some(since) = st.healthy_since {
-            if now.duration_since(since) >= UNLIMITED_AFTER_HEALTHY {
-                // Ending the cap era: bump the generation so any still-counted permit from
-                // this era is not released against a future era's count.
-                st.generation = st.generation.wrapping_add(1);
-                st.permits_max = None;
-                st.permits_current = 0;
-                st.backoff = Duration::ZERO;
-                self.notify.notify_waiters();
-                return;
-            }
+        if low_ratio {
+            // Mostly-successful window: decaying toward healthy; grow multiplicatively,
+            // past the bootstrap cap.
+            let next_max = (permits_max as f64 * HEALTHY_RECOVERY_MULTIPLIER).ceil() as u32;
+            st.permits_max = Some(next_max.max(permits_max + RECOVERY_STEP));
+            self.notify.notify_one();
+            return;
         }
-
-        // Phase 2: multiplicative growth while healthy (no ceiling).
-        let next_max = (permits_max as f64 * HEALTHY_RECOVERY_MULTIPLIER).ceil() as u32;
-        if next_max > permits_max {
-            st.permits_max = Some(next_max);
+        // Phase 1: additive recovery while not yet healthy (bounded by the bootstrap cap).
+        if permits_max < INITIAL_MAX {
+            st.permits_max = Some((permits_max + RECOVERY_STEP).min(INITIAL_MAX));
             self.notify.notify_one();
         }
     }
@@ -869,7 +922,9 @@ mod tests {
     }
 
     /// Regression for #203: a steady sender where 1 in 20 requests hits backpressure
-    /// must recover to (and beyond) the bootstrap cap, not stay pinned near the floor.
+    /// must recover to (and beyond) the bootstrap cap, not stay pinned near the floor —
+    /// and must keep going all the way back to unlimited: a trickle that decays severity
+    /// but leaves the gate capped at an ever-growing, meaningless limit is not recovery.
     #[test]
     fn steady_trickle_of_backpressure_recovers() {
         let clock = Arc::new(super::super::clock::ManualClock::new());
@@ -879,8 +934,8 @@ mod tests {
             bp.record_backpressure();
         }
         assert_eq!(bp.severity(), BackpressureSeverity::Severe);
-        // 50 req/s for 60 s; every 20th is a 503.
-        for i in 1..=3000u32 {
+        // 50 req/s for 300 s; every 20th is a 503.
+        for i in 1..=15000u32 {
             clock.advance(Duration::from_millis(20));
             if i % 20 == 0 {
                 bp.record_backpressure();
@@ -890,9 +945,67 @@ mod tests {
         }
         let s = bp.state();
         assert_ne!(s.severity, BackpressureSeverity::Severe, "{s:?}");
-        assert!(
-            s.permits_max.is_none_or(|m| m >= INITIAL_MAX),
-            "cap stayed throttled: {s:?}"
+        assert_eq!(
+            s.permits_max, None,
+            "a sustained low-ratio trickle must recover all the way to unlimited: {s:?}"
+        );
+    }
+
+    /// The recovery window measures the current capped period only: successes recorded
+    /// while the gate is unlimited must not dilute the first capped window's ratio, or a
+    /// burst that caps the gate after a long healthy run would decay Severe on its very
+    /// first recovery check (8/1,009 looking "low" when the capped period saw 8/9).
+    #[test]
+    fn unlimited_successes_do_not_dilute_the_first_capped_window() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        // 1,000 successful requests while unlimited.
+        for _ in 0..1000 {
+            bp.record_healthy_hint();
+        }
+        assert_eq!(bp.state().permits_max, None);
+        // A burst of backpressure caps the gate and escalates to severe.
+        for _ in 0..8 {
+            bp.record_backpressure();
+        }
+        assert_eq!(bp.severity(), BackpressureSeverity::Severe);
+        // One success, then let the first recovery window elapse. The window must
+        // contain only the capped outcomes (8 signals / 9 outcomes), so severity must
+        // NOT decay on a diluted 8/1,009 ratio.
+        bp.record_healthy_hint();
+        clock.advance(RECOVERY_INTERVAL + Duration::from_millis(1));
+        bp.record_healthy_hint();
+        assert_eq!(
+            bp.severity(),
+            BackpressureSeverity::Severe,
+            "unlimited-era successes leaked into the capped recovery window"
+        );
+    }
+
+    /// A sustained low-ratio trickle while already `Healthy` must converge to the same
+    /// end state as a fully quiet window — unlimited — instead of growing the cap
+    /// multiplicatively forever while phase 3 never fires.
+    #[test]
+    fn low_ratio_trickle_while_healthy_returns_to_unlimited() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        // Cap the gate, then keep a 5% trickle of signals for well past
+        // UNLIMITED_AFTER_HEALTHY: the low-ratio windows must decay severity and then
+        // keep the sustained-health clock running until the gate returns to unlimited.
+        bp.record_backpressure();
+        for i in 1..=3000u32 {
+            clock.advance(Duration::from_millis(20));
+            if i % 20 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+        }
+        let s = bp.state();
+        assert_eq!(s.severity, BackpressureSeverity::Healthy, "{s:?}");
+        assert_eq!(
+            s.permits_max, None,
+            "a low-ratio trickle must not pin the gate at an ever-growing cap: {s:?}"
         );
     }
 }
