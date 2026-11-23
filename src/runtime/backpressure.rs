@@ -521,9 +521,15 @@ impl BackpressureManager {
         st.last_recover_check = Some(now);
         let bp = st.window_backpressure;
         let total = bp.saturating_add(st.window_healthy);
-        st.window_backpressure = 0;
-        st.window_healthy = 0;
         let sampled = total >= MIN_RATIO_SAMPLES;
+        // An undersampled window is carried over, not discarded: at a low request rate
+        // (e.g. eight alternating outcomes per second) every single interval falls
+        // short of MIN_RATIO_SAMPLES, and discarding them would hide sustained 50%
+        // pressure forever. Only a quiet stretch drops an undersampled window.
+        if sampled || is_quiet(st, now) {
+            st.window_backpressure = 0;
+            st.window_healthy = 0;
+        }
         let low_ratio = sampled && (bp as f64) < (total as f64) * LOW_BACKPRESSURE_RATIO;
         if sampled && !low_ratio {
             st.healthy_since = None;
@@ -543,11 +549,17 @@ impl BackpressureManager {
         st.last_recover_check = Some(now);
 
         // Backpressure ratio over the window since the previous recovery check.
+        // An undersampled window is carried over into the next check (see
+        // judge_unlimited_window) so a low-rate high-ratio stream still accumulates
+        // enough samples to be judged; a quiet stretch drops it, preserving quiet
+        // recovery.
         let bp = st.window_backpressure;
         let total = bp.saturating_add(st.window_healthy);
-        st.window_backpressure = 0;
-        st.window_healthy = 0;
         let sampled = total >= MIN_RATIO_SAMPLES;
+        if sampled || is_quiet(st, now) {
+            st.window_backpressure = 0;
+            st.window_healthy = 0;
+        }
         let low_ratio = sampled && (bp as f64) < (total as f64) * LOW_BACKPRESSURE_RATIO;
 
         // A well-sampled window whose ratio is NOT low is real, sustained pressure —
@@ -571,9 +583,7 @@ impl BackpressureManager {
         // decays, even when it also happens to be quiet: the sampled high ratio is the
         // fresher evidence, and decaying on the quiet clause would undo the escalation
         // above in the same check.
-        let quiet = st
-            .last_event_at
-            .is_none_or(|t| now.duration_since(t) > DECAY_QUIET);
+        let quiet = is_quiet(st, now);
         if (quiet || low_ratio) && !worsening {
             match st.severity {
                 BackpressureSeverity::Severe => st.severity = BackpressureSeverity::Soft,
@@ -686,6 +696,12 @@ impl Drop for PermitGuard {
 }
 
 /// Reduce the permit cap by `factor` (never below the floor). Caller must hold the lock.
+/// No backpressure signal for longer than [`DECAY_QUIET`].
+fn is_quiet(st: &Inner, now: Instant) -> bool {
+    st.last_event_at
+        .is_none_or(|t| now.duration_since(t) > DECAY_QUIET)
+}
+
 fn scale_permits(st: &mut Inner, factor: f64) {
     if let Some(max) = st.permits_max {
         let next = ((max as f64 * factor).ceil() as u32).max(FLOOR);
@@ -1097,9 +1113,11 @@ mod tests {
         }
         assert_eq!(bp.state().permits_max, None, "must be unlimited first");
         let mut capped = false;
+        // Start with a success: the warmup ended with a 503, so starting with another
+        // would re-cap via the consecutive-signal path, not the window ratio.
         for i in 0..1000u32 {
             clock.advance(Duration::from_millis(10));
-            if i % 2 == 0 {
+            if i % 2 == 1 {
                 bp.record_backpressure();
             } else {
                 bp.record_healthy_hint();
@@ -1111,6 +1129,62 @@ mod tests {
             "interleaved 50% pressure must re-cap: {:?}",
             bp.state()
         );
+    }
+
+    /// Recover to unlimited (ending on a success), then sustain 50% pressure at a low
+    /// rate (eight alternating outcomes per second, so every interval is below
+    /// MIN_RATIO_SAMPLES): the undersampled windows must accumulate and re-cap.
+    #[test]
+    fn low_rate_interleaved_pressure_while_unlimited_recaps() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        bp.record_backpressure();
+        for i in 1..=3001u32 {
+            clock.advance(Duration::from_millis(20));
+            if i % 20 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+        }
+        assert_eq!(bp.state().permits_max, None, "must be unlimited first");
+        let mut capped = false;
+        for i in 0..400u32 {
+            clock.advance(Duration::from_millis(125));
+            if i % 2 == 1 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+            capped |= bp.state().permits_max.is_some();
+        }
+        assert!(
+            capped,
+            "low-rate 50% pressure must re-cap: {:?}",
+            bp.state()
+        );
+    }
+
+    /// While capped, low-rate 50% pressure (eight alternating outcomes per second)
+    /// must never reach unlimited: undersampled windows accumulate into a judged one.
+    #[test]
+    fn low_rate_interleaved_pressure_while_capped_stays_capped() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        bp.record_backpressure();
+        for i in 0..800u32 {
+            clock.advance(Duration::from_millis(125));
+            if i % 2 == 1 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+            assert!(
+                bp.state().permits_max.is_some(),
+                "low-rate 50% pressure reached unlimited at step {i}: {:?}",
+                bp.state()
+            );
+        }
     }
 
     /// A lone signal long after the gate returned to unlimited is a fresh episode:
