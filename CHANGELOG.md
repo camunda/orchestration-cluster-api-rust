@@ -1,3 +1,10 @@
+# [11.0.0-alpha.5](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.4...v11.0.0-alpha.5) (2026-11-23)
+
+
+### Bug Fixes
+
+* **backpressure:** recover BALANCED gate under a steady trickle of 503s ([#204](https://github.com/camunda/orchestration-cluster-api-rust/issues/204)) ([8f97c1d](https://github.com/camunda/orchestration-cluster-api-rust/commit/8f97c1d13317d8a3fdee3a4a977d8a8447f4893d)), closes [#203](https://github.com/camunda/orchestration-cluster-api-rust/issues/203) [#203](https://github.com/camunda/orchestration-cluster-api-rust/issues/203) [quiet-and-hi#ratio](https://github.com/quiet-and-hi/issues/ratio)
+
 # [11.0.0-alpha.4](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.3...v11.0.0-alpha.4) (2026-11-22)
 
 
