@@ -387,9 +387,20 @@ impl BackpressureManager {
     pub fn record_backpressure(&self) {
         let now = self.clock.now();
         let mut st = self.inner.lock().unwrap();
+        // A signal after a long silence while unlimited is a fresh episode, not part
+        // of a trickle: expire the stale sustained-health clock so it boots a cap.
+        if st.permits_max.is_none()
+            && st.healthy_since.is_some()
+            && st
+                .last_event_at
+                .is_none_or(|t| now.duration_since(t) >= UNLIMITED_AFTER_HEALTHY)
+        {
+            st.healthy_since = None;
+        }
         st.last_event_at = Some(now);
         st.consecutive += 1;
         st.window_backpressure = st.window_backpressure.saturating_add(1);
+        self.judge_unlimited_window(&mut st, now);
 
         // A signal interrupts the sustained-health stretch only when it is real
         // pressure — two or more signals back to back. A lone trickle signal keeps the
@@ -483,10 +494,40 @@ impl BackpressureManager {
         // The recovery window measures the current capped period only, so a success
         // recorded while unlimited is not counted — otherwise a long healthy run
         // before the first signal would dilute the first capped window's ratio.
-        if st.permits_max.is_some() {
+        // While unlimited with the sustained-health clock still running, successes
+        // are counted too, so `judge_unlimited_window` can tell a tolerated trickle
+        // from sustained interleaved pressure.
+        if st.permits_max.is_some() || st.healthy_since.is_some() {
             st.window_healthy = st.window_healthy.saturating_add(1);
         }
+        self.judge_unlimited_window(&mut st, now);
         self.maybe_recover(&mut st, now);
+    }
+
+    /// While unlimited, the sustained-health clock left set by phase 3 makes lone
+    /// signals tolerated. Judge that tolerance once per recovery interval by the
+    /// window ratio: a well-sampled window that is not low-ratio (e.g. alternating
+    /// 503s and successes, never two in a row) is sustained pressure, so the clock is
+    /// cleared and the next signal boots a cap. Caller must hold the lock.
+    fn judge_unlimited_window(&self, st: &mut Inner, now: Instant) {
+        if self.observe_only || st.permits_max.is_some() || st.healthy_since.is_none() {
+            return;
+        }
+        if let Some(last) = st.last_recover_check {
+            if now.duration_since(last) < RECOVERY_INTERVAL {
+                return;
+            }
+        }
+        st.last_recover_check = Some(now);
+        let bp = st.window_backpressure;
+        let total = bp.saturating_add(st.window_healthy);
+        st.window_backpressure = 0;
+        st.window_healthy = 0;
+        let sampled = total >= MIN_RATIO_SAMPLES;
+        let low_ratio = sampled && (bp as f64) < (total as f64) * LOW_BACKPRESSURE_RATIO;
+        if sampled && !low_ratio {
+            st.healthy_since = None;
+        }
     }
 
     /// Passive recovery check. Caller must hold the lock.
@@ -1037,6 +1078,60 @@ mod tests {
             s.permits_max, None,
             "a low-ratio trickle must not pin the gate at an ever-growing cap: {s:?}"
         );
+    }
+
+    /// Recover to unlimited, then sustain interleaved 50% pressure (never two 503s in
+    /// a row): the window judge must clear the stale clock and re-cap the gate.
+    #[test]
+    fn interleaved_pressure_while_unlimited_recaps() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        bp.record_backpressure();
+        for i in 1..=3000u32 {
+            clock.advance(Duration::from_millis(20));
+            if i % 20 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+        }
+        assert_eq!(bp.state().permits_max, None, "must be unlimited first");
+        let mut capped = false;
+        for i in 0..1000u32 {
+            clock.advance(Duration::from_millis(10));
+            if i % 2 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+            capped |= bp.state().permits_max.is_some();
+        }
+        assert!(
+            capped,
+            "interleaved 50% pressure must re-cap: {:?}",
+            bp.state()
+        );
+    }
+
+    /// A lone signal long after the gate returned to unlimited is a fresh episode:
+    /// the stale sustained-health clock must not suppress the boot.
+    #[test]
+    fn lone_signal_long_after_unlimited_boots_cap() {
+        let clock = Arc::new(super::super::clock::ManualClock::new());
+        let bp = BackpressureManager::new(BackpressureProfile::Balanced, clock.clone());
+        bp.record_backpressure();
+        for i in 1..=3000u32 {
+            clock.advance(Duration::from_millis(20));
+            if i % 20 == 0 {
+                bp.record_backpressure();
+            } else {
+                bp.record_healthy_hint();
+            }
+        }
+        assert_eq!(bp.state().permits_max, None, "must be unlimited first");
+        clock.advance(Duration::from_secs(3600));
+        bp.record_backpressure();
+        assert!(bp.state().permits_max.is_some(), "{:?}", bp.state());
     }
 
     /// After phase 3 returns to unlimited the sustained-health clock is left set. A
