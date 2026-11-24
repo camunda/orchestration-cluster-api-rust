@@ -16,7 +16,7 @@ use serde::{de::Error as _, Deserialize, Serialize};
 /// struct for passing parameters to the method [`list_secrets`]
 #[derive(Clone, Debug)]
 pub struct ListSecretsParams {
-    pub body: Option<serde_json::Value>,
+    pub secret_list_request: Option<models::SecretListRequest>,
 }
 
 /// struct for passing parameters to the method [`resolve_secrets`]
@@ -81,7 +81,7 @@ impl ResolveSecretsError {
     }
 }
 
-/// List the `camunda.secrets.*` references known for the caller's physical tenant.  Only references the caller holds `SECRET:READ` on are returned. This endpoint never returns secret values, only the reference names.  The references are read from the secret stores configured for the caller's physical tenant. A store may hold names outside the reference name charset (for example one containing a dot); those are omitted, since `/secrets/resolve` would reject them and no permission can be granted on them.  A returned reference is usable verbatim with `/secrets/resolve`. In a FEEL expression, however, a name that is not a bare identifier has to be backtick-escaped, since FEEL reads a bare dash as the minus operator: a listed `camunda.secrets.db-password` is written `` =camunda.secrets.`db-password` `` in a BPMN input mapping.
+/// List the `camunda.secrets.*` references known for the caller's physical tenant.  Only references the caller holds `SECRET:READ` on are returned. This endpoint never returns secret values, only the reference names.  The references are read from the secret stores configured for the caller's physical tenant. A store may hold names outside the reference name charset (for example one containing a dot); those are omitted, since `/secrets/resolve` would reject them and no permission can be granted on them.  A returned reference is usable verbatim with `/secrets/resolve`, although a secret that its store does not report as `ACTIVE` may fail to resolve there. In a FEEL expression, however, a name that is not a bare identifier has to be backtick-escaped, since FEEL reads a bare dash as the minus operator: a listed `camunda.secrets.db-password` is written `` =camunda.secrets.`db-password` `` in a BPMN input mapping.  Pass `filter.status` to list only the secrets in the matching states, either as a single status or with the advanced operators (`$in`, `$neq`, ...). A store that does not report states reports every secret as `ACTIVE`, so a filter that excludes `ACTIVE` returns nothing from it. The status filter does not widen access: a reference the caller may not read is never returned, with or without a filter.
 pub async fn list_secrets(
     configuration: &configuration::Configuration,
     params: ListSecretsParams,
@@ -100,7 +100,7 @@ pub async fn list_secrets(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    if let Some(ref body) = params.body {
+    if let Some(ref body) = params.secret_list_request {
         req_builder = req_builder.json(body);
     }
 

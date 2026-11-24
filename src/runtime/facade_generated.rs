@@ -3904,6 +3904,26 @@ impl CamundaClient {
         })
         .await
     }
+
+    /// Search variable history (`POST /variables/history/search`).
+    pub async fn search_variable_history(
+        &self,
+        params: camunda_orchestration_api_client::apis::variable_api::SearchVariableHistoryParams,
+    ) -> Result<models::VariableHistoryItemSearchQueryResult> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::variable_api::search_variable_history(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
 }
 
 /// Apply the effective default tenant to `resume_process_definitions` when the body leaves `tenantId` unset.
