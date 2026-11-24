@@ -1,3 +1,10 @@
+# [11.0.0-alpha.7](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.6...v11.0.0-alpha.7) (2026-11-24)
+
+
+### Bug Fixes
+
+* **worker:** wait for an activation threshold of free credits before polling ([#213](https://github.com/camunda/orchestration-cluster-api-rust/issues/213)) ([40008cb](https://github.com/camunda/orchestration-cluster-api-rust/commit/40008cb6147ff81fceabdde91828a9a1da1ccda1)), closes [#212](https://github.com/camunda/orchestration-cluster-api-rust/issues/212)
+
 # [11.0.0-alpha.6](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.5...v11.0.0-alpha.6) (2026-11-24)
 
 
