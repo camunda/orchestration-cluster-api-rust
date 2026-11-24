@@ -1469,6 +1469,13 @@
       "label": "Search users for tenant"
     }
   ],
+  "searchVariableHistory": [
+    {
+      "file": "variable.rs",
+      "region": "SearchVariableHistory",
+      "label": "Search variable history"
+    }
+  ],
   "searchVariables": [
     {
       "file": "variable.rs",
