@@ -2133,19 +2133,22 @@ mod tests {
         let in_flight = Arc::new(AtomicUsize::new(0));
         let peak = Arc::new(AtomicUsize::new(0));
         let done = Arc::new(AtomicUsize::new(0));
+        // Handlers park until the test hands them a permit, so the test alone decides
+        // when (and how many) credits return -- no timer-dependent scheduling.
+        let gate = Arc::new(tokio::sync::Semaphore::new(0));
         let worker = client.create_job_worker(
             JobWorkerConfig::new("test-type").max_jobs_to_activate(CAPACITY as i32),
         );
         let handle = {
-            let (in_flight, peak, done) = (in_flight.clone(), peak.clone(), done.clone());
+            let (in_flight, peak, done, gate) =
+                (in_flight.clone(), peak.clone(), done.clone(), gate.clone());
             worker.spawn(move |_job| {
-                let (in_flight, peak, done) = (in_flight.clone(), peak.clone(), done.clone());
+                let (in_flight, peak, done, gate) =
+                    (in_flight.clone(), peak.clone(), done.clone(), gate.clone());
                 async move {
                     let now = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
                     peak.fetch_max(now, Ordering::SeqCst);
-                    // Handlers finish one by one, so credits return one at a time.
-                    #[allow(clippy::disallowed_methods)] // test-only handler work
-                    tokio::time::sleep(Duration::from_millis(2)).await;
+                    gate.acquire().await.unwrap().forget();
                     in_flight.fetch_sub(1, Ordering::SeqCst);
                     done.fetch_add(1, Ordering::SeqCst);
                     JobAction::Leave
@@ -2153,33 +2156,71 @@ mod tests {
             })
         };
 
-        tokio::time::timeout(Duration::from_secs(30), async {
-            while done.load(Ordering::SeqCst) < BACKLOG {
+        async fn until(what: &str, cond: impl Fn() -> bool) {
+            tokio::time::timeout(Duration::from_secs(10), async {
+                while !cond() {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .unwrap_or_else(|_| panic!("timed out waiting for {what}"));
+        }
+        let threshold = (CAPACITY * 3) / 10;
+        let activations = || log.lock().unwrap().iter().filter(|(_, g)| *g > 0).count();
+
+        // Idle: the first poll asks for the full capacity at once.
+        until("saturation", || {
+            in_flight.load(Ordering::SeqCst) == CAPACITY
+        })
+        .await;
+        assert_eq!(log.lock().unwrap()[0].0, CAPACITY);
+        assert_eq!(activations(), 1);
+
+        // Saturated: freeing threshold-1 credits must not trigger a poll.
+        gate.add_permits(threshold - 1);
+        until("sub-threshold completions", || {
+            done.load(Ordering::SeqCst) == threshold - 1
+        })
+        .await;
+        let early = tokio::time::timeout(Duration::from_millis(300), async {
+            while log.lock().unwrap().len() == 1 {
                 tokio::task::yield_now().await;
             }
         })
-        .await
-        .expect("worker should drain the backlog");
+        .await;
+        assert!(
+            early.is_err(),
+            "polled with fewer than {threshold} free credits: {:?}",
+            log.lock().unwrap()
+        );
+
+        // The threshold-th freed credit resumes polling with a threshold-sized batch.
+        gate.add_permits(1);
+        until("second activation", || log.lock().unwrap().len() >= 2).await;
+        assert_eq!(log.lock().unwrap()[1].0, threshold);
+
+        // Drain the rest one credit at a time: the worst case for per-credit polling.
+        let mut released = threshold;
+        while released < BACKLOG {
+            gate.add_permits(1);
+            released += 1;
+            until("one completion", || done.load(Ordering::SeqCst) >= released).await;
+        }
         handle.shutdown().await.unwrap();
 
         let log = log.lock().unwrap().clone();
         let busy: Vec<_> = log.iter().filter(|(_, got)| *got > 0).collect();
         let jobs: usize = busy.iter().map(|(_, got)| got).sum();
         assert_eq!(jobs, BACKLOG);
-        let threshold = (CAPACITY * 3) / 10;
         for (requested, _) in &log {
             assert!(
-                *requested >= threshold,
-                "every activation must ask for at least the threshold ({threshold}): {log:?}"
+                (threshold..=CAPACITY).contains(requested),
+                "every activation must ask for threshold ({threshold})..=capacity: {log:?}"
             );
         }
-        let mean = jobs as f64 / busy.len() as f64;
+        // Per-credit polling would need ~BACKLOG - CAPACITY activations.
         assert!(
-            mean >= threshold as f64,
-            "mean jobs per activation {mean} should be near capacity, not ~1: {log:?}"
-        );
-        assert!(
-            busy.len() <= BACKLOG / threshold + 1,
+            busy.len() <= (BACKLOG - CAPACITY) / threshold + 2,
             "too many activations ({}) for {BACKLOG} jobs: {log:?}",
             busy.len()
         );
