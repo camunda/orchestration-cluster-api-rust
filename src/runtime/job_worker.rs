@@ -146,6 +146,13 @@ pub struct JobWorkerConfig {
     /// failures. `None` (the default) retries until the worker is stopped. Set it to
     /// fail fast instead of riding out an outage.
     pub max_consecutive_poll_failures: Option<u32>,
+    /// Minimum number of free in-flight credits the REST poller waits for before it sends
+    /// the next activation while jobs are still in flight. `None` (the default) uses
+    /// `max(1, max_jobs_to_activate * 0.3)`, as the Go and Java clients do. When no job is
+    /// in flight the worker polls immediately regardless. Clamped to
+    /// `1..=max_jobs_to_activate`. Waiting for a batch of credits avoids a flood of tiny
+    /// activations (one per finished handler) under load; the in-flight cap is unaffected.
+    pub activation_threshold: Option<u32>,
 }
 
 impl std::fmt::Debug for JobWorkerConfig {
@@ -169,6 +176,7 @@ impl std::fmt::Debug for JobWorkerConfig {
                 "max_consecutive_poll_failures",
                 &self.max_consecutive_poll_failures,
             )
+            .field("activation_threshold", &self.activation_threshold)
             .field("on_ready", &self.on_ready.as_ref().map(|_| "<callback>"))
             .finish()
     }
@@ -191,6 +199,7 @@ impl JobWorkerConfig {
             on_ready: None,
             max_poll_backoff_ms: DEFAULT_MAX_POLL_BACKOFF_MS,
             max_consecutive_poll_failures: None,
+            activation_threshold: None,
         }
     }
 
@@ -211,6 +220,7 @@ impl JobWorkerConfig {
             on_ready: None,
             max_poll_backoff_ms: DEFAULT_MAX_POLL_BACKOFF_MS,
             max_consecutive_poll_failures: None,
+            activation_threshold: None,
         }
     }
 
@@ -280,6 +290,27 @@ impl JobWorkerConfig {
     pub fn max_consecutive_poll_failures(mut self, n: u32) -> Self {
         self.max_consecutive_poll_failures = Some(n.max(1));
         self
+    }
+
+    /// Set the number of free credits the REST poller waits for before activating more
+    /// jobs while others are in flight. See
+    /// [`JobWorkerConfig::activation_threshold`](Self::activation_threshold).
+    pub fn activation_threshold(mut self, n: u32) -> Self {
+        self.activation_threshold = Some(n);
+        self
+    }
+
+    /// The effective activation threshold for this config: the configured value, or
+    /// `max(1, max_jobs_to_activate * 0.3)`, clamped to `1..=max_jobs_to_activate` and to
+    /// the per-poll batch cap.
+    pub(crate) fn effective_activation_threshold(&self) -> usize {
+        let capacity = self.max_jobs_to_activate.max(1) as usize;
+        let default = (capacity * 3) / 10;
+        let wanted = self
+            .activation_threshold
+            .map(|n| n as usize)
+            .unwrap_or(default);
+        wanted.clamp(1, capacity.min(MAX_ACTIVATE_BATCH))
     }
 
     /// Register a callback fired once when this worker becomes ready to receive jobs
@@ -745,6 +776,7 @@ impl JobWorker {
         // `run_boxed` rejects a non-positive `max_jobs_to_activate`, so `capacity` is
         // always >= 1 here and the semaphore always hands out at least one credit.
         let semaphore = Arc::new(tokio::sync::Semaphore::new(capacity));
+        let threshold = self.config.effective_activation_threshold();
 
         // In-flight handler tasks. We spawn dispatched jobs here instead of dropping the
         // handles so shutdown can drain them: on `stop` we stop polling but still await
@@ -762,33 +794,37 @@ impl JobWorker {
                 break;
             }
 
-            // Block until at least one credit is free, then take up to a bounded batch
-            // of the other free credits without blocking. We request exactly as many
-            // jobs as we hold credits for, so activation never over-fetches beyond the
-            // in-flight cap. The batch is capped at `MAX_ACTIVATE_BATCH` so a huge
-            // configured `max_jobs_to_activate` cannot make this loop materialize a vast
-            // Vec of permits (memory exhaustion) before the first activation — the full
-            // window still fills over successive polls.
-            let first = semaphore
+            // Block until at least `threshold` credits are free, then take up to a
+            // bounded batch of the other free credits without blocking. When the worker
+            // is idle every credit is free, so this returns at once; while jobs are in
+            // flight it waits for a worthwhile batch instead of polling for each credit
+            // a finished handler returns (as the Go and Java clients do). We request
+            // exactly as many jobs as we hold credits for, so activation never
+            // over-fetches beyond the in-flight cap. The batch is capped at
+            // `MAX_ACTIVATE_BATCH` so a huge configured `max_jobs_to_activate` cannot
+            // request an unbounded batch — the full window fills over successive polls.
+            let mut batch = semaphore
                 .clone()
-                .acquire_owned()
+                .acquire_many_owned(threshold as u32)
                 .await
                 .expect("job-worker semaphore is never closed");
             // Shutdown may have been requested while we were parked waiting for a credit.
             // Recheck before building an activation request so we never activate and
             // dispatch a fresh job after `shutdown()` was called.
             if self.stop.load(Ordering::SeqCst) {
-                drop(first);
+                drop(batch);
                 break;
             }
-            let mut permits = vec![first];
-            while permits.len() < MAX_ACTIVATE_BATCH {
-                match semaphore.clone().try_acquire_owned() {
-                    Ok(permit) => permits.push(permit),
-                    Err(_) => break,
+            let extra = semaphore
+                .available_permits()
+                .min(MAX_ACTIVATE_BATCH - batch.num_permits());
+            if extra > 0 {
+                if let Ok(more) = semaphore.clone().try_acquire_many_owned(extra as u32) {
+                    batch.merge(more);
                 }
             }
-            let want = permits.len() as i32;
+            let want = batch.num_permits() as i32;
+            let permits = batch;
 
             let jobs = match self.poll(want).await {
                 Ok(jobs) => {
@@ -870,9 +906,9 @@ impl JobWorker {
             // Pair each activated job with a credit and dispatch it without waiting.
             // Any surplus credits (fewer jobs returned than requested) are dropped here,
             // returning them to the window for the next poll.
-            let mut permits = permits.into_iter();
+            let mut permits = permits;
             for activated in jobs {
-                let permit = permits.next();
+                let permit = permits.split(1);
                 let job = self.wrap_job(activated);
                 let client = self.client.clone();
                 let handler = handler.clone();
@@ -1988,6 +2024,169 @@ mod tests {
                 "unexpected error: {err}"
             );
         }
+    }
+
+    #[test]
+    fn activation_threshold_defaults_to_thirty_percent_and_is_clamped() {
+        let t = |cap: i32, n: Option<u32>| {
+            let mut c = JobWorkerConfig::new("t").max_jobs_to_activate(cap);
+            if let Some(n) = n {
+                c = c.activation_threshold(n);
+            }
+            c.effective_activation_threshold()
+        };
+        assert_eq!(t(1, None), 1);
+        assert_eq!(t(2, None), 1);
+        assert_eq!(t(10, None), 3);
+        assert_eq!(t(32, None), 9);
+        assert_eq!(t(10, Some(0)), 1);
+        assert_eq!(t(10, Some(7)), 7);
+        assert_eq!(t(10, Some(50)), 10);
+        assert_eq!(t(5000, Some(5000)), MAX_ACTIVATE_BATCH);
+    }
+
+    /// A saturated worker with a backlog must activate near-capacity batches, not one job
+    /// per freed credit (https://github.com/camunda/orchestration-cluster-api-rust/issues/212),
+    /// while never holding more jobs in flight than `max_jobs_to_activate`.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn saturated_worker_activates_near_capacity_batches() {
+        use std::sync::atomic::AtomicUsize;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        const CAPACITY: usize = 20;
+        const BACKLOG: usize = 400;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let remaining = Arc::new(std::sync::Mutex::new(BACKLOG));
+        // (requested, returned) per activation.
+        let log = Arc::new(std::sync::Mutex::new(Vec::<(usize, usize)>::new()));
+        {
+            let remaining = remaining.clone();
+            let log = log.clone();
+            tokio::spawn(async move {
+                while let Ok((mut sock, _)) = listener.accept().await {
+                    let remaining = remaining.clone();
+                    let log = log.clone();
+                    tokio::spawn(async move {
+                        let mut buf = Vec::new();
+                        let mut tmp = [0u8; 4096];
+                        let header_end = loop {
+                            match sock.read(&mut tmp).await {
+                                Ok(0) | Err(_) => return,
+                                Ok(n) => {
+                                    buf.extend_from_slice(&tmp[..n]);
+                                    if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n")
+                                    {
+                                        break pos + 4;
+                                    }
+                                }
+                            }
+                        };
+                        let content_len = String::from_utf8_lossy(&buf[..header_end])
+                            .lines()
+                            .find_map(|l| {
+                                l.to_ascii_lowercase()
+                                    .strip_prefix("content-length:")
+                                    .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                            })
+                            .unwrap_or(0);
+                        while buf.len() < header_end + content_len {
+                            match sock.read(&mut tmp).await {
+                                Ok(0) | Err(_) => break,
+                                Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                            }
+                        }
+                        let req: Value = serde_json::from_slice(&buf[header_end..]).unwrap();
+                        let requested = req["maxJobsToActivate"].as_u64().unwrap() as usize;
+                        let granted = {
+                            let mut r = remaining.lock().unwrap();
+                            let g = (*r).min(requested);
+                            *r -= g;
+                            g
+                        };
+                        log.lock().unwrap().push((requested, granted));
+                        let body = serde_json::to_string(&models::JobActivationResult::new(
+                            (0..granted).map(|_| fake_activated()).collect(),
+                        ))
+                        .unwrap();
+                        let resp = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                            body.len(),
+                            body
+                        );
+                        let _ = sock.write_all(resp.as_bytes()).await;
+                        let _ = sock.flush().await;
+                    });
+                }
+            });
+        }
+
+        let client = CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", format!("http://{addr}"))
+                .with("CAMUNDA_FALCON", "false"),
+        )
+        .expect("client should build from an address alone");
+
+        let in_flight = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let done = Arc::new(AtomicUsize::new(0));
+        let worker = client.create_job_worker(
+            JobWorkerConfig::new("test-type").max_jobs_to_activate(CAPACITY as i32),
+        );
+        let handle = {
+            let (in_flight, peak, done) = (in_flight.clone(), peak.clone(), done.clone());
+            worker.spawn(move |_job| {
+                let (in_flight, peak, done) = (in_flight.clone(), peak.clone(), done.clone());
+                async move {
+                    let now = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+                    peak.fetch_max(now, Ordering::SeqCst);
+                    // Handlers finish one by one, so credits return one at a time.
+                    #[allow(clippy::disallowed_methods)] // test-only handler work
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                    in_flight.fetch_sub(1, Ordering::SeqCst);
+                    done.fetch_add(1, Ordering::SeqCst);
+                    JobAction::Leave
+                }
+            })
+        };
+
+        tokio::time::timeout(Duration::from_secs(30), async {
+            while done.load(Ordering::SeqCst) < BACKLOG {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("worker should drain the backlog");
+        handle.shutdown().await.unwrap();
+
+        let log = log.lock().unwrap().clone();
+        let busy: Vec<_> = log.iter().filter(|(_, got)| *got > 0).collect();
+        let jobs: usize = busy.iter().map(|(_, got)| got).sum();
+        assert_eq!(jobs, BACKLOG);
+        let threshold = (CAPACITY * 3) / 10;
+        for (requested, _) in &log {
+            assert!(
+                *requested >= threshold,
+                "every activation must ask for at least the threshold ({threshold}): {log:?}"
+            );
+        }
+        let mean = jobs as f64 / busy.len() as f64;
+        assert!(
+            mean >= threshold as f64,
+            "mean jobs per activation {mean} should be near capacity, not ~1: {log:?}"
+        );
+        assert!(
+            busy.len() <= BACKLOG / threshold + 1,
+            "too many activations ({}) for {BACKLOG} jobs: {log:?}",
+            busy.len()
+        );
+        assert!(
+            peak.load(Ordering::SeqCst) <= CAPACITY,
+            "in-flight cap exceeded"
+        );
     }
 
     /// The REST poller must not block on the slowest handler: a job whose handler is
