@@ -1,3 +1,10 @@
+# [11.0.0-alpha.6](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.5...v11.0.0-alpha.6) (2026-11-24)
+
+
+### Features
+
+* add example coverage for searchVariableHistory ([#211](https://github.com/camunda/orchestration-cluster-api-rust/issues/211)) ([7257a50](https://github.com/camunda/orchestration-cluster-api-rust/commit/7257a501b5ab7b464735d1d052b1f659706f3ba6))
+
 # [11.0.0-alpha.5](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.4...v11.0.0-alpha.5) (2026-11-23)
 
 
