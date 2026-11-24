@@ -5761,6 +5761,188 @@ impl FromStr for Username {
     }
 }
 
+/// System-generated key for a variable history item.
+///
+/// Example: `2251799813683999`
+static VARIABLE_HISTORY_ITEM_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct VariableHistoryItemKey(String);
+
+impl VariableHistoryItemKey {
+    /// Construct without validation. Use when side-loading values not received from an API call.
+    pub fn assume_exists(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Construct with constraint validation.
+    pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        let v = value.into();
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&VARIABLE_HISTORY_ITEM_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
+        Ok(Self(v))
+    }
+
+    /// Returns true if the value satisfies this type's constraints.
+    pub fn is_valid(value: &str) -> bool {
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&VARIABLE_HISTORY_ITEM_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
+    }
+
+    /// The underlying string value.
+    pub fn value(&self) -> &str {
+        &self.0
+    }
+
+    /// Consume the newtype and return the underlying string value.
+    pub fn into_value(self) -> String {
+        self.0
+    }
+}
+
+impl CamundaKey for VariableHistoryItemKey {
+    const SEMANTIC_TYPE: &'static str = "VariableHistoryItemKey";
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
+}
+
+impl fmt::Display for VariableHistoryItemKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<VariableHistoryItemKey> for String {
+    fn from(v: VariableHistoryItemKey) -> String {
+        v.0
+    }
+}
+
+impl AsRef<str> for VariableHistoryItemKey {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl FromStr for VariableHistoryItemKey {
+    type Err = CamundaKeyError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
+}
+
+/// Matches the value exactly.
+static VARIABLE_HISTORY_ITEM_KEY_EXACT_MATCH_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct VariableHistoryItemKeyExactMatch(String);
+
+impl VariableHistoryItemKeyExactMatch {
+    /// Construct without validation. Use when side-loading values not received from an API call.
+    pub fn assume_exists(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Construct with constraint validation.
+    pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        let v = value.into();
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&VARIABLE_HISTORY_ITEM_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
+        Ok(Self(v))
+    }
+
+    /// Returns true if the value satisfies this type's constraints.
+    pub fn is_valid(value: &str) -> bool {
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&VARIABLE_HISTORY_ITEM_KEY_EXACT_MATCH_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
+    }
+
+    /// The underlying string value.
+    pub fn value(&self) -> &str {
+        &self.0
+    }
+
+    /// Consume the newtype and return the underlying string value.
+    pub fn into_value(self) -> String {
+        self.0
+    }
+}
+
+impl CamundaKey for VariableHistoryItemKeyExactMatch {
+    const SEMANTIC_TYPE: &'static str = "VariableHistoryItemKeyExactMatch";
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
+}
+
+impl fmt::Display for VariableHistoryItemKeyExactMatch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<VariableHistoryItemKeyExactMatch> for String {
+    fn from(v: VariableHistoryItemKeyExactMatch) -> String {
+        v.0
+    }
+}
+
+impl AsRef<str> for VariableHistoryItemKeyExactMatch {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl FromStr for VariableHistoryItemKeyExactMatch {
+    type Err = CamundaKeyError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
+}
+
 /// System-generated key for a variable.
 ///
 /// Example: `2251799813683287`

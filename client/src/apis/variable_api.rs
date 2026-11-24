@@ -20,6 +20,14 @@ pub struct GetVariableParams {
     pub variable_key: String,
 }
 
+/// struct for passing parameters to the method [`search_variable_history`]
+#[derive(Clone, Debug)]
+pub struct SearchVariableHistoryParams {
+    /// When true (default), long variable values in the response are truncated. When false, full variable values are returned where available.
+    pub truncate_values: Option<bool>,
+    pub variable_history_item_search_query: Option<models::VariableHistoryItemSearchQuery>,
+}
+
 /// struct for passing parameters to the method [`search_variables`]
 #[derive(Clone, Debug)]
 pub struct SearchVariablesParams {
@@ -51,6 +59,34 @@ impl GetVariableError {
             401 => serde_json::from_str(content).ok().map(Self::Status401),
             403 => serde_json::from_str(content).ok().map(Self::Status403),
             404 => serde_json::from_str(content).ok().map(Self::Status404),
+            500 => serde_json::from_str(content).ok().map(Self::Status500),
+            _ => None,
+        };
+        declared.or_else(|| serde_json::from_str(content).ok().map(Self::UnknownValue))
+    }
+}
+
+/// struct for typed errors of method [`search_variable_history`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SearchVariableHistoryError {
+    Status400(models::ProblemDetail),
+    Status401(models::ProblemDetail),
+    Status403(models::ProblemDetail),
+    Status500(models::ProblemDetail),
+    UnknownValue(serde_json::Value),
+}
+
+impl SearchVariableHistoryError {
+    /// Decode an error response body into the variant declared for `status`.
+    ///
+    /// The variants share payload types, so deserializing this untagged enum directly
+    /// selects the first variant that fits, whatever the status.
+    pub fn from_response(status: u16, content: &str) -> Option<Self> {
+        let declared: Option<Self> = match status {
+            400 => serde_json::from_str(content).ok().map(Self::Status400),
+            401 => serde_json::from_str(content).ok().map(Self::Status401),
+            403 => serde_json::from_str(content).ok().map(Self::Status403),
             500 => serde_json::from_str(content).ok().map(Self::Status500),
             _ => None,
         };
@@ -130,6 +166,62 @@ pub async fn get_variable(
         let content = resp.text().await?;
         let entity: Option<GetVariableError> =
             GetVariableError::from_response(status.as_u16(), &content);
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Search for variable history items, which record the changes made to a variable's value over time. The audit log configuration decides which changes are recorded; by default, only changes made by users are.  Results are sorted by `variableHistoryItemKey` ascending by default, which lists the changes of one variable from oldest to newest. Across partitions, the key says nothing about time: a search that spans partitions, for example by process definition, lists the changes of one partition after the other.  By default, the endpoint truncates long variable values in the response. For the output collection of a multi-instance element or an ad-hoc sub-process, the endpoint cuts the value at the size limit regardless of the `truncateValues` parameter. The truncation size limit is configurable.
+pub async fn search_variable_history(
+    configuration: &configuration::Configuration,
+    params: SearchVariableHistoryParams,
+) -> Result<models::VariableHistoryItemSearchQueryResult, Error<SearchVariableHistoryError>> {
+    let uri_str = format!("{}/variables/history/search", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref param_value) = params.truncate_values {
+        req_builder = req_builder.query(&[("truncateValues", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref auth_conf) = configuration.basic_auth {
+        req_builder = req_builder.basic_auth(auth_conf.0.to_owned(), auth_conf.1.to_owned());
+    };
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    if let Some(ref body) = params.variable_history_item_search_query {
+        req_builder = req_builder.json(body);
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::VariableHistoryItemSearchQueryResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::VariableHistoryItemSearchQueryResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<SearchVariableHistoryError> =
+            SearchVariableHistoryError::from_response(status.as_u16(), &content);
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

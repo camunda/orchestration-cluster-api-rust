@@ -11,17 +11,17 @@ Method | HTTP request | Description
 
 ## list_secrets
 
-> models::SecretListResult list_secrets(body)
+> models::SecretListResult list_secrets(secret_list_request)
 List secrets
 
-List the `camunda.secrets.*` references known for the caller's physical tenant.  Only references the caller holds `SECRET:READ` on are returned. This endpoint never returns secret values, only the reference names.  The references are read from the secret stores configured for the caller's physical tenant. A store may hold names outside the reference name charset (for example one containing a dot); those are omitted, since `/secrets/resolve` would reject them and no permission can be granted on them.  A returned reference is usable verbatim with `/secrets/resolve`. In a FEEL expression, however, a name that is not a bare identifier has to be backtick-escaped, since FEEL reads a bare dash as the minus operator: a listed `camunda.secrets.db-password` is written `` =camunda.secrets.`db-password` `` in a BPMN input mapping. 
+List the `camunda.secrets.*` references known for the caller's physical tenant.  Only references the caller holds `SECRET:READ` on are returned. This endpoint never returns secret values, only the reference names.  The references are read from the secret stores configured for the caller's physical tenant. A store may hold names outside the reference name charset (for example one containing a dot); those are omitted, since `/secrets/resolve` would reject them and no permission can be granted on them.  A returned reference is usable verbatim with `/secrets/resolve`, although a secret that its store does not report as `ACTIVE` may fail to resolve there. In a FEEL expression, however, a name that is not a bare identifier has to be backtick-escaped, since FEEL reads a bare dash as the minus operator: a listed `camunda.secrets.db-password` is written `` =camunda.secrets.`db-password` `` in a BPMN input mapping.  Pass `filter.status` to list only the secrets in the matching states, either as a single status or with the advanced operators (`$in`, `$neq`, ...). A store that does not report states reports every secret as `ACTIVE`, so a filter that excludes `ACTIVE` returns nothing from it. The status filter does not widen access: a reference the caller may not read is never returned, with or without a filter. 
 
 ### Parameters
 
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**body** | Option<**serde_json::Value**> |  |  |
+**secret_list_request** | Option<[**SecretListRequest**](SecretListRequest.md)> |  |  |
 
 ### Return type
 
