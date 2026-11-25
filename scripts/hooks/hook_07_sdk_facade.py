@@ -57,6 +57,10 @@ CURATED_SKIP = {
     "publish_message",
     "search_variables",
     "throw_job_error",
+    # a drain operation like job completion: answering a probe finishes work a worker already
+    # activated, so it must not queue behind the permits that pending probe creations and
+    # activation long polls hold, or it misses the probe's deadline. Curated, ungated wrapper.
+    "answer_probe",
     # superseded by the curated `topology()` wrapper
     "get_topology",
     # superseded by curated wrappers that inject the configured default tenant id
