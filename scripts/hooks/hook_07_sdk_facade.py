@@ -23,6 +23,12 @@ list: every generated operation whose JSON request body (or a ``oneOf``/``anyOf`
 of it) is listed in ``optionalTenantIdInBodyVariants`` gets an ``inject_default_tenant_<op>`` helper that
 fills the effective default tenant (configured ``CAMUNDA_TENANT_ID`` or ``<default>``)
 when the caller left it unset, on that variant only — mirroring the Camunda Java client.
+
+Operations whose body carries an optional ``tenantIds`` list plus a ``tenantFilter``
+(``optionalTenantIdsInBody``, e.g. ``activateProbes``) get an
+``inject_default_tenant_ids_<op>`` helper instead, which applies the same rule as the curated
+``activate_jobs`` through ``apply_default_tenant_ids``: with no ids, and a filter other than
+``ASSIGNED``, send ``[<effective default tenant>]``. ``activate_jobs`` keeps its curated wrapper.
 """
 
 from __future__ import annotations
@@ -51,6 +57,10 @@ CURATED_SKIP = {
     "publish_message",
     "search_variables",
     "throw_job_error",
+    # a drain operation like job completion: answering a probe finishes work a worker already
+    # activated, so it must not queue behind the permits that pending probe creations and
+    # activation long polls hold, or it misses the probe's deadline. Curated, ungated wrapper.
+    "answer_probe",
     # superseded by the curated `topology()` wrapper
     "get_topology",
     # superseded by curated wrappers that inject the configured default tenant id
@@ -141,6 +151,46 @@ def build_tenant_injection_map(spec: dict, metadata: dict | None) -> dict[str, d
             if variants != [name]:
                 raise SystemExit(f"hook 07: {op_id} variants {variants} != body schema {name}")
             out[snake_case(op_id)] = {"schema": name, "variants": None}
+    return out
+
+
+def build_tenant_ids_injection_map(spec: dict, metadata: dict | None) -> dict[str, dict]:
+    """snake_case(operationId) -> {"schema": body schema name} for ``optionalTenantIdsInBody`` ops.
+
+    Like :func:`build_tenant_injection_map`, the selection comes from the bundler's
+    ``spec-metadata.json`` rather than a list. Curated operations (``CURATED_SKIP``) are left
+    to their hand-written wrapper, so only a genuinely new one is picked up here.
+    """
+    if not metadata or "operations" not in metadata:
+        raise SystemExit("hook 07: spec-metadata.json with `operations` is required")
+    schemas = (spec.get("components") or {}).get("schemas") or {}
+    out: dict[str, dict] = {}
+    for op in metadata["operations"]:
+        if "optionalTenantIdsInBody" not in op:
+            raise SystemExit(
+                f"hook 07: {op.get('operationId')} lacks optionalTenantIdsInBody; "
+                "re-bundle with camunda-schema-bundler >= 2.5.1"
+            )
+        if not op["optionalTenantIdsInBody"]:
+            continue
+        op_id = op["operationId"]
+        fn = snake_case(op_id)
+        if fn in CURATED_SKIP:
+            continue
+        if op.get("optionalTenantIdInBody") or op.get("optionalTenantIdInBodyVariants"):
+            raise SystemExit(
+                f"hook 07: {op_id} has both tenantId and tenantIds in its body; "
+                "this hook injects only one of them"
+            )
+        item = (spec.get("paths") or {}).get(op["path"]) or {}
+        body = (((item.get(op["method"]) or {}).get("requestBody") or {}).get("content") or {})
+        body = (body.get("application/json") or {}).get("schema")
+        if not body:
+            raise SystemExit(f"hook 07: {op_id} has optional tenantIds but no JSON body")
+        name, _ = _resolve(body, schemas)
+        if not name:
+            raise SystemExit(f"hook 07: {op_id} body is not a named schema")
+        out[fn] = {"schema": name}
     return out
 
 
@@ -247,7 +297,39 @@ def _render_injector(op: dict, inj: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_method(op: dict, doc: dict | None, inject: bool = False) -> str:
+def _render_tenant_ids_injector(op: dict, inj: dict, model_text: str) -> str:
+    module, fn, params = op["module"], op["fn"], op["params"]
+    if not params:
+        raise SystemExit(f"hook 07: {fn} has a tenant-scoped body but no params")
+    # Fail the run, rather than emit a call that cannot compile or silently does nothing, when the
+    # generated model is not the shape the shared helper expects.
+    for field in ("tenant_ids", "tenant_filter"):
+        if not re.search(r"pub " + field + r"\s*:", model_text):
+            raise SystemExit(f"hook 07: models::{inj['schema']} has no `{field}` field for {fn}")
+    field, optional = _params_body_field(op["text"], params, inj["schema"])
+    params_ty = f"camunda_orchestration_api_client::apis::{module}::{params}"
+    lines = [
+        f"/// Apply the effective default tenant to `{fn}` when the body names no tenant ids.",
+        f"pub(crate) fn inject_default_tenant_ids_{fn}(",
+        f"    mut params: {params_ty},",
+        "    config: &CamundaConfig,",
+        f") -> {params_ty} {{",
+    ]
+    target = f"params.{field}"
+    if optional:
+        lines.append(f"    if let Some(b) = {target}.as_mut() {{")
+        lines.append("        apply_default_tenant_ids(b.tenant_filter, &mut b.tenant_ids, config);")
+        lines.append("    }")
+    else:
+        lines.append(
+            f"    apply_default_tenant_ids({target}.tenant_filter, &mut {target}.tenant_ids, config);"
+        )
+    lines.append("    params")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def _render_method(op: dict, doc: dict | None, injector: str | None = None) -> str:
     module, fn, params, ret = op["module"], op["fn"], op["params"], op["ret"]
     call_path = f"camunda_orchestration_api_client::apis::{module}::{fn}"
 
@@ -267,8 +349,8 @@ def _render_method(op: dict, doc: dict | None, inject: bool = False) -> str:
     if params:
         params_ty = f"camunda_orchestration_api_client::apis::{module}::{params}"
         lines.append(f"    pub async fn {fn}(&self, params: {params_ty}) -> Result<{ret}> {{")
-        if inject:
-            lines.append(f"        let params = inject_default_tenant_{fn}(params, self.config());")
+        if injector:
+            lines.append(f"        let params = {injector}_{fn}(params, self.config());")
         lines.append("        self.guarded(|| {")
         lines.append("            let params = params.clone();")
         lines.append("            async move {")
@@ -302,24 +384,41 @@ def run(ctx: Context) -> None:
     ops = _parse_operations(apis_dir)
 
     tenant_map = build_tenant_injection_map(ctx.spec, ctx.metadata)
+    tenant_ids_map = build_tenant_ids_injection_map(ctx.spec, ctx.metadata)
 
     generated, injectors, skipped = [], [], 0
+    uses_tenant, uses_tenant_ids = False, False
     for op in sorted(ops, key=lambda o: (o["module"], o["fn"])):
         if op["fn"] in CURATED_SKIP:
             skipped += 1
             continue
         inj = tenant_map.get(op["fn"])
+        ids_inj = tenant_ids_map.get(op["fn"])
+        injector = None
         if inj:
             injectors.append(_render_injector(op, inj))
-        generated.append(_render_method(op, doc_map.get(op["fn"]), inject=bool(inj)))
+            injector, uses_tenant = "inject_default_tenant", True
+        elif ids_inj:
+            model = ctx.client_dir / "src" / "models" / f"{snake_case(ids_inj['schema'])}.rs"
+            if not model.is_file():
+                raise SystemExit(f"hook 07: model file {model} for {op['fn']} not found")
+            injectors.append(
+                _render_tenant_ids_injector(op, ids_inj, model.read_text(encoding="utf-8"))
+            )
+            injector, uses_tenant_ids = "inject_default_tenant_ids", True
+        generated.append(_render_method(op, doc_map.get(op["fn"]), injector=injector))
 
     header = HEADER
     if injectors:
+        imports = []
+        if uses_tenant:
+            imports.append("use super::client::apply_default_tenant;")
+        if uses_tenant_ids:
+            imports.append("use super::client::apply_default_tenant_ids;")
+        imports.append("use super::config::CamundaConfig;")
         header = header.replace(
             "use crate::{CamundaClient, Result};",
-            "use super::client::apply_default_tenant;\n"
-            "use super::config::CamundaConfig;\n"
-            "use crate::{CamundaClient, Result};",
+            "\n".join(imports) + "\nuse crate::{CamundaClient, Result};",
         )
     body = header + "\nimpl CamundaClient {\n" + "\n\n".join(generated) + "\n}\n"
     if injectors:

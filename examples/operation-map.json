@@ -13,11 +13,25 @@
       "label": "Activate jobs"
     }
   ],
+  "activateProbes": [
+    {
+      "file": "probe.rs",
+      "region": "ActivateProbes",
+      "label": "Activate probes"
+    }
+  ],
   "addClock": [
     {
       "file": "clock.rs",
       "region": "AddClock",
       "label": "Add a duration to the internal clock (alpha)"
+    }
+  ],
+  "answerProbe": [
+    {
+      "file": "probe.rs",
+      "region": "AnswerProbe",
+      "label": "Answer a probe"
     }
   ],
   "assignClientToGroup": [
@@ -270,6 +284,13 @@
       "file": "mapping_rule.rs",
       "region": "CreateMappingRule",
       "label": "Create mapping rule"
+    }
+  ],
+  "createProbe": [
+    {
+      "file": "probe.rs",
+      "region": "CreateProbe",
+      "label": "Create a probe"
     }
   ],
   "createProcessInstance": [

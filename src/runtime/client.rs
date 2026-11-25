@@ -6,7 +6,7 @@ use std::sync::Arc;
 use camunda_orchestration_api_client::apis::configuration::Configuration;
 use camunda_orchestration_api_client::apis::{
     clock_api, cluster_api, conditional_api, decision_definition_api, expression_api, job_api,
-    message_api, process_instance_api, resource_api, signal_api, variable_api,
+    message_api, probe_api, process_instance_api, resource_api, signal_api, variable_api,
 };
 use camunda_orchestration_api_client::models;
 
@@ -882,6 +882,19 @@ impl CamundaClient {
         Ok(job_api::throw_job_error(&cfg, params).await?)
     }
 
+    // --- Probe operations ---------------------------------------------------
+
+    /// Answer an activated probe (`POST /probes/{probeKey}/answer`).
+    ///
+    /// Answering finishes work a worker already activated, so, like job completion, it is a
+    /// *drain* operation and intentionally bypasses the backpressure gate. Pending probe
+    /// creations and activation long polls hold permits; queued behind them, an answer could
+    /// miss its probe's deadline and be rejected with a 404.
+    pub async fn answer_probe(&self, params: probe_api::AnswerProbeParams) -> Result<()> {
+        let cfg = self.configuration().await?;
+        Ok(probe_api::answer_probe(&cfg, params).await?)
+    }
+
     // --- Job workers --------------------------------------------------------
 
     /// Build a [`JobWorkerConfig`] for `job_type` pre-seeded from the SDK's resolved
@@ -987,14 +1000,24 @@ pub(crate) fn apply_default_job_tenants(
     request: &mut models::JobActivationRequest,
     config: &CamundaConfig,
 ) {
-    if matches!(
-        request.tenant_filter,
-        Some(models::TenantFilterEnum::Assigned)
-    ) {
+    apply_default_tenant_ids(request.tenant_filter, &mut request.tenant_ids, config);
+}
+
+/// The default-tenant rule shared by every activation-style request (`activateJobs`,
+/// `activateProbes`): when `tenant_filter` is `PROVIDED` or unset and no tenant ids are given
+/// (absent or empty), send `[<effective default tenant>]`. With `ASSIGNED` the ids are left
+/// untouched. The generated facade calls this for each operation the spec metadata flags as
+/// `optionalTenantIdsInBody` (hook 07), so a new one needs no hand-written wrapper.
+pub(crate) fn apply_default_tenant_ids(
+    tenant_filter: Option<models::TenantFilterEnum>,
+    tenant_ids: &mut Option<Vec<models::TenantId>>,
+    config: &CamundaConfig,
+) {
+    if matches!(tenant_filter, Some(models::TenantFilterEnum::Assigned)) {
         return;
     }
-    if request.tenant_ids.as_ref().is_none_or(|ids| ids.is_empty()) {
-        request.tenant_ids = Some(vec![models::TenantId::assume_exists(
+    if tenant_ids.as_ref().is_none_or(|ids| ids.is_empty()) {
+        *tenant_ids = Some(vec![models::TenantId::assume_exists(
             effective_default_tenant(config),
         )]);
     }
@@ -1192,6 +1215,44 @@ mod tests {
     }
 
     #[test]
+    fn activate_probes_defaults_tenant_ids() {
+        use crate::runtime::facade_generated::inject_default_tenant_ids_activate_probes as inject;
+        let probe = |ids: Option<Vec<&str>>, filter: Option<models::TenantFilterEnum>| {
+            let mut r =
+                models::ProbeActivationRequest::new(vec![models::ProbeId::assume_exists("p")], 1);
+            r.tenant_ids =
+                ids.map(|v| v.into_iter().map(models::TenantId::assume_exists).collect());
+            r.tenant_filter = filter;
+            probe_api::ActivateProbesParams {
+                probe_activation_request: r,
+            }
+        };
+        let tenants = |p: &probe_api::ActivateProbesParams| -> Option<Vec<String>> {
+            p.probe_activation_request
+                .tenant_ids
+                .as_ref()
+                .map(|v| v.iter().map(|t| t.value().to_string()).collect())
+        };
+        let unconfigured = cfg_with_tenant(None);
+        let configured = cfg_with_tenant(Some("acme"));
+        for filter in [None, Some(models::TenantFilterEnum::Provided)] {
+            for given in [None, Some(vec![])] {
+                let p = inject(probe(given.clone(), filter), &unconfigured);
+                assert_eq!(tenants(&p), Some(vec!["<default>".to_string()]));
+                let p = inject(probe(given, filter), &configured);
+                assert_eq!(tenants(&p), Some(vec!["acme".to_string()]));
+            }
+        }
+        let p = inject(probe(Some(vec!["x"]), None), &configured);
+        assert_eq!(tenants(&p), Some(vec!["x".to_string()]));
+        let p = inject(
+            probe(None, Some(models::TenantFilterEnum::Assigned)),
+            &configured,
+        );
+        assert_eq!(tenants(&p), None);
+    }
+
+    #[test]
     fn default_tenant_str_fills_missing() {
         let cfg = cfg_with_tenant(Some("acme"));
         assert_eq!(
@@ -1357,6 +1418,45 @@ mod tests {
             }
             other => panic!("expected AdvancedBatchOperationStateFilter, got {other:?}"),
         }
+    }
+
+    // --- Drain operations bypass the backpressure gate -----------------------
+
+    // Regression: a probe answer finishes work a worker already activated, so it must not queue
+    // behind the permits that pending probe creations and activation long polls hold. With the
+    // only permit held, the answer must still be sent. The address refuses connections, so the
+    // request fails at once; a gated answer would instead wait for the permit and time out.
+    #[tokio::test(flavor = "current_thread")]
+    async fn answer_probe_is_sent_while_every_permit_is_held() {
+        // Authentication is pinned off: the environment may export OAuth settings, and a token
+        // request would then be what this test waits on, not the refused connection.
+        let client = CamundaClient::new(
+            CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", "http://127.0.0.1:1")
+                .with("CAMUNDA_AUTH_STRATEGY", "NONE"),
+        )
+        .expect("client builds");
+        client.bp.test_force_cap(1);
+        let _held = client.bp.acquire_guard().await.expect("first permit");
+
+        let params = probe_api::AnswerProbeParams {
+            probe_key: "2251799813685249".to_string(),
+            probe_answer_request: models::ProbeAnswerRequest::Unsupported(Box::new(
+                models::ProbeUnsupportedAnswerRequest::new(),
+            )),
+        };
+        let outcome = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            client.answer_probe(params),
+        )
+        .await;
+
+        let result =
+            outcome.expect("answer_probe queued behind a held permit instead of being sent");
+        assert!(
+            matches!(result, Err(CamundaError::Network(_))),
+            "expected the refused connection, got {result:?}"
+        );
     }
 
     // --- Gated operations defer auth until a permit is acquired --------------

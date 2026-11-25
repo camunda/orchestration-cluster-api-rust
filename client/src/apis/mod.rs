@@ -141,6 +141,7 @@ pub mod license_api;
 pub mod mapping_rule_api;
 pub mod message_api;
 pub mod message_subscription_api;
+pub mod probe_api;
 pub mod process_definition_api;
 pub mod process_instance_api;
 pub mod recovery_api;

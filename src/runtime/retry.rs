@@ -1,7 +1,8 @@
 //! Transient-error retry with exponential backoff and full jitter.
 //!
 //! Mirrors the JS / C# SDKs' HTTP retry layer: initiating operations that fail with a
-//! retryable signal (HTTP 429/502/503/504, or a network-level error) are retried up to
+//! retryable signal (HTTP 429/502/503/504, or a network-level error; a 504 that reports a probe
+//! as over is not) are retried up to
 //! [`RetryConfig::max_attempts`] times with exponentially increasing, fully-jittered delays.
 //! Non-retryable errors (4xx other than 429, validation, serialization) fail immediately.
 
@@ -13,13 +14,31 @@ use super::config::RetryConfig;
 use super::errors::{CamundaError, Result};
 use super::random::Random;
 
+/// Problem titles of a 504 that report the *end* of a probe rather than a transient failure:
+/// a worker collected it and did not answer by its deadline, or it still waited for the values
+/// of its secrets then. Retrying would create the probe again, and run the worker again, only
+/// to fail the same way after another full timeout. A 504 titled `DEADLINE_EXCEEDED` (the
+/// gateway timed out, for example after a leader change) stays retryable.
+const TERMINAL_GATEWAY_TIMEOUTS: [&str; 2] = ["WORKER_DID_NOT_ANSWER", "SECRET_RESOLUTION_TIMEOUT"];
+
+/// Whether an error body is a problem detail whose title is a terminal gateway timeout.
+fn is_terminal_gateway_timeout(body: Option<&str>) -> bool {
+    body.and_then(|b| serde_json::from_str::<serde_json::Value>(b).ok())
+        .and_then(|v| v.get("title")?.as_str().map(str::to_owned))
+        .is_some_and(|title| TERMINAL_GATEWAY_TIMEOUTS.contains(&title.as_str()))
+}
+
 /// Whether an error should trigger a retry.
 pub(crate) fn is_retryable(err: &CamundaError) -> bool {
     match err {
         // Network/connection/timeout failures are transient.
         CamundaError::Network(_) => true,
+        // A probe that ran out of time has already had its answer window; do not repeat it.
+        CamundaError::Api {
+            status: 504, body, ..
+        } => !is_terminal_gateway_timeout(body.as_deref()),
         // Standard transient HTTP statuses.
-        CamundaError::Api { status, .. } => matches!(status, 429 | 502 | 503 | 504),
+        CamundaError::Api { status, .. } => matches!(status, 429 | 502 | 503),
         _ => false,
     }
 }
@@ -132,6 +151,73 @@ mod tests {
             body: None
         }));
         assert!(!is_retryable(&CamundaError::Validation("x".into())));
+    }
+
+    fn gateway_timeout(title: Option<&str>) -> CamundaError {
+        CamundaError::Api {
+            status: 504,
+            body: title.map(|t| format!(r#"{{"type":"about:blank","title":"{t}","status":504}}"#)),
+        }
+    }
+
+    /// A probe that ran out of time is over: retrying would run its worker again for the same
+    /// outcome. Every other 504, including one with no readable body, stays transient.
+    #[test]
+    fn terminal_probe_timeouts_are_not_retryable() {
+        for title in ["WORKER_DID_NOT_ANSWER", "SECRET_RESOLUTION_TIMEOUT"] {
+            assert!(!is_retryable(&gateway_timeout(Some(title))), "{title}");
+        }
+        assert!(is_retryable(&gateway_timeout(Some("DEADLINE_EXCEEDED"))));
+        assert!(is_retryable(&gateway_timeout(None)));
+        for body in ["not json", "[]", r#"{"title":7}"#, r#"{"detail":"x"}"#, ""] {
+            assert!(
+                is_retryable(&CamundaError::Api {
+                    status: 504,
+                    body: Some(body.to_string())
+                }),
+                "{body:?}"
+            );
+        }
+    }
+
+    /// The titles only mean "terminal" on a 504: the same title on another status is not
+    /// special-cased, so 429/502/503 keep their retry behaviour whatever the body says.
+    #[test]
+    fn the_terminal_titles_do_not_change_other_statuses() {
+        for status in [429, 502, 503] {
+            assert!(is_retryable(&CamundaError::Api {
+                status,
+                body: Some(r#"{"title":"WORKER_DID_NOT_ANSWER"}"#.to_string())
+            }));
+        }
+        assert!(!is_retryable(&CamundaError::Api {
+            status: 404,
+            body: None
+        }));
+    }
+
+    #[tokio::test]
+    async fn a_terminal_probe_timeout_is_attempted_once() {
+        let calls = AtomicU32::new(0);
+        let result: Result<u32> = with_retry(&cfg(), LIVE.as_ref(), &Fixed(0.5), || {
+            calls.fetch_add(1, Ordering::SeqCst);
+            async { Err(gateway_timeout(Some("WORKER_DID_NOT_ANSWER"))) }
+        })
+        .await;
+        assert!(result.is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn a_transient_gateway_timeout_is_still_retried() {
+        let calls = AtomicU32::new(0);
+        let result: Result<u32> = with_retry(&cfg(), LIVE.as_ref(), &Fixed(0.5), || {
+            calls.fetch_add(1, Ordering::SeqCst);
+            async { Err(gateway_timeout(Some("DEADLINE_EXCEEDED"))) }
+        })
+        .await;
+        assert!(result.is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 4);
     }
 
     #[tokio::test]

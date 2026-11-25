@@ -26,6 +26,7 @@ import unittest
 from pathlib import Path
 
 from scripts.hooks import hook_02_semantic_field_types
+from scripts.hooks import hook_07_sdk_facade
 from scripts.hooks import hook_08_version_skew_tolerance
 from scripts.hooks import hook_11_optional_body_json
 from scripts.hooks import hook_12_strip_variant_discriminators
@@ -1505,6 +1506,88 @@ class EveryClearableDateIsPatchedTest(unittest.TestCase):
         self.assertEqual(offenders, [])
         for path in _MODELS_DIR.glob("*.rs"):
             self.assertNotRegex(path.read_text(encoding="utf-8"), r"pub struct ClearableDateTime\b")
+
+
+class TenantIdsInjectionHookTest(unittest.TestCase):
+    """`hook_07` emits default-tenant injection for operations whose body carries an optional
+    `tenantIds` list (`optionalTenantIdsInBody`). `activateProbes` was the first such operation
+    without a curated wrapper, and the runtime guard only failed once it appeared; these tests
+    execute the hook so the selection and its failure modes are pinned directly."""
+
+    @staticmethod
+    def _op(op_id: str, *, ids: bool = True, tenant_id: bool = False, path: str = "/x") -> dict:
+        return {
+            "operationId": op_id,
+            "path": path,
+            "method": "post",
+            "optionalTenantIdsInBody": ids,
+            "optionalTenantIdInBody": tenant_id,
+            "optionalTenantIdInBodyVariants": [],
+        }
+
+    @staticmethod
+    def _spec(path: str = "/x", schema: str = "Req", body: bool = True) -> dict:
+        op: dict = {}
+        if body:
+            op["requestBody"] = {
+                "content": {"application/json": {"schema": {"$ref": f"#/components/schemas/{schema}"}}}
+            }
+        return {"paths": {path: {"post": op}}, "components": {"schemas": {schema: {}}}}
+
+    def test_selects_a_new_operation_and_leaves_a_curated_one_alone(self):
+        spec = self._spec()
+        metadata = {
+            "operations": [self._op("activateProbes"), self._op("activateJobs"), self._op("other", ids=False)]
+        }
+        self.assertEqual(
+            hook_07_sdk_facade.build_tenant_ids_injection_map(spec, metadata),
+            {"activate_probes": {"schema": "Req"}},
+        )
+
+    def test_raises_when_the_metadata_predates_the_flag(self):
+        op = self._op("activateProbes")
+        del op["optionalTenantIdsInBody"]
+        with self.assertRaisesRegex(SystemExit, "optionalTenantIdsInBody"):
+            hook_07_sdk_facade.build_tenant_ids_injection_map(self._spec(), {"operations": [op]})
+
+    def test_raises_when_the_body_also_carries_a_singular_tenant_id(self):
+        metadata = {"operations": [self._op("activateProbes", tenant_id=True)]}
+        with self.assertRaisesRegex(SystemExit, "both tenantId and tenantIds"):
+            hook_07_sdk_facade.build_tenant_ids_injection_map(self._spec(), metadata)
+
+    def test_raises_when_the_operation_has_no_json_body(self):
+        metadata = {"operations": [self._op("activateProbes")]}
+        with self.assertRaisesRegex(SystemExit, "no JSON body"):
+            hook_07_sdk_facade.build_tenant_ids_injection_map(self._spec(body=False), metadata)
+
+    _OP = {
+        "module": "probe_api",
+        "fn": "activate_probes",
+        "params": "ActivateProbesParams",
+    }
+    _MODEL = "pub tenant_ids: Option<Vec<models::TenantId>>,\n pub tenant_filter: Option<models::TenantFilterEnum>,"
+
+    def _render(self, body_field: str, model: str | None = None) -> str:
+        op = dict(self._OP, text="pub struct ActivateProbesParams {\n    " + body_field + ",\n}")
+        return hook_07_sdk_facade._render_tenant_ids_injector(op, {"schema": "Req"}, model or self._MODEL)
+
+    def test_renders_the_injector_for_a_required_body(self):
+        out = self._render("pub req: models::Req")
+        self.assertIn("pub(crate) fn inject_default_tenant_ids_activate_probes(", out)
+        self.assertIn(
+            "apply_default_tenant_ids(params.req.tenant_filter, &mut params.req.tenant_ids, config);", out
+        )
+
+    def test_renders_the_injector_for_an_optional_body(self):
+        out = self._render("pub req: Option<models::Req>")
+        self.assertIn("if let Some(b) = params.req.as_mut() {", out)
+        self.assertIn("apply_default_tenant_ids(b.tenant_filter, &mut b.tenant_ids, config);", out)
+
+    def test_raises_when_the_model_lacks_a_field_the_helper_needs(self):
+        for missing in ("tenant_ids", "tenant_filter"):
+            model = "\n".join(l for l in self._MODEL.splitlines() if missing not in l)
+            with self.assertRaisesRegex(SystemExit, missing):
+                self._render("pub req: models::Req", model)
 
 
 if __name__ == "__main__":
