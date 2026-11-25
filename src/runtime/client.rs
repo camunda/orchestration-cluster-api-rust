@@ -1053,6 +1053,7 @@ mod tests {
     }
 
     use super::*;
+    use camunda_orchestration_api_client::apis::probe_api;
     use camunda_orchestration_api_client::apis::process_definition_api;
 
     /// Build a config carrying the given default tenant id (and nothing else).
@@ -1199,6 +1200,44 @@ mod tests {
         let mut r = activation(None, Some(models::TenantFilterEnum::Assigned));
         apply_default_job_tenants(&mut r, &configured);
         assert_eq!(ids(&r), None);
+    }
+
+    #[test]
+    fn activate_probes_defaults_tenant_ids() {
+        use crate::runtime::facade_generated::inject_default_tenant_ids_activate_probes as inject;
+        let probe = |ids: Option<Vec<&str>>, filter: Option<models::TenantFilterEnum>| {
+            let mut r =
+                models::ProbeActivationRequest::new(vec![models::ProbeId::assume_exists("p")], 1);
+            r.tenant_ids =
+                ids.map(|v| v.into_iter().map(models::TenantId::assume_exists).collect());
+            r.tenant_filter = filter;
+            probe_api::ActivateProbesParams {
+                probe_activation_request: r,
+            }
+        };
+        let tenants = |p: &probe_api::ActivateProbesParams| -> Option<Vec<String>> {
+            p.probe_activation_request
+                .tenant_ids
+                .as_ref()
+                .map(|v| v.iter().map(|t| t.value().to_string()).collect())
+        };
+        let unconfigured = cfg_with_tenant(None);
+        let configured = cfg_with_tenant(Some("acme"));
+        for filter in [None, Some(models::TenantFilterEnum::Provided)] {
+            for given in [None, Some(vec![])] {
+                let p = inject(probe(given.clone(), filter), &unconfigured);
+                assert_eq!(tenants(&p), Some(vec!["<default>".to_string()]));
+                let p = inject(probe(given, filter), &configured);
+                assert_eq!(tenants(&p), Some(vec!["acme".to_string()]));
+            }
+        }
+        let p = inject(probe(Some(vec!["x"]), None), &configured);
+        assert_eq!(tenants(&p), Some(vec!["x".to_string()]));
+        let p = inject(
+            probe(None, Some(models::TenantFilterEnum::Assigned)),
+            &configured,
+        );
+        assert_eq!(tenants(&p), None);
     }
 
     #[test]
