@@ -6,7 +6,7 @@ use std::sync::Arc;
 use camunda_orchestration_api_client::apis::configuration::Configuration;
 use camunda_orchestration_api_client::apis::{
     clock_api, cluster_api, conditional_api, decision_definition_api, expression_api, job_api,
-    message_api, process_instance_api, resource_api, signal_api, variable_api,
+    message_api, probe_api, process_instance_api, resource_api, signal_api, variable_api,
 };
 use camunda_orchestration_api_client::models;
 
@@ -882,6 +882,19 @@ impl CamundaClient {
         Ok(job_api::throw_job_error(&cfg, params).await?)
     }
 
+    // --- Probe operations ---------------------------------------------------
+
+    /// Answer an activated probe (`POST /probes/{probeKey}/answer`).
+    ///
+    /// Answering finishes work a worker already activated, so, like job completion, it is a
+    /// *drain* operation and intentionally bypasses the backpressure gate. Pending probe
+    /// creations and activation long polls hold permits; queued behind them, an answer could
+    /// miss its probe's deadline and be rejected with a 404.
+    pub async fn answer_probe(&self, params: probe_api::AnswerProbeParams) -> Result<()> {
+        let cfg = self.configuration().await?;
+        Ok(probe_api::answer_probe(&cfg, params).await?)
+    }
+
     // --- Job workers --------------------------------------------------------
 
     /// Build a [`JobWorkerConfig`] for `job_type` pre-seeded from the SDK's resolved
@@ -1053,7 +1066,6 @@ mod tests {
     }
 
     use super::*;
-    use camunda_orchestration_api_client::apis::probe_api;
     use camunda_orchestration_api_client::apis::process_definition_api;
 
     /// Build a config carrying the given default tenant id (and nothing else).
@@ -1406,6 +1418,41 @@ mod tests {
             }
             other => panic!("expected AdvancedBatchOperationStateFilter, got {other:?}"),
         }
+    }
+
+    // --- Drain operations bypass the backpressure gate -----------------------
+
+    // Regression: a probe answer finishes work a worker already activated, so it must not queue
+    // behind the permits that pending probe creations and activation long polls hold. With the
+    // only permit held, the answer must still be sent. The address refuses connections, so the
+    // request fails at once; a gated answer would instead wait for the permit and time out.
+    #[tokio::test(flavor = "current_thread")]
+    async fn answer_probe_is_sent_while_every_permit_is_held() {
+        let client = CamundaClient::new(
+            CamundaOptions::new().with("CAMUNDA_REST_ADDRESS", "http://127.0.0.1:1"),
+        )
+        .expect("client builds");
+        client.bp.test_force_cap(1);
+        let _held = client.bp.acquire_guard().await.expect("first permit");
+
+        let params = probe_api::AnswerProbeParams {
+            probe_key: "2251799813685249".to_string(),
+            probe_answer_request: models::ProbeAnswerRequest::Unsupported(Box::new(
+                models::ProbeUnsupportedAnswerRequest::new(),
+            )),
+        };
+        let outcome = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            client.answer_probe(params),
+        )
+        .await;
+
+        let result =
+            outcome.expect("answer_probe queued behind a held permit instead of being sent");
+        assert!(
+            matches!(result, Err(CamundaError::Network(_))),
+            "expected the refused connection, got {result:?}"
+        );
     }
 
     // --- Gated operations defer auth until a permit is acquired --------------
