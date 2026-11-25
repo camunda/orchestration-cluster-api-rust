@@ -2188,24 +2188,6 @@ impl CamundaClient {
         .await
     }
 
-    /// Answer probe (alpha) (`POST /probes/{probeKey}/answer`).
-    pub async fn answer_probe(
-        &self,
-        params: camunda_orchestration_api_client::apis::probe_api::AnswerProbeParams,
-    ) -> Result<()> {
-        self.guarded(|| {
-            let params = params.clone();
-            async move {
-                let cfg = self.configuration().await?;
-                Ok(
-                    camunda_orchestration_api_client::apis::probe_api::answer_probe(&cfg, params)
-                        .await?,
-                )
-            }
-        })
-        .await
-    }
-
     /// Create probe (alpha) (`POST /probes`).
     pub async fn create_probe(
         &self,
