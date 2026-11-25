@@ -1,3 +1,10 @@
+# [11.0.0-alpha.8](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.7...v11.0.0-alpha.8) (2026-11-25)
+
+
+### Features
+
+* add example coverage for createProbe, activateProbes, answerProbe ([#215](https://github.com/camunda/orchestration-cluster-api-rust/issues/215)) ([bc88f9e](https://github.com/camunda/orchestration-cluster-api-rust/commit/bc88f9e695bb628066a5dcbc0ac356f42758e22e)), closes [#214](https://github.com/camunda/orchestration-cluster-api-rust/issues/214)
+
 # [11.0.0-alpha.7](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.6...v11.0.0-alpha.7) (2026-11-24)
 
 
