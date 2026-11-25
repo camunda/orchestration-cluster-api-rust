@@ -186,6 +186,9 @@ Class | Method | HTTP request | Description
 *MessageApi* | [**publish_message**](docs/MessageApi.md#publish_message) | **POST** /messages/publication | Publish message
 *MessageSubscriptionApi* | [**search_correlated_message_subscriptions**](docs/MessageSubscriptionApi.md#search_correlated_message_subscriptions) | **POST** /correlated-message-subscriptions/search | Search correlated message subscriptions
 *MessageSubscriptionApi* | [**search_message_subscriptions**](docs/MessageSubscriptionApi.md#search_message_subscriptions) | **POST** /message-subscriptions/search | Search message subscriptions
+*ProbeApi* | [**activate_probes**](docs/ProbeApi.md#activate_probes) | **POST** /probes/activation | Activate probes (alpha)
+*ProbeApi* | [**answer_probe**](docs/ProbeApi.md#answer_probe) | **POST** /probes/{probeKey}/answer | Answer probe (alpha)
+*ProbeApi* | [**create_probe**](docs/ProbeApi.md#create_probe) | **POST** /probes | Create probe (alpha)
 *ProcessDefinitionApi* | [**get_process_definition**](docs/ProcessDefinitionApi.md#get_process_definition) | **GET** /process-definitions/{processDefinitionKey} | Get process definition
 *ProcessDefinitionApi* | [**get_process_definition_instance_statistics**](docs/ProcessDefinitionApi.md#get_process_definition_instance_statistics) | **POST** /process-definitions/statistics/process-instances | Get process instance statistics
 *ProcessDefinitionApi* | [**get_process_definition_instance_version_statistics**](docs/ProcessDefinitionApi.md#get_process_definition_instance_version_statistics) | **POST** /process-definitions/statistics/process-instances-by-version | Get process instance statistics by version
@@ -298,6 +301,7 @@ Class | Method | HTTP request | Description
 ## Documentation For Models
 
  - [ActivatedJobResult](docs/ActivatedJobResult.md)
+ - [ActivatedProbeResult](docs/ActivatedProbeResult.md)
  - [AdHocSubProcessActivateActivitiesInstruction](docs/AdHocSubProcessActivateActivitiesInstruction.md)
  - [AdHocSubProcessActivateActivityReference](docs/AdHocSubProcessActivateActivityReference.md)
  - [AdvancedActorTypeFilter](docs/AdvancedActorTypeFilter.md)
@@ -784,6 +788,17 @@ Class | Method | HTTP request | Description
  - [PermissionTypeEnum](docs/PermissionTypeEnum.md)
  - [PhysicalTenantBrokerTopology](docs/PhysicalTenantBrokerTopology.md)
  - [PhysicalTenantTopology](docs/PhysicalTenantTopology.md)
+ - [ProbeActivationRequest](docs/ProbeActivationRequest.md)
+ - [ProbeActivationResult](docs/ProbeActivationResult.md)
+ - [ProbeAnswerRequest](docs/ProbeAnswerRequest.md)
+ - [ProbeCreationRequest](docs/ProbeCreationRequest.md)
+ - [ProbeErrorAnswerRequest](docs/ProbeErrorAnswerRequest.md)
+ - [ProbeErrorResult](docs/ProbeErrorResult.md)
+ - [ProbeOkAnswerRequest](docs/ProbeOkAnswerRequest.md)
+ - [ProbeOkResult](docs/ProbeOkResult.md)
+ - [ProbeResult](docs/ProbeResult.md)
+ - [ProbeUnsupportedAnswerRequest](docs/ProbeUnsupportedAnswerRequest.md)
+ - [ProbeUnsupportedResult](docs/ProbeUnsupportedResult.md)
  - [ProblemDetail](docs/ProblemDetail.md)
  - [ProcessDefinitionElementStatisticsQuery](docs/ProcessDefinitionElementStatisticsQuery.md)
  - [ProcessDefinitionElementStatisticsQueryResult](docs/ProcessDefinitionElementStatisticsQueryResult.md)

@@ -4345,6 +4345,190 @@ impl FromStr for MessageSubscriptionKeyExactMatch {
     }
 }
 
+/// The ID of a probe, as its worker registered it: 1 to 256 characters, without whitespace, and not `*`. The engine matches it to the probe IDs of polling workers by exact equality.
+///
+/// Example: `validate-configuration/io.camunda:aws-credential:1`
+static PROBE_ID_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^\S+$"#).expect("valid regex"));
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ProbeId(String);
+
+impl ProbeId {
+    /// Construct without validation. Use when side-loading values not received from an API call.
+    pub fn assume_exists(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Construct with constraint validation.
+    pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        let v = value.into();
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&PROBE_ID_PATTERN),
+            Some(1),
+            Some(256),
+        )?;
+        Ok(Self(v))
+    }
+
+    /// Returns true if the value satisfies this type's constraints.
+    pub fn is_valid(value: &str) -> bool {
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&PROBE_ID_PATTERN),
+            Some(1),
+            Some(256),
+        )
+        .is_ok()
+    }
+
+    /// The underlying string value.
+    pub fn value(&self) -> &str {
+        &self.0
+    }
+
+    /// Consume the newtype and return the underlying string value.
+    pub fn into_value(self) -> String {
+        self.0
+    }
+}
+
+impl CamundaKey for ProbeId {
+    const SEMANTIC_TYPE: &'static str = "ProbeId";
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
+}
+
+impl fmt::Display for ProbeId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<ProbeId> for String {
+    fn from(v: ProbeId) -> String {
+        v.0
+    }
+}
+
+impl AsRef<str> for ProbeId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl FromStr for ProbeId {
+    type Err = CamundaKeyError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
+}
+
+/// System-generated key for a probe.
+///
+/// Example: `2251799813685464`
+static PROBE_KEY_PATTERN: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r#"^-?[0-9]+$"#).expect("valid regex"));
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ProbeKey(String);
+
+impl ProbeKey {
+    /// Construct without validation. Use when side-loading values not received from an API call.
+    pub fn assume_exists(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    /// Construct with constraint validation.
+    pub fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        let v = value.into();
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            &v,
+            Some(&PROBE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )?;
+        Ok(Self(v))
+    }
+
+    /// Returns true if the value satisfies this type's constraints.
+    pub fn is_valid(value: &str) -> bool {
+        check_constraints(
+            <Self as CamundaKey>::SEMANTIC_TYPE,
+            value,
+            Some(&PROBE_KEY_PATTERN),
+            Some(1),
+            Some(25),
+        )
+        .is_ok()
+    }
+
+    /// The underlying string value.
+    pub fn value(&self) -> &str {
+        &self.0
+    }
+
+    /// Consume the newtype and return the underlying string value.
+    pub fn into_value(self) -> String {
+        self.0
+    }
+}
+
+impl CamundaKey for ProbeKey {
+    const SEMANTIC_TYPE: &'static str = "ProbeKey";
+    fn assume_exists(value: impl Into<String>) -> Self {
+        Self::assume_exists(value)
+    }
+    fn try_new(value: impl Into<String>) -> Result<Self, CamundaKeyError> {
+        Self::try_new(value)
+    }
+    fn is_valid(value: &str) -> bool {
+        Self::is_valid(value)
+    }
+    fn value(&self) -> &str {
+        self.value()
+    }
+}
+
+impl fmt::Display for ProbeKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<ProbeKey> for String {
+    fn from(v: ProbeKey) -> String {
+        v.0
+    }
+}
+
+impl AsRef<str> for ProbeKey {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl FromStr for ProbeKey {
+    type Err = CamundaKeyError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::try_new(s)
+    }
+}
+
 /// Id of a process definition, from the model. Only ids of process definitions that are deployed are useful.
 ///
 /// Example: `new-account-onboarding-workflow`

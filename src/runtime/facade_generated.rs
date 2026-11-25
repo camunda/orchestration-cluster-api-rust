@@ -12,6 +12,7 @@
 #![allow(deprecated)]
 
 use super::client::apply_default_tenant;
+use super::client::apply_default_tenant_ids;
 use super::config::CamundaConfig;
 use crate::{CamundaClient, Result};
 use camunda_orchestration_api_client::models;
@@ -2166,6 +2167,64 @@ impl CamundaClient {
         .await
     }
 
+    /// Activate probes (alpha) (`POST /probes/activation`).
+    pub async fn activate_probes(
+        &self,
+        params: camunda_orchestration_api_client::apis::probe_api::ActivateProbesParams,
+    ) -> Result<models::ProbeActivationResult> {
+        let params = inject_default_tenant_ids_activate_probes(params, self.config());
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::probe_api::activate_probes(
+                        &cfg, params,
+                    )
+                    .await?,
+                )
+            }
+        })
+        .await
+    }
+
+    /// Answer probe (alpha) (`POST /probes/{probeKey}/answer`).
+    pub async fn answer_probe(
+        &self,
+        params: camunda_orchestration_api_client::apis::probe_api::AnswerProbeParams,
+    ) -> Result<()> {
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::probe_api::answer_probe(&cfg, params)
+                        .await?,
+                )
+            }
+        })
+        .await
+    }
+
+    /// Create probe (alpha) (`POST /probes`).
+    pub async fn create_probe(
+        &self,
+        params: camunda_orchestration_api_client::apis::probe_api::CreateProbeParams,
+    ) -> Result<models::ProbeResult> {
+        let params = inject_default_tenant_create_probe(params, self.config());
+        self.guarded(|| {
+            let params = params.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                Ok(
+                    camunda_orchestration_api_client::apis::probe_api::create_probe(&cfg, params)
+                        .await?,
+                )
+            }
+        })
+        .await
+    }
+
     /// Get process definition (`GET /process-definitions/{processDefinitionKey}`).
     pub async fn get_process_definition(
         &self,
@@ -3924,6 +3983,29 @@ impl CamundaClient {
         })
         .await
     }
+}
+
+/// Apply the effective default tenant to `activate_probes` when the body names no tenant ids.
+pub(crate) fn inject_default_tenant_ids_activate_probes(
+    mut params: camunda_orchestration_api_client::apis::probe_api::ActivateProbesParams,
+    config: &CamundaConfig,
+) -> camunda_orchestration_api_client::apis::probe_api::ActivateProbesParams {
+    apply_default_tenant_ids(
+        params.probe_activation_request.tenant_filter,
+        &mut params.probe_activation_request.tenant_ids,
+        config,
+    );
+    params
+}
+
+/// Apply the effective default tenant to `create_probe` when the body leaves `tenantId` unset.
+pub(crate) fn inject_default_tenant_create_probe(
+    mut params: camunda_orchestration_api_client::apis::probe_api::CreateProbeParams,
+    config: &CamundaConfig,
+) -> camunda_orchestration_api_client::apis::probe_api::CreateProbeParams {
+    params.probe_creation_request.tenant_id =
+        apply_default_tenant(params.probe_creation_request.tenant_id.take(), config);
+    params
 }
 
 /// Apply the effective default tenant to `resume_process_definitions` when the body leaves `tenantId` unset.
