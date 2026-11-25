@@ -1428,8 +1428,12 @@ mod tests {
     // request fails at once; a gated answer would instead wait for the permit and time out.
     #[tokio::test(flavor = "current_thread")]
     async fn answer_probe_is_sent_while_every_permit_is_held() {
+        // Authentication is pinned off: the environment may export OAuth settings, and a token
+        // request would then be what this test waits on, not the refused connection.
         let client = CamundaClient::new(
-            CamundaOptions::new().with("CAMUNDA_REST_ADDRESS", "http://127.0.0.1:1"),
+            CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", "http://127.0.0.1:1")
+                .with("CAMUNDA_AUTH_STRATEGY", "NONE"),
         )
         .expect("client builds");
         client.bp.test_force_cap(1);
