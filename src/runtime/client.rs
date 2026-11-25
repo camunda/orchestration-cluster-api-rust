@@ -987,14 +987,24 @@ pub(crate) fn apply_default_job_tenants(
     request: &mut models::JobActivationRequest,
     config: &CamundaConfig,
 ) {
-    if matches!(
-        request.tenant_filter,
-        Some(models::TenantFilterEnum::Assigned)
-    ) {
+    apply_default_tenant_ids(request.tenant_filter, &mut request.tenant_ids, config);
+}
+
+/// The default-tenant rule shared by every activation-style request (`activateJobs`,
+/// `activateProbes`): when `tenant_filter` is `PROVIDED` or unset and no tenant ids are given
+/// (absent or empty), send `[<effective default tenant>]`. With `ASSIGNED` the ids are left
+/// untouched. The generated facade calls this for each operation the spec metadata flags as
+/// `optionalTenantIdsInBody` (hook 07), so a new one needs no hand-written wrapper.
+pub(crate) fn apply_default_tenant_ids(
+    tenant_filter: Option<models::TenantFilterEnum>,
+    tenant_ids: &mut Option<Vec<models::TenantId>>,
+    config: &CamundaConfig,
+) {
+    if matches!(tenant_filter, Some(models::TenantFilterEnum::Assigned)) {
         return;
     }
-    if request.tenant_ids.as_ref().is_none_or(|ids| ids.is_empty()) {
-        request.tenant_ids = Some(vec![models::TenantId::assume_exists(
+    if tenant_ids.as_ref().is_none_or(|ids| ids.is_empty()) {
+        *tenant_ids = Some(vec![models::TenantId::assume_exists(
             effective_default_tenant(config),
         )]);
     }
