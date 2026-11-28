@@ -787,7 +787,7 @@ impl JobWorker {
                     if let Err(e) =
                         apply_action(&client, &key, lease_token.as_deref(), action).await
                     {
-                        tracing::warn!(error = %e, "failed to apply job action");
+                        log_job_command_failure(&key, &e);
                     }
                 });
             }
@@ -972,6 +972,27 @@ fn value_to_obj(value: Value) -> Option<serde_json::Map<String, Value>> {
     }
 }
 
+/// Log a failed job command. No follow-up `failJob` is ever sent: a 404 means the job is
+/// already gone, and an unknown outcome (504, 5xx, a post-send network error) may mean the
+/// command was applied; if it was not, the job timeout re-activates the job.
+fn log_job_command_failure(job_key: &str, err: &CamundaError) {
+    match err {
+        CamundaError::Api { status: 404, .. } => tracing::warn!(
+            job_key,
+            "failed to apply job action: job not found (already completed, failed or timed out)"
+        ),
+        e if super::retry::is_unknown_outcome(e) => {
+            tracing::warn!(
+                job_key,
+                error = %e,
+                "failed to apply job action: outcome unknown; the job may have completed, \
+                 otherwise it will time out and be re-activated"
+            )
+        }
+        e => tracing::warn!(job_key, error = %e, "failed to apply job action"),
+    }
+}
+
 async fn apply_action(
     client: &CamundaClient,
     job_key: &str,
@@ -1152,6 +1173,129 @@ mod tests {
                 assert_eq!(v, serde_json::json!({ "ok": true }));
             }
             _ => panic!("expected Complete with variables"),
+        }
+    }
+
+    /// Serve REST requests on a local port, answering every request with `status` (an empty
+    /// body for 204, a problem detail otherwise) and reporting its request line and body.
+    /// Retries use a 1 ms backoff.
+    async fn recording_rest_server_with_status(
+        status: u16,
+    ) -> (
+        CamundaClient,
+        tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
+    ) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            while let Ok((mut sock, _)) = listener.accept().await {
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    let mut tmp = [0u8; 1024];
+                    let header_end = loop {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => {
+                                buf.extend_from_slice(&tmp[..n]);
+                                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                                    break pos + 4;
+                                }
+                            }
+                        }
+                    };
+                    let head = String::from_utf8_lossy(&buf[..header_end]).to_string();
+                    let content_len = head
+                        .lines()
+                        .find_map(|l| {
+                            l.to_ascii_lowercase()
+                                .strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap_or(0))
+                        })
+                        .unwrap_or(0);
+                    while buf.len() < header_end + content_len {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => break,
+                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                        }
+                    }
+                    let request_line = head.lines().next().unwrap_or_default().to_string();
+                    let body = serde_json::from_slice(&buf[header_end..]).unwrap_or(Value::Null);
+                    let _ = tx.send((request_line, body));
+                    let response = if status == 204 {
+                        "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n".to_string()
+                    } else {
+                        let body = format!(r#"{{"title":"X","status":{status}}}"#);
+                        format!(
+                            "HTTP/1.1 {status} X\r\nContent-Type: application/problem+json\r\n\
+                             Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        )
+                    };
+                    let _ = sock.write_all(response.as_bytes()).await;
+                });
+            }
+        });
+        // Pin auth off: overrides beat the environment, so OAuth configured in the
+        // developer's shell cannot send this client to a real token endpoint first.
+        let client = CamundaClient::new(
+            super::super::client::CamundaOptions::new()
+                .with("CAMUNDA_REST_ADDRESS", format!("http://{addr}"))
+                .with("CAMUNDA_AUTH_STRATEGY", "NONE")
+                .with("CAMUNDA_FALCON", "false")
+                .with("CAMUNDA_SDK_HTTP_RETRY_BASE_DELAY_MS", "1")
+                .with("CAMUNDA_SDK_HTTP_RETRY_MAX_DELAY_MS", "1"),
+        )
+        .expect("client should build from an address alone");
+        (client, rx)
+    }
+
+    /// Drain every request line the recording server has reported so far.
+    fn drain_lines(rx: &mut tokio::sync::mpsc::UnboundedReceiver<(String, Value)>) -> Vec<String> {
+        let mut lines = Vec::new();
+        while let Ok((line, _)) = rx.try_recv() {
+            lines.push(line);
+        }
+        lines
+    }
+
+    /// Issue #218: a 504 on a completion means the outcome is unknown (the command may
+    /// have been applied), so it is sent exactly once and the worker sends no `failJob`.
+    #[tokio::test]
+    async fn a_gateway_timeout_on_completion_is_sent_once_and_not_failed() {
+        for status in [504, 502, 500] {
+            let (client, mut rest) = recording_rest_server_with_status(status).await;
+            let err = apply_action(&client, "7", None, JobAction::complete())
+                .await
+                .expect_err("the completion failed");
+            log_job_command_failure("7", &err);
+            let lines = drain_lines(&mut rest);
+            assert_eq!(lines.len(), 1, "{status}: {lines:?}");
+            assert!(lines[0].contains("/jobs/7/completion"), "{lines:?}");
+            assert!(!lines.iter().any(|l| l.contains("/failure")), "{lines:?}");
+        }
+    }
+
+    /// Issue #218: 429 and 503 mean the command was not applied, so it is retried.
+    #[tokio::test]
+    async fn a_not_applied_job_command_is_retried() {
+        for status in [429, 503] {
+            let (client, mut rest) = recording_rest_server_with_status(status).await;
+            apply_action(&client, "7", None, JobAction::complete())
+                .await
+                .expect_err("the completion failed");
+            let lines = drain_lines(&mut rest);
+            assert_eq!(
+                lines.len(),
+                client.config().retry.max_attempts as usize,
+                "{status}: {lines:?}"
+            );
+            assert!(
+                lines.iter().all(|l| l.contains("/jobs/7/completion")),
+                "{lines:?}"
+            );
         }
     }
 
@@ -2149,6 +2293,68 @@ mod tests {
                 "the worker to shut down cleanly after rejected completions",
             )
             .await;
+        }
+
+        /// Issue #218: a 504 on a completion is an unknown outcome. The worker sends the
+        /// completion exactly once, never follows it with a `failJob`, logs the
+        /// unknown-outcome warning, and releases the slot so later jobs are still served.
+        #[tokio::test]
+        async fn an_unknown_completion_outcome_releases_the_slot_without_failing_the_job() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "504 Gateway Timeout",
+                activations_before_error: None,
+                recover_at: None,
+                fail_activations: None,
+                empty_activations: &[],
+            })
+            .await;
+            let client = stub.client();
+
+            let logs = Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+            let _log_guard = tracing::subscriber::set_default(
+                tracing_subscriber::fmt()
+                    .with_ansi(false)
+                    .with_max_level(tracing::Level::WARN)
+                    .with_writer({
+                        let logs = logs.clone();
+                        move || LogSink(logs.clone())
+                    })
+                    .finish(),
+            );
+
+            // One slot: serving job 3 requires the slots of jobs 1 and 2 to be released.
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(1));
+            let handle = worker.spawn(|_job| async { JobAction::complete() });
+
+            wait_for(client.clock(), "three completions through one slot", || {
+                stub.completions() >= 3
+            })
+            .await;
+            handle.stop();
+            shutdown_within(handle, "the worker to shut down after unknown outcomes").await;
+
+            let follow_ups = stub.follow_ups.lock().unwrap().clone();
+            for key in 1..=3 {
+                let completion = format!("/jobs/{key}/completion");
+                assert_eq!(
+                    follow_ups
+                        .iter()
+                        .filter(|l| l.contains(&completion))
+                        .count(),
+                    1,
+                    "job {key} must be completed exactly once: {follow_ups:?}"
+                );
+            }
+            assert!(
+                follow_ups.iter().all(|l| l.contains("/completion")),
+                "no failure or error may follow an unknown outcome: {follow_ups:?}"
+            );
+            let captured = String::from_utf8_lossy(&logs.lock().unwrap()).into_owned();
+            assert!(
+                captured.contains("outcome unknown"),
+                "the unknown outcome must be reported; captured log:\n{captured}"
+            );
         }
 
         /// Issue #200: a poll failure must not end the worker. It backs off and keeps
