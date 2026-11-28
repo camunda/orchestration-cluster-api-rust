@@ -3178,6 +3178,68 @@ mod tests {
             .await;
         }
 
+        /// Issue #218: a 504 on a completion is an unknown outcome. The worker sends the
+        /// completion exactly once, never follows it with a `failJob`, logs the
+        /// unknown-outcome warning, and releases the slot so later jobs are still served.
+        #[tokio::test]
+        async fn an_unknown_completion_outcome_releases_the_slot_without_failing_the_job() {
+            let stub = JobStub::start(StubBehaviour {
+                completion_status: "504 Gateway Timeout",
+                activations_before_error: None,
+                recover_at: None,
+                fail_activations: None,
+                empty_activations: &[],
+            })
+            .await;
+            let client = stub.client();
+
+            let logs = Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+            let _log_guard = tracing::subscriber::set_default(
+                tracing_subscriber::fmt()
+                    .with_ansi(false)
+                    .with_max_level(tracing::Level::WARN)
+                    .with_writer({
+                        let logs = logs.clone();
+                        move || LogSink(logs.clone())
+                    })
+                    .finish(),
+            );
+
+            // One slot: serving job 3 requires the slots of jobs 1 and 2 to be released.
+            let worker =
+                client.create_job_worker(JobWorkerConfig::new("test-type").max_jobs_to_activate(1));
+            let handle = worker.spawn(|_job| async { JobAction::complete() });
+
+            wait_for(client.clock(), "three completions through one slot", || {
+                stub.completions() >= 3
+            })
+            .await;
+            handle.stop();
+            shutdown_within(handle, "the worker to shut down after unknown outcomes").await;
+
+            let follow_ups = stub.follow_ups.lock().unwrap().clone();
+            for key in 1..=3 {
+                let completion = format!("/jobs/{key}/completion");
+                assert_eq!(
+                    follow_ups
+                        .iter()
+                        .filter(|l| l.contains(&completion))
+                        .count(),
+                    1,
+                    "job {key} must be completed exactly once: {follow_ups:?}"
+                );
+            }
+            assert!(
+                follow_ups.iter().all(|l| l.contains("/completion")),
+                "no failure or error may follow an unknown outcome: {follow_ups:?}"
+            );
+            let captured = String::from_utf8_lossy(&logs.lock().unwrap()).into_owned();
+            assert!(
+                captured.contains("outcome unknown"),
+                "the unknown outcome must be reported; captured log:\n{captured}"
+            );
+        }
+
         /// Issue #200: a poll failure must not end the worker. It backs off and keeps
         /// polling, and dispatches jobs again once the gateway recovers.
         #[tokio::test]
