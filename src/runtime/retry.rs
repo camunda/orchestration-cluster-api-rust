@@ -276,8 +276,14 @@ mod tests {
                     }
                     seen.fetch_add(1, Ordering::SeqCst);
                     if hold {
-                        // Keep the socket open until the client gives up.
-                        let _ = sock.read(&mut tmp).await;
+                        // Keep the socket open until the client gives up: drain any
+                        // remaining request bytes (e.g. a separately sent body) until
+                        // EOF or an error, so fragmentation cannot close it early.
+                        while let Ok(n) = sock.read(&mut tmp).await {
+                            if n == 0 {
+                                break;
+                            }
+                        }
                     }
                 });
             }
