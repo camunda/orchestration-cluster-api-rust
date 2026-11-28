@@ -24,6 +24,30 @@ pub(crate) fn is_retryable(err: &CamundaError) -> bool {
     }
 }
 
+/// Whether a failed **job command** (`completeJob`, `failJob`, `throwJobError`) may be
+/// retried. Job commands are not idempotent: a retry after the command was applied but its
+/// response lost gets a 404. So they are retried only when the server says the command was
+/// **not applied** -- HTTP 429 or 503 -- or the connection failed before the request was
+/// sent (connect refused, DNS, TLS handshake). Never on 504, 502, 500, a read timeout or a
+/// connection reset after sending, where the outcome is unknown.
+pub(crate) fn is_job_command_retryable(err: &CamundaError) -> bool {
+    match err {
+        CamundaError::Network(e) => e.is_connect(),
+        CamundaError::Api { status, .. } => matches!(status, 429 | 503),
+        _ => false,
+    }
+}
+
+/// Whether a failed job command's outcome is unknown: the server (or the network) failed
+/// after the request may have reached the broker, so the command may have been applied.
+pub(crate) fn is_unknown_outcome(err: &CamundaError) -> bool {
+    match err {
+        CamundaError::Network(e) => !e.is_connect(),
+        CamundaError::Api { status, .. } => *status >= 500 && *status != 503,
+        _ => false,
+    }
+}
+
 /// Compute the backoff delay for a given (zero-based) attempt using full jitter:
 /// `delay = random(0, min(max_delay, base * 2^attempt))`.
 fn backoff_delay(cfg: &RetryConfig, attempt: u32, random: &dyn Random) -> Duration {
@@ -40,6 +64,21 @@ pub(crate) async fn with_retry<T, F, Fut>(
     cfg: &RetryConfig,
     clock: &dyn Clock,
     random: &dyn Random,
+    op: F,
+) -> Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    with_retry_if(cfg, clock, random, is_retryable, op).await
+}
+
+/// [`with_retry`] with a custom retry predicate (e.g. [`is_job_command_retryable`]).
+pub(crate) async fn with_retry_if<T, F, Fut>(
+    cfg: &RetryConfig,
+    clock: &dyn Clock,
+    random: &dyn Random,
+    retryable: fn(&CamundaError) -> bool,
     mut op: F,
 ) -> Result<T>
 where
@@ -53,7 +92,7 @@ where
             Ok(value) => return Ok(value),
             Err(err) => {
                 attempt += 1;
-                if attempt >= max_attempts || !is_retryable(&err) {
+                if attempt >= max_attempts || !retryable(&err) {
                     return Err(err);
                 }
                 let delay = backoff_delay(cfg, attempt - 1, random);
@@ -132,6 +171,166 @@ mod tests {
             body: None
         }));
         assert!(!is_retryable(&CamundaError::Validation("x".into())));
+    }
+
+    #[test]
+    fn job_commands_retry_only_when_not_applied() {
+        for status in [429, 503] {
+            let e = CamundaError::Api { status, body: None };
+            assert!(is_job_command_retryable(&e), "{status}");
+            assert!(!is_unknown_outcome(&e), "{status}");
+        }
+        for status in [500, 502, 504] {
+            let e = CamundaError::Api { status, body: None };
+            assert!(!is_job_command_retryable(&e), "{status}");
+            assert!(is_unknown_outcome(&e), "{status}");
+        }
+        for status in [400, 404, 409] {
+            let e = CamundaError::Api { status, body: None };
+            assert!(!is_job_command_retryable(&e), "{status}");
+            assert!(!is_unknown_outcome(&e), "{status}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_job_command_504_is_attempted_once() {
+        let calls = AtomicU32::new(0);
+        let result: Result<u32> = with_retry_if(
+            &cfg(),
+            LIVE.as_ref(),
+            &Fixed(0.5),
+            is_job_command_retryable,
+            || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                async { Err(gateway_timeout(Some("DEADLINE_EXCEEDED"))) }
+            },
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    /// Run one job command attempt over real transport against `url`, counting attempts,
+    /// under the job-command retry predicate. `timeout` bounds each request.
+    async fn post_job_command(url: &str, timeout: Duration, calls: &AtomicU32) -> Result<()> {
+        let http = reqwest::Client::builder().timeout(timeout).build().unwrap();
+        with_retry_if(
+            &cfg(),
+            LIVE.as_ref(),
+            &Fixed(0.5),
+            is_job_command_retryable,
+            || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                let http = http.clone();
+                async move {
+                    http.post(url).body("{}").send().await?;
+                    Ok(())
+                }
+            },
+        )
+        .await
+    }
+
+    /// A server that accepts each connection, reads the request, then either closes the
+    /// socket without answering (`hold == false`) or holds it open unanswered. Returns its
+    /// URL and the number of requests it received.
+    async fn mute_server(hold: bool) -> (String, std::sync::Arc<AtomicU32>) {
+        use tokio::io::AsyncReadExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!(
+            "http://{}/v2/jobs/7/completion",
+            listener.local_addr().unwrap()
+        );
+        let received = std::sync::Arc::new(AtomicU32::new(0));
+        let seen = received.clone();
+        tokio::spawn(async move {
+            while let Ok((mut sock, _)) = listener.accept().await {
+                let seen = seen.clone();
+                tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    let mut tmp = [0u8; 1024];
+                    while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                        match sock.read(&mut tmp).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                        }
+                    }
+                    seen.fetch_add(1, Ordering::SeqCst);
+                    if hold {
+                        // Keep the socket open until the client gives up: drain any
+                        // remaining request bytes (e.g. a separately sent body) until
+                        // EOF or an error, so fragmentation cannot close it early.
+                        while let Ok(n) = sock.read(&mut tmp).await {
+                            if n == 0 {
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        (url, received)
+    }
+
+    /// Issue #218: a refused connection never reached the server, so the job command is
+    /// retried up to `max_attempts`.
+    #[tokio::test]
+    async fn a_refused_connection_is_retried_up_to_max_attempts() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let calls = AtomicU32::new(0);
+        let err = post_job_command(
+            &format!("http://{addr}/v2/jobs/7/completion"),
+            Duration::from_secs(5),
+            &calls,
+        )
+        .await
+        .expect_err("nothing is listening");
+        assert!(
+            matches!(&err, CamundaError::Network(e) if e.is_connect()),
+            "{err:?}"
+        );
+        assert!(!is_unknown_outcome(&err));
+        assert_eq!(calls.load(Ordering::SeqCst), cfg().max_attempts);
+    }
+
+    /// Issue #218: the server read the command, then closed without answering. The command
+    /// may have been applied, so it is sent exactly once and classed as an unknown outcome.
+    #[tokio::test]
+    async fn a_connection_closed_after_sending_is_not_retried() {
+        let (url, received) = mute_server(false).await;
+        let calls = AtomicU32::new(0);
+        let err = post_job_command(&url, Duration::from_secs(5), &calls)
+            .await
+            .expect_err("the server closed without answering");
+        assert!(is_unknown_outcome(&err), "{err:?}");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(received.load(Ordering::SeqCst), 1);
+    }
+
+    /// Issue #218: a read timeout after sending is an unknown outcome: sent exactly once.
+    #[tokio::test]
+    async fn a_read_timeout_after_sending_is_not_retried() {
+        let (url, received) = mute_server(true).await;
+        let calls = AtomicU32::new(0);
+        let err = post_job_command(&url, Duration::from_millis(200), &calls)
+            .await
+            .expect_err("the server never answers");
+        assert!(
+            matches!(&err, CamundaError::Network(e) if e.is_timeout()),
+            "{err:?}"
+        );
+        assert!(is_unknown_outcome(&err), "{err:?}");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(received.load(Ordering::SeqCst), 1);
+    }
+
+    fn gateway_timeout(title: Option<&str>) -> CamundaError {
+        CamundaError::Api {
+            status: 504,
+            body: title.map(|t| format!(r#"{{"type":"about:blank","title":"{t}","status":504}}"#)),
+        }
     }
 
     #[tokio::test]

@@ -230,8 +230,11 @@ impl LogLevel {
 
 /// Transient-error HTTP retry policy (`CAMUNDA_SDK_HTTP_RETRY_*`).
 ///
-/// Initiating operations that fail with a retryable signal (HTTP 429/503, or a network
-/// error) are retried with exponential backoff and full jitter.
+/// Initiating operations that fail with a retryable signal (HTTP 429/502/503/504, or a
+/// network error) are retried with exponential backoff and full jitter. Job commands
+/// (complete / fail / throw error) use the same backoff but retry only 429/503 and
+/// connection failures before sending, since a retry after an unknown outcome could hit a
+/// 404 for a job that was actually completed.
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     /// Maximum number of attempts (1 disables retries).
