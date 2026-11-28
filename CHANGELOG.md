@@ -1,3 +1,10 @@
+# [11.0.0-alpha.9](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.8...v11.0.0-alpha.9) (2026-11-28)
+
+
+### Bug Fixes
+
+* retry job commands only when not applied (429/503) ([#219](https://github.com/camunda/orchestration-cluster-api-rust/issues/219)) ([9900e5f](https://github.com/camunda/orchestration-cluster-api-rust/commit/9900e5f72342f5055b8f7ee23fb540f4a21b81c0)), closes [#218](https://github.com/camunda/orchestration-cluster-api-rust/issues/218)
+
 # [11.0.0-alpha.8](https://github.com/camunda/orchestration-cluster-api-rust/compare/v11.0.0-alpha.7...v11.0.0-alpha.8) (2026-11-25)
 
 
