@@ -64,7 +64,7 @@ async fn search_element_instance_incidents(
     let result = client
         .search_element_instance_incidents(SearchElementInstanceIncidentsParams {
             element_instance_key,
-            incident_search_query: IncidentSearchQuery::default(),
+            incident_search_query: Some(IncidentSearchQuery::default()),
         })
         .await?;
     for item in result.items {

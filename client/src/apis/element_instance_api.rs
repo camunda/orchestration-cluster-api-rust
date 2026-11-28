@@ -33,7 +33,7 @@ pub struct GetElementInstanceParams {
 pub struct SearchElementInstanceIncidentsParams {
     /// The unique key of the element instance to search incidents for.
     pub element_instance_key: String,
-    pub incident_search_query: models::IncidentSearchQuery,
+    pub incident_search_query: Option<models::IncidentSearchQuery>,
 }
 
 /// struct for passing parameters to the method [`search_element_instance_wait_states`]
@@ -309,7 +309,9 @@ pub async fn search_element_instance_incidents(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&params.incident_search_query);
+    if let Some(ref body) = params.incident_search_query {
+        req_builder = req_builder.json(body);
+    }
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;
