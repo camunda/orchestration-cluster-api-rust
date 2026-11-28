@@ -86,7 +86,7 @@ Search for incidents caused by the specified element instance, including inciden
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **element_instance_key** | **ElementInstanceKey** | The unique key of the element instance to search incidents for. | [required] |
-**incident_search_query** | [**IncidentSearchQuery**](IncidentSearchQuery.md) |  | [required] |
+**incident_search_query** | Option<[**IncidentSearchQuery**](IncidentSearchQuery.md)> |  |  |
 
 ### Return type
 
