@@ -43,6 +43,30 @@ pub(crate) fn is_retryable(err: &CamundaError) -> bool {
     }
 }
 
+/// Whether a failed **job command** (`completeJob`, `failJob`, `throwJobError`) may be
+/// retried. Job commands are not idempotent: a retry after the command was applied but its
+/// response lost gets a 404. So they are retried only when the server says the command was
+/// **not applied** -- HTTP 429 or 503 -- or the connection failed before the request was
+/// sent (connect refused, DNS, TLS handshake). Never on 504, 502, 500, a read timeout or a
+/// connection reset after sending, where the outcome is unknown.
+pub(crate) fn is_job_command_retryable(err: &CamundaError) -> bool {
+    match err {
+        CamundaError::Network(e) => e.is_connect(),
+        CamundaError::Api { status, .. } => matches!(status, 429 | 503),
+        _ => false,
+    }
+}
+
+/// Whether a failed job command's outcome is unknown: the server (or the network) failed
+/// after the request may have reached the broker, so the command may have been applied.
+pub(crate) fn is_unknown_outcome(err: &CamundaError) -> bool {
+    match err {
+        CamundaError::Network(e) => !e.is_connect(),
+        CamundaError::Api { status, .. } => *status >= 500 && *status != 503,
+        _ => false,
+    }
+}
+
 /// Compute the backoff delay for a given (zero-based) attempt using full jitter:
 /// `delay = random(0, min(max_delay, base * 2^attempt))`.
 fn backoff_delay(cfg: &RetryConfig, attempt: u32, random: &dyn Random) -> Duration {
@@ -59,6 +83,21 @@ pub(crate) async fn with_retry<T, F, Fut>(
     cfg: &RetryConfig,
     clock: &dyn Clock,
     random: &dyn Random,
+    op: F,
+) -> Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    with_retry_if(cfg, clock, random, is_retryable, op).await
+}
+
+/// [`with_retry`] with a custom retry predicate (e.g. [`is_job_command_retryable`]).
+pub(crate) async fn with_retry_if<T, F, Fut>(
+    cfg: &RetryConfig,
+    clock: &dyn Clock,
+    random: &dyn Random,
+    retryable: fn(&CamundaError) -> bool,
     mut op: F,
 ) -> Result<T>
 where
@@ -72,7 +111,7 @@ where
             Ok(value) => return Ok(value),
             Err(err) => {
                 attempt += 1;
-                if attempt >= max_attempts || !is_retryable(&err) {
+                if attempt >= max_attempts || !retryable(&err) {
                     return Err(err);
                 }
                 let delay = backoff_delay(cfg, attempt - 1, random);
@@ -151,6 +190,43 @@ mod tests {
             body: None
         }));
         assert!(!is_retryable(&CamundaError::Validation("x".into())));
+    }
+
+    #[test]
+    fn job_commands_retry_only_when_not_applied() {
+        for status in [429, 503] {
+            let e = CamundaError::Api { status, body: None };
+            assert!(is_job_command_retryable(&e), "{status}");
+            assert!(!is_unknown_outcome(&e), "{status}");
+        }
+        for status in [500, 502, 504] {
+            let e = CamundaError::Api { status, body: None };
+            assert!(!is_job_command_retryable(&e), "{status}");
+            assert!(is_unknown_outcome(&e), "{status}");
+        }
+        for status in [400, 404, 409] {
+            let e = CamundaError::Api { status, body: None };
+            assert!(!is_job_command_retryable(&e), "{status}");
+            assert!(!is_unknown_outcome(&e), "{status}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_job_command_504_is_attempted_once() {
+        let calls = AtomicU32::new(0);
+        let result: Result<u32> = with_retry_if(
+            &cfg(),
+            LIVE.as_ref(),
+            &Fixed(0.5),
+            is_job_command_retryable,
+            || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                async { Err(gateway_timeout(Some("DEADLINE_EXCEEDED"))) }
+            },
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
     fn gateway_timeout(title: Option<&str>) -> CamundaError {

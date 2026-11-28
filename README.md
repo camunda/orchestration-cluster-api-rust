@@ -199,6 +199,15 @@ The runtime mirrors the JS/Python/C# SDKs:
 - **Transient HTTP retry** — initiating operations retry `429`/`502`/`503`/`504` and network
   errors with full-jitter backoff (`CAMUNDA_SDK_HTTP_RETRY_*`). Drain operations are never
   retried blindly.
+- **Job commands retry only when not applied** — `complete_job`, `fail_job` and
+  `throw_job_error` are not idempotent: a retry after the command was applied but its
+  response lost gets `404 Job not found`. They are retried (same backoff) only on `429`,
+  `503`, or a connection failure *before* the request was sent (connect refused, DNS, TLS).
+  A `504`, `502`, `500`, read timeout or connection reset means the outcome is unknown: the
+  command is sent once, the worker logs a warning ("outcome unknown; the job may have
+  completed, otherwise it will time out and be re-activated"), sends no follow-up `failJob`
+  and frees the slot. A `404` on a job command is logged at warn level as "job not found
+  (already completed, failed or timed out)".
 - **Eventual-consistency polling** — `client.eventual(opts, op)` / `eventual_until(opts, op,
   predicate)` retry `404` reads (the symptom of replication lag) until consistent or the
   window elapses.

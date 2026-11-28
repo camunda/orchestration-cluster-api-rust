@@ -227,6 +227,26 @@ impl CamundaClient {
         result
     }
 
+    /// Run a job command (complete / fail / throw error). Like other drain operations it
+    /// bypasses the backpressure gate. Job commands are not idempotent, so they are retried
+    /// only when the command was certainly not applied (429, 503, or a connection failure
+    /// before sending); a 504, other 5xx or post-send network error is attempted once, as
+    /// its outcome is unknown. See [`retry::is_job_command_retryable`].
+    pub(crate) async fn job_command<F, Fut>(&self, op: F) -> Result<()>
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = Result<()>>,
+    {
+        retry::with_retry_if(
+            &self.config.retry,
+            self.clock.as_ref(),
+            self.random.as_ref(),
+            retry::is_job_command_retryable,
+            op,
+        )
+        .await
+    }
+
     /// Build a generated-client [`Configuration`] with the base URL set and the current
     /// authentication applied (refreshing the OAuth token if needed).
     ///
@@ -846,12 +866,18 @@ impl CamundaClient {
         job_key: &str,
         request: Option<models::JobCompletionRequest>,
     ) -> Result<()> {
-        let cfg = self.configuration().await?;
-        let params = job_api::CompleteJobParams {
-            job_key: job_key.to_string(),
-            job_completion_request: request,
-        };
-        Ok(job_api::complete_job(&cfg, params).await?)
+        self.job_command(|| {
+            let request = request.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                let params = job_api::CompleteJobParams {
+                    job_key: job_key.to_string(),
+                    job_completion_request: request,
+                };
+                Ok(job_api::complete_job(&cfg, params).await?)
+            }
+        })
+        .await
     }
 
     /// Fail a job, decrementing retries.
@@ -860,12 +886,18 @@ impl CamundaClient {
         job_key: &str,
         request: Option<models::JobFailRequest>,
     ) -> Result<()> {
-        let cfg = self.configuration().await?;
-        let params = job_api::FailJobParams {
-            job_key: job_key.to_string(),
-            job_fail_request: request,
-        };
-        Ok(job_api::fail_job(&cfg, params).await?)
+        self.job_command(|| {
+            let request = request.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                let params = job_api::FailJobParams {
+                    job_key: job_key.to_string(),
+                    job_fail_request: request,
+                };
+                Ok(job_api::fail_job(&cfg, params).await?)
+            }
+        })
+        .await
     }
 
     /// Throw a BPMN error from a job.
@@ -874,12 +906,18 @@ impl CamundaClient {
         job_key: &str,
         request: models::JobErrorRequest,
     ) -> Result<()> {
-        let cfg = self.configuration().await?;
-        let params = job_api::ThrowJobErrorParams {
-            job_key: job_key.to_string(),
-            job_error_request: request,
-        };
-        Ok(job_api::throw_job_error(&cfg, params).await?)
+        self.job_command(|| {
+            let request = request.clone();
+            async move {
+                let cfg = self.configuration().await?;
+                let params = job_api::ThrowJobErrorParams {
+                    job_key: job_key.to_string(),
+                    job_error_request: request,
+                };
+                Ok(job_api::throw_job_error(&cfg, params).await?)
+            }
+        })
+        .await
     }
 
     // --- Probe operations ---------------------------------------------------

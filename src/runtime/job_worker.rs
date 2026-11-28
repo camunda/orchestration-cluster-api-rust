@@ -924,7 +924,7 @@ impl JobWorker {
                     if let Err(e) =
                         apply_action(&client, &key, lease_token.as_deref(), action).await
                     {
-                        tracing::warn!(error = %e, "failed to apply job action");
+                        log_job_command_failure(&key, &e);
                     }
                 });
             }
@@ -1120,6 +1120,27 @@ fn value_to_obj(value: Value) -> Option<serde_json::Map<String, Value>> {
     match value {
         Value::Object(map) => Some(map),
         _ => None,
+    }
+}
+
+/// Log a failed job command. No follow-up `failJob` is ever sent: a 404 means the job is
+/// already gone, and an unknown outcome (504, 5xx, a post-send network error) may mean the
+/// command was applied; if it was not, the job timeout re-activates the job.
+fn log_job_command_failure(job_key: &str, err: &CamundaError) {
+    match err {
+        CamundaError::Api { status: 404, .. } => tracing::warn!(
+            job_key,
+            "failed to apply job action: job not found (already completed, failed or timed out)"
+        ),
+        e if super::retry::is_unknown_outcome(e) => {
+            tracing::warn!(
+                job_key,
+                error = %e,
+                "failed to apply job action: outcome unknown; the job may have completed, \
+                 otherwise it will time out and be re-activated"
+            )
+        }
+        e => tracing::warn!(job_key, error = %e, "failed to apply job action"),
     }
 }
 
@@ -1593,6 +1614,17 @@ mod tests {
         CamundaClient,
         tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
     ) {
+        recording_rest_server_with_status(204).await
+    }
+
+    /// As [`recording_rest_server`], but answering every request with `status` (an empty
+    /// body for 204, a problem detail otherwise). Retries use a 1 ms backoff.
+    async fn recording_rest_server_with_status(
+        status: u16,
+    ) -> (
+        CamundaClient,
+        tokio::sync::mpsc::UnboundedReceiver<(String, Value)>,
+    ) {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -1632,9 +1664,17 @@ mod tests {
                     let request_line = head.lines().next().unwrap_or_default().to_string();
                     let body = serde_json::from_slice(&buf[header_end..]).unwrap_or(Value::Null);
                     let _ = tx.send((request_line, body));
-                    let _ = sock
-                        .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
-                        .await;
+                    let response = if status == 204 {
+                        "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n".to_string()
+                    } else {
+                        let body = format!(r#"{{"title":"X","status":{status}}}"#);
+                        format!(
+                            "HTTP/1.1 {status} X\r\nContent-Type: application/problem+json\r\n\
+                             Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        )
+                    };
+                    let _ = sock.write_all(response.as_bytes()).await;
                 });
             }
         });
@@ -1644,7 +1684,9 @@ mod tests {
             super::super::client::CamundaOptions::new()
                 .with("CAMUNDA_REST_ADDRESS", format!("http://{addr}"))
                 .with("CAMUNDA_AUTH_STRATEGY", "NONE")
-                .with("CAMUNDA_FALCON", "false"),
+                .with("CAMUNDA_FALCON", "false")
+                .with("CAMUNDA_SDK_HTTP_RETRY_BASE_DELAY_MS", "1")
+                .with("CAMUNDA_SDK_HTTP_RETRY_MAX_DELAY_MS", "1"),
         )
         .expect("client should build from an address alone");
         (client, rx)
@@ -1734,6 +1776,53 @@ mod tests {
             "{frame}"
         );
         assert!(rest.try_recv().is_err());
+    }
+
+    /// Drain every request line the recording server has reported so far.
+    fn drain_lines(rx: &mut tokio::sync::mpsc::UnboundedReceiver<(String, Value)>) -> Vec<String> {
+        let mut lines = Vec::new();
+        while let Ok((line, _)) = rx.try_recv() {
+            lines.push(line);
+        }
+        lines
+    }
+
+    /// Issue #218: a 504 on a completion means the outcome is unknown (the command may
+    /// have been applied), so it is sent exactly once and the worker sends no `failJob`.
+    #[tokio::test]
+    async fn a_gateway_timeout_on_completion_is_sent_once_and_not_failed() {
+        for status in [504, 502, 500] {
+            let (client, mut rest) = recording_rest_server_with_status(status).await;
+            let err = apply_action(&client, "7", None, JobAction::complete())
+                .await
+                .expect_err("the completion failed");
+            log_job_command_failure("7", &err);
+            let lines = drain_lines(&mut rest);
+            assert_eq!(lines.len(), 1, "{status}: {lines:?}");
+            assert!(lines[0].contains("/jobs/7/completion"), "{lines:?}");
+            assert!(!lines.iter().any(|l| l.contains("/failure")), "{lines:?}");
+        }
+    }
+
+    /// Issue #218: 429 and 503 mean the command was not applied, so it is retried.
+    #[tokio::test]
+    async fn a_not_applied_job_command_is_retried() {
+        for status in [429, 503] {
+            let (client, mut rest) = recording_rest_server_with_status(status).await;
+            apply_action(&client, "7", None, JobAction::complete())
+                .await
+                .expect_err("the completion failed");
+            let lines = drain_lines(&mut rest);
+            assert_eq!(
+                lines.len(),
+                client.config().retry.max_attempts as usize,
+                "{status}: {lines:?}"
+            );
+            assert!(
+                lines.iter().all(|l| l.contains("/jobs/7/completion")),
+                "{lines:?}"
+            );
+        }
     }
 
     /// Await `fut`, failing the test rather than hanging if it does not finish in time.
